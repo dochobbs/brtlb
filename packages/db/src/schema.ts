@@ -1,3 +1,5 @@
+export const SCHEMA_VERSION = 1;
+
 export interface TableDef {
   name: string;
   createSql: string;
