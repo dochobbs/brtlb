@@ -46,3 +46,58 @@ select {
     min-height: 40px;
   }
 }
+
+/* Lightweight prose styles for the markdown preview panel. We don't pull in
+   the @tailwindcss/typography plugin to keep the bundle small. */
+.prose {
+  line-height: 1.6;
+}
+.prose h1,
+.prose h2,
+.prose h3,
+.prose h4 {
+  font-weight: 600;
+  margin-top: 1.2em;
+  margin-bottom: 0.4em;
+  line-height: 1.25;
+}
+.prose h1 {
+  font-size: 1.4em;
+}
+.prose h2 {
+  font-size: 1.2em;
+}
+.prose h3 {
+  font-size: 1.05em;
+}
+.prose p {
+  margin: 0.6em 0;
+}
+.prose ul,
+.prose ol {
+  padding-left: 1.4em;
+  margin: 0.6em 0;
+}
+.prose li {
+  margin: 0.2em 0;
+}
+.prose code {
+  background: var(--brtlb-mist);
+  padding: 0.1em 0.35em;
+  border-radius: 4px;
+  font-size: 0.9em;
+}
+.prose blockquote {
+  border-left: 3px solid var(--brtlb-graphite-soft);
+  margin: 0.6em 0;
+  padding-left: 1em;
+  color: var(--brtlb-graphite-soft);
+}
+.prose hr {
+  border: 0;
+  border-top: 1px solid rgba(31, 35, 40, 0.12);
+  margin: 1em 0;
+}
+.prose strong {
+  font-weight: 600;
+}

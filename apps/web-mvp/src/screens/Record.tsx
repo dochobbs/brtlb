@@ -20,6 +20,7 @@ export function Record() {
   const { setView, selectRecording } = useAppStore();
   const { state, elapsedMs, level, error, start, pause, resume, stop } = useRecorder();
   const [mode, setMode] = useState<'ambient' | 'dictation'>('ambient');
+  const [label, setLabel] = useState<string>('');
   const [saving, setSaving] = useState(false);
 
   async function handleStop(): Promise<void> {
@@ -42,6 +43,7 @@ export function Record() {
       templateId: 'soap',
       patternId: 'narrative',
       providerUsed: null,
+      label: label.trim() || null,
     };
     await putAudio(id, blob);
     await putRecording(meta);
@@ -67,9 +69,18 @@ export function Record() {
       </button>
 
       {state === 'idle' && !error ? (
-        <div className="max-w-md space-y-6">
+        <div className="w-full max-w-md space-y-5">
           <DotsMark size={64} />
           <h1 className="text-2xl font-semibold text-graphite">Ready to record</h1>
+          <input
+            type="text"
+            value={label}
+            onChange={(e) => setLabel(e.target.value)}
+            placeholder="Visit label (optional, e.g. MM age 4 WCV)"
+            className="w-full rounded-md border border-graphite-soft/30 bg-white px-3 py-2 text-sm text-graphite placeholder:text-graphite-soft/60 focus:border-graphite focus:outline-none focus:ring-1 focus:ring-graphite"
+            autoComplete="off"
+            spellCheck={false}
+          />
           <div className="inline-flex rounded-md border border-graphite-soft/30 p-0.5">
             {(['ambient', 'dictation'] as const).map((m) => (
               <button
