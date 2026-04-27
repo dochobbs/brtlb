@@ -1,3 +1,10 @@
+# KNOWN ISSUE (deferred to Phase 10): the `files` array below references
+# ../../apps/web/dist which is outside the app directory. electron-builder
+# treats `files` as relative to the app root and may not include external
+# files reliably. The correct fix is to use `extraResources` and update
+# main.ts's resolveWebIndex() to read from process.resourcesPath in
+# packaged builds. The `dev` script (which uses loadFile on the source path)
+# is unaffected.
 appId: com.brtlb.app
 productName: brtlb
 directories:

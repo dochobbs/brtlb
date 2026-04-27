@@ -32,11 +32,17 @@ export interface NotePattern {
   promptModifier: string;
 }
 
+export interface SpeakerRoleAssignment {
+  speakerId: string;
+  role: SpeakerRole;
+}
+
 export interface GenerateNoteInput {
   transcript: Transcript;
   template: NoteTemplate;
   pattern: NotePattern;
   mode: RecordingMode;
+  speakerRoles: SpeakerRoleAssignment[];
 }
 
 export interface LlmProvider {

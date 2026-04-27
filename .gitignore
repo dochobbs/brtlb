@@ -11,6 +11,7 @@ out/
 .turbo/
 .next/
 .vite/
+*.tsbuildinfo
 
 # Native shells
 apps/electron/dist/
