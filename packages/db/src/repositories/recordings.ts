@@ -2,13 +2,24 @@ import type { Database } from '../adapter';
 
 export type RecordingMode = 'ambient' | 'dictation';
 
+export type RecordingStatus =
+  | 'recording'
+  | 'recorded'
+  | 'uploading'
+  | 'transcribing'
+  | 'ready_for_template'
+  | 'generating'
+  | 'ready_for_review'
+  | 'finalized'
+  | 'failed';
+
 export interface RecordingRow {
   id: string;
   createdAt: string;
   durationMs: number;
   audioPath: string;
   mode: RecordingMode;
-  status: string;
+  status: RecordingStatus;
   errorMessage: string | null;
 }
 
@@ -18,7 +29,7 @@ export interface InsertRecording {
   durationMs: number;
   audioPath: string;
   mode: RecordingMode;
-  status: string;
+  status: RecordingStatus;
   errorMessage: string | null;
 }
 
@@ -26,7 +37,7 @@ export interface RecordingsRepo {
   insert(input: InsertRecording): RecordingRow;
   getById(id: string): RecordingRow | null;
   list(opts: { limit: number; offset: number }): RecordingRow[];
-  updateStatus(id: string, status: string, errorMessage?: string | null): number;
+  updateStatus(id: string, status: RecordingStatus, errorMessage?: string | null): number;
   updateDuration(id: string, durationMs: number): number;
   listOlderThan(beforeIso: string): RecordingRow[];
   delete(id: string): number;
@@ -38,7 +49,7 @@ interface Row {
   duration_ms: number;
   audio_path: string;
   mode: RecordingMode;
-  status: string;
+  status: RecordingStatus;
   error_message: string | null;
 }
 

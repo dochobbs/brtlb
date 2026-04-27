@@ -155,4 +155,13 @@ describe('TranscriptsRepo', () => {
     const out = repo.getByRecordingId('rec_1');
     expect(out?.utterances.map((u) => u.text)).toEqual(['first', 'second', 'third']);
   });
+
+  it('rejects an insert with non-existent recording_id (FK violation)', () => {
+    expect(() =>
+      repo.insert({
+        transcript: { id: 't1', recordingId: 'does-not-exist', assemblyAiId: null, rawJson: '{}' },
+        utterances: [],
+      }),
+    ).toThrow();
+  });
 });

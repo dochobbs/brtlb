@@ -48,4 +48,8 @@ describe('SpeakerRolesRepo', () => {
     repo.clearRoles('rec_1');
     expect(repo.getRoles('rec_1')).toEqual([]);
   });
+
+  it('rejects setRole with non-existent recording_id (FK violation)', () => {
+    expect(() => repo.setRole('does-not-exist', 'A', 'parent')).toThrow();
+  });
 });

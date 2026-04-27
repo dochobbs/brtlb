@@ -131,4 +131,34 @@ describe('NotesRepo', () => {
     expect(repo.delete('n1')).toBe(1);
     expect(repo.getById('n1')).toBeNull();
   });
+
+  it('rejects an insert with non-existent recording_id (FK violation)', () => {
+    expect(() =>
+      repo.insert({
+        id: 'n1',
+        recordingId: 'does-not-exist',
+        templateId: 'soap',
+        patternId: 'narrative',
+        providerUsed: 'anthropic',
+        generatedText: 'x',
+        editedText: null,
+        status: 'draft',
+      }),
+    ).toThrow();
+  });
+
+  it('updateEditedText accepts null to clear edits', () => {
+    repo.insert({
+      id: 'n1',
+      recordingId: 'rec_1',
+      templateId: 'soap',
+      patternId: 'narrative',
+      providerUsed: 'anthropic',
+      generatedText: 'auto',
+      editedText: 'first edit',
+      status: 'draft',
+    });
+    expect(repo.updateEditedText('n1', null)).toBe(1);
+    expect(repo.getById('n1')?.editedText).toBeNull();
+  });
 });

@@ -33,7 +33,7 @@ export interface NotesRepo {
   getById(id: string): NoteRow | null;
   getByRecordingId(recordingId: string): NoteRow[];
   updateGeneratedText(id: string, generatedText: string): number;
-  updateEditedText(id: string, editedText: string): number;
+  updateEditedText(id: string, editedText: string | null): number;
   setStatus(id: string, status: NoteStatus): number;
   delete(id: string): number;
 }

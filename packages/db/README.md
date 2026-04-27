@@ -152,15 +152,15 @@ Phase 3 provides the data layer interface and a test implementation via `better-
 
 The `Database` adapter interface defined here is the seam: Phase 3.5 will implement the interface with Capacitor SQLCipher and wire keychain bridges without any changes to repositories or app code.
 
-At that point, the swap will be a one-line change in the factory:
+## Phase 3.5 — sync/async architecture decision
 
-```ts
-// Phase 3: test implementation
-const db = openBetterSqliteDatabase(':memory:');
+The current `Database` interface is synchronous (`prepare(sql).run(...)` returns immediately). `@capacitor-community/sqlite` is async — every method returns a Promise. Phase 3.5 must pick one of:
 
-// Phase 3.5: production implementation (drop-in replacement)
-const db = await openCapacitorSqlCipherDatabase(encryptionKey);
-```
+- **Option A:** Use Capacitor SQLite's synchronous mode (available via `executeSet` and similar; documented as experimental on some Android versions). Lets the current interface stand.
+- **Option B:** Make the `Database` interface async. Touches every repo and every call site, but is the cleanest long-term shape.
+- **Option C:** Keep `better-sqlite3` for Electron desktop and add a separate async Capacitor adapter only for mobile. Two interface variants.
+
+This is a design decision for the Phase 3.5 plan, not a one-line code change.
 
 ## Test Coverage
 

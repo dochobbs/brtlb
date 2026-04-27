@@ -8,6 +8,7 @@ export type {
   RecordingRow,
   InsertRecording,
   RecordingMode,
+  RecordingStatus,
 } from './repositories/recordings';
 export { createTranscriptsRepo } from './repositories/transcripts';
 export type {
