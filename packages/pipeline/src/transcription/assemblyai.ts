@@ -1,5 +1,10 @@
-import { readFile } from 'node:fs/promises';
-import type { TranscribeInput, Transcript, Utterance } from '../types';
+import type {
+  AssemblyAiConfig,
+  RecordingMode,
+  TranscribeInput,
+  Transcript,
+  Utterance,
+} from '../types';
 
 interface AssemblyAiUtterance {
   speaker: string;
@@ -36,19 +41,34 @@ async function expectOk(res: Response, step: string): Promise<void> {
   throw new Error(`AssemblyAI ${step}: ${res.status} ${body}`);
 }
 
-async function uploadAudio(http: typeof fetch, apiKey: string, audioPath: string): Promise<string> {
-  const data = await readFile(audioPath);
+type UploadBody = Blob | ArrayBuffer | Uint8Array | Buffer;
+
+async function uploadAudioBody(
+  http: typeof fetch,
+  apiKey: string,
+  body: UploadBody,
+): Promise<string> {
   const res = await http(`${BASE}/upload`, {
     method: 'POST',
     headers: {
       Authorization: apiKey,
       'Content-Type': 'application/octet-stream',
     },
-    body: data,
+    body: body as BodyInit,
   });
   await expectOk(res, 'upload');
   const json = (await res.json()) as { upload_url: string };
   return json.upload_url;
+}
+
+async function uploadAudioFromPath(
+  http: typeof fetch,
+  apiKey: string,
+  audioPath: string,
+): Promise<string> {
+  const { readFile } = await import('node:fs/promises');
+  const data = await readFile(audioPath);
+  return uploadAudioBody(http, apiKey, data);
 }
 
 async function requestTranscript(
@@ -109,21 +129,32 @@ function toUtterance(u: AssemblyAiUtterance): Utterance {
   };
 }
 
-export async function transcribeWithAssemblyAi(input: TranscribeOptions): Promise<Transcript> {
-  const http = input.httpClient ?? globalThis.fetch;
-  const sleep = input.sleep ?? defaultSleep;
-  const intervalMs = input.pollIntervalMs ?? 3000;
-  const speakerLabels = input.mode === 'ambient';
-
-  const audioUrl = await uploadAudio(http, input.config.apiKey, input.audioPath);
+async function runTranscription(
+  audioUrl: string,
+  options: {
+    http: typeof fetch;
+    apiKey: string;
+    mode: RecordingMode;
+    wordBoost?: string[];
+    intervalMs: number;
+    sleep: (ms: number) => Promise<void>;
+  },
+): Promise<Transcript> {
+  const speakerLabels = options.mode === 'ambient';
   const id = await requestTranscript(
-    http,
-    input.config.apiKey,
+    options.http,
+    options.apiKey,
     audioUrl,
     speakerLabels,
-    input.wordBoost,
+    options.wordBoost,
   );
-  const final = await pollTranscript(http, input.config.apiKey, id, intervalMs, sleep);
+  const final = await pollTranscript(
+    options.http,
+    options.apiKey,
+    id,
+    options.intervalMs,
+    options.sleep,
+  );
 
   return {
     id,
@@ -131,4 +162,48 @@ export async function transcribeWithAssemblyAi(input: TranscribeOptions): Promis
     utterances: (final.utterances ?? []).map(toUtterance),
     createdAt: new Date().toISOString(),
   };
+}
+
+export async function transcribeWithAssemblyAi(input: TranscribeOptions): Promise<Transcript> {
+  const http = input.httpClient ?? globalThis.fetch;
+  const sleep = input.sleep ?? defaultSleep;
+  const intervalMs = input.pollIntervalMs ?? 3000;
+
+  const audioUrl = await uploadAudioFromPath(http, input.config.apiKey, input.audioPath);
+  return runTranscription(audioUrl, {
+    http,
+    apiKey: input.config.apiKey,
+    mode: input.mode,
+    wordBoost: input.wordBoost,
+    intervalMs,
+    sleep,
+  });
+}
+
+export interface TranscribeBlobOptions {
+  audio: UploadBody;
+  mode: RecordingMode;
+  config: AssemblyAiConfig;
+  wordBoost?: string[];
+  httpClient?: typeof fetch;
+  pollIntervalMs?: number;
+  sleep?: (ms: number) => Promise<void>;
+}
+
+export async function transcribeBlobWithAssemblyAi(
+  input: TranscribeBlobOptions,
+): Promise<Transcript> {
+  const http = input.httpClient ?? globalThis.fetch;
+  const sleep = input.sleep ?? defaultSleep;
+  const intervalMs = input.pollIntervalMs ?? 3000;
+
+  const audioUrl = await uploadAudioBody(http, input.config.apiKey, input.audio);
+  return runTranscription(audioUrl, {
+    http,
+    apiKey: input.config.apiKey,
+    mode: input.mode,
+    wordBoost: input.wordBoost,
+    intervalMs,
+    sleep,
+  });
 }

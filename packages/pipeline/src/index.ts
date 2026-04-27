@@ -16,7 +16,8 @@ export function isLlmProvider(value: unknown): value is LlmProvider {
 
 // Uncommented as each Phase 2 task lands:
 export { composeNotePrompt } from './prompts/compose';
-export { transcribeWithAssemblyAi } from './transcription/assemblyai';
+export { transcribeWithAssemblyAi, transcribeBlobWithAssemblyAi } from './transcription/assemblyai';
+export type { TranscribeBlobOptions } from './transcription/assemblyai';
 export { createAnthropicProvider } from './adapters/anthropic';
 export { createOpenAiCompatibleProvider } from './adapters/openai-compatible';
 export { createGeminiVertexProvider } from './adapters/gemini-vertex';
