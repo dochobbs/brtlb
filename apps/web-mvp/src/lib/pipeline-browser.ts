@@ -6,6 +6,7 @@ import {
   transcribeBlobWithAssemblyAi,
   type GenerateNoteInput,
   type LlmProvider,
+  type NoteBookmark,
   type NoteTemplate,
   type RecordingMode,
   type SpeakerRoleAssignment,
@@ -25,6 +26,7 @@ export interface RunMvpPipelineInput {
   templateId?: string;
   patternId?: string;
   speakerRoles?: SpeakerRoleAssignment[];
+  bookmarks?: NoteBookmark[];
 }
 
 export interface RunMvpPipelineOutput {
@@ -130,6 +132,7 @@ export async function runMvpPipeline(input: RunMvpPipelineInput): Promise<RunMvp
     },
     mode: input.mode,
     speakerRoles: input.speakerRoles ?? [],
+    bookmarks: input.bookmarks ?? [],
   };
 
   let note: string;
@@ -151,6 +154,7 @@ export interface RegenerateNoteInput {
   templateId: string;
   patternId?: string;
   speakerRoles?: SpeakerRoleAssignment[];
+  bookmarks?: NoteBookmark[];
 }
 
 export interface RegenerateNoteOutput {
@@ -188,6 +192,7 @@ export async function regenerateNoteFromTranscript(
     },
     mode: input.mode,
     speakerRoles: input.speakerRoles ?? [],
+    bookmarks: input.bookmarks ?? [],
   };
   const note = await provider.generateNote(noteInput);
   return { note, providerUsed: kind };

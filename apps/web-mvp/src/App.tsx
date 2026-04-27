@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { useAppStore } from './store';
-import { purgeStaleAudio } from './lib/db';
+import { purgeStaleAudio, recoverInterruptedRecordings } from './lib/db';
 import { useIdleLock } from './lib/useIdleLock';
 import { Home } from './screens/Home';
 import { Settings } from './screens/Settings';
@@ -30,6 +30,19 @@ export function App() {
         console.warn('brtlb: audio purge failed', err);
       });
   }, [audioPurgeDays]);
+
+  // Recover any recording that was mid-pipeline when the tab last closed.
+  useEffect(() => {
+    recoverInterruptedRecordings()
+      .then((ids) => {
+        if (ids.length > 0) {
+          console.info(`brtlb: recovered ${ids.length} interrupted recording(s)`);
+        }
+      })
+      .catch((err) => {
+        console.warn('brtlb: recovery scan failed', err);
+      });
+  }, []);
 
   if (locked) return <LockScreen />;
 

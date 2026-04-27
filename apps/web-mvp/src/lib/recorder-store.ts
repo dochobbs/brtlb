@@ -3,6 +3,11 @@ import { create } from 'zustand';
 export type RecorderState = 'idle' | 'recording' | 'paused' | 'stopped';
 export type RecordingMode = 'ambient' | 'dictation';
 
+export interface Bookmark {
+  ms: number;
+  label?: string | null;
+}
+
 interface RecorderInternals {
   mediaRecorder: MediaRecorder | null;
   stream: MediaStream | null;
@@ -21,6 +26,7 @@ interface RecorderStore {
   elapsedMs: number;
   level: number;
   error: string | null;
+  bookmarks: Bookmark[];
   // Internals are stored on the store object but never trigger re-renders.
   _internals: RecorderInternals;
   start: (mode?: RecordingMode) => Promise<void>;
@@ -28,6 +34,7 @@ interface RecorderStore {
   resume: () => void;
   stop: () => Promise<Blob | null>;
   reset: () => void;
+  addBookmark: (label?: string) => void;
 }
 
 const ACTIVITY_TICK_MS = 200;
@@ -113,6 +120,7 @@ export const useRecorderStore = create<RecorderStore>((set, get) => {
     elapsedMs: 0,
     level: 0,
     error: null,
+    bookmarks: [],
     _internals: internals,
 
     async start(mode = 'ambient') {
@@ -134,7 +142,7 @@ export const useRecorderStore = create<RecorderStore>((set, get) => {
         };
         recorder.start(1000);
         internals.accumulatedMs = 0;
-        set({ elapsedMs: 0, state: 'recording' });
+        set({ elapsedMs: 0, state: 'recording', bookmarks: [] });
         startTicker();
         startMeter(stream);
       } catch (err) {
@@ -194,7 +202,18 @@ export const useRecorderStore = create<RecorderStore>((set, get) => {
       internals.mediaRecorder = null;
       internals.chunks = [];
       internals.accumulatedMs = 0;
-      set({ state: 'idle', elapsedMs: 0, level: 0, error: null });
+      set({ state: 'idle', elapsedMs: 0, level: 0, error: null, bookmarks: [] });
+    },
+
+    addBookmark(label) {
+      const s = get();
+      if (s.state !== 'recording' && s.state !== 'paused') return;
+      const trimmed = label?.trim();
+      const bookmark: Bookmark = {
+        ms: s.elapsedMs,
+        label: trimmed ? trimmed : null,
+      };
+      set({ bookmarks: [...s.bookmarks, bookmark] });
     },
   };
 });

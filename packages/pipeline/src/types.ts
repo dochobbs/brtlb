@@ -37,12 +37,21 @@ export interface SpeakerRoleAssignment {
   role: SpeakerRole;
 }
 
+export interface NoteBookmark {
+  /** Milliseconds from the start of the recording. */
+  ms: number;
+  /** Optional short label dictated by the physician. */
+  label?: string | null;
+}
+
 export interface GenerateNoteInput {
   transcript: Transcript;
   template: NoteTemplate;
   pattern: NotePattern;
   mode: RecordingMode;
   speakerRoles: SpeakerRoleAssignment[];
+  /** Physician-tapped moments during recording. Surfaced as context for the LLM. */
+  bookmarks?: NoteBookmark[];
 }
 
 export interface LlmProvider {

@@ -23,11 +23,13 @@ export function Record() {
   const level = useRecorderStore((s) => s.level);
   const error = useRecorderStore((s) => s.error);
   const mode = useRecorderStore((s) => s.mode);
+  const bookmarks = useRecorderStore((s) => s.bookmarks);
   const start = useRecorderStore((s) => s.start);
   const pause = useRecorderStore((s) => s.pause);
   const resume = useRecorderStore((s) => s.resume);
   const stop = useRecorderStore((s) => s.stop);
   const reset = useRecorderStore((s) => s.reset);
+  const addBookmark = useRecorderStore((s) => s.addBookmark);
 
   const [saving, setSaving] = useState(false);
 
@@ -48,10 +50,12 @@ export function Record() {
       errorMessage: null,
       transcriptText: null,
       noteMarkdown: null,
-      templateId: 'soap',
+      // Dictation mode → dictation template by default; ambient → SOAP.
+      templateId: mode === 'dictation' ? 'dictation' : 'soap',
       patternId: 'narrative',
       providerUsed: null,
       label: null,
+      bookmarks: bookmarks.length > 0 ? [...bookmarks] : undefined,
     };
     await putAudio(id, blob);
     await putRecording(meta);
@@ -147,7 +151,7 @@ export function Record() {
             })}
           </div>
 
-          <div className="flex items-center justify-center gap-3">
+          <div className="flex flex-wrap items-center justify-center gap-3">
             {state === 'recording' ? (
               <button
                 type="button"
@@ -165,8 +169,32 @@ export function Record() {
                 Resume
               </button>
             )}
+            <button
+              type="button"
+              onClick={() => addBookmark()}
+              className="rounded-md border border-graphite-soft/30 bg-white px-4 py-2 text-sm font-medium text-graphite hover:bg-mist active:bg-seafoam-pale"
+              title="Tap to mark this moment — brtlb will pay special attention here"
+            >
+              Mark moment
+            </button>
             <Button onClick={handleStop}>{saving ? 'Saving…' : 'Stop'}</Button>
           </div>
+
+          {bookmarks.length > 0 ? (
+            <div className="mt-4 text-left">
+              <p className="text-xs font-medium uppercase tracking-wide text-graphite-soft">
+                Marked moments
+              </p>
+              <ul className="mt-1 space-y-1 text-xs text-graphite-soft">
+                {bookmarks.map((b, i) => (
+                  <li key={i}>
+                    <span className="font-mono">{formatElapsed(b.ms)}</span>
+                    {b.label ? ` — ${b.label}` : ''}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
         </div>
       ) : null}
     </main>

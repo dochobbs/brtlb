@@ -1,4 +1,10 @@
-import type { GenerateNoteInput, SpeakerRole, SpeakerRoleAssignment, Utterance } from '../types';
+import type {
+  GenerateNoteInput,
+  NoteBookmark,
+  SpeakerRole,
+  SpeakerRoleAssignment,
+  Utterance,
+} from '../types';
 
 const ROLE_LABEL: Record<SpeakerRole, string> = {
   parent: 'Parent',
@@ -21,11 +27,33 @@ function buildRoleMap(assignments: SpeakerRoleAssignment[]): Map<string, Speaker
   return map;
 }
 
+function formatTimestamp(ms: number): string {
+  const totalSec = Math.floor(ms / 1000);
+  const min = Math.floor(totalSec / 60);
+  const sec = totalSec % 60;
+  return `${min.toString().padStart(2, '0')}:${sec.toString().padStart(2, '0')}`;
+}
+
+function bookmarksBlock(bookmarks: NoteBookmark[] | undefined): string {
+  if (!bookmarks || bookmarks.length === 0) return '';
+  const lines = bookmarks.map((b) => {
+    const ts = formatTimestamp(b.ms);
+    return `- ${ts}${b.label ? ` — ${b.label}` : ''}`;
+  });
+  return [
+    'PHYSICIAN BOOKMARKS DURING THIS VISIT (review these moments carefully — the physician flagged them as important):',
+    ...lines,
+    '',
+  ].join('\n');
+}
+
 export function composeNotePrompt(input: GenerateNoteInput): string {
   const roleMap = buildRoleMap(input.speakerRoles);
   const lines = input.transcript.utterances
     .map((u) => `[${speakerLabel(u, roleMap)}] ${u.text}`)
     .join('\n');
+
+  const bookmarks = bookmarksBlock(input.bookmarks);
 
   return [
     input.template.promptBody,
@@ -34,7 +62,14 @@ export function composeNotePrompt(input: GenerateNoteInput): string {
     '',
     `Recording mode: ${input.mode}`,
     '',
+    bookmarks,
     'Transcript:',
     lines,
-  ].join('\n');
+  ]
+    .filter((s, idx, arr) => {
+      // Drop the empty bookmarks block but keep its leading blank line slot collapsed
+      if (s === '' && arr[idx - 1] === '' && arr[idx + 1] === 'Transcript:') return false;
+      return true;
+    })
+    .join('\n');
 }

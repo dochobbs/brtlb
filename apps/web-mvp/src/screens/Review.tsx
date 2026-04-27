@@ -147,9 +147,10 @@ export function Review() {
         mode: m.mode,
         settings,
         onStage: setStage,
-        templateId: m.templateId || 'soap',
+        templateId: m.templateId || (m.mode === 'dictation' ? 'dictation' : 'soap'),
         patternId: m.patternId || 'narrative',
         speakerRoles: m.speakerRoles ?? [],
+        bookmarks: m.bookmarks ?? [],
       });
       const updated: RecordingMeta = {
         ...m,
@@ -272,6 +273,7 @@ export function Review() {
         settings,
         templateId: selectedTemplateId,
         speakerRoles,
+        bookmarks: meta.bookmarks ?? [],
       });
       await persistMeta({
         templateId: selectedTemplateId,
@@ -450,6 +452,27 @@ export function Review() {
               <p className="mt-2 text-xs text-graphite-soft">
                 Tap a chip to assign a role. The transcript and the next regenerate will use it.
               </p>
+            </div>
+          ) : null}
+          {meta.bookmarks && meta.bookmarks.length > 0 ? (
+            <div className="mb-3 rounded-md border border-seafoam/40 bg-seafoam-pale/30 p-2">
+              <p className="text-xs font-medium uppercase tracking-wide text-graphite-soft">
+                Marked moments
+              </p>
+              <ul className="mt-1 space-y-0.5 text-xs text-graphite">
+                {meta.bookmarks.map((b, i) => {
+                  const totalSec = Math.floor(b.ms / 1000);
+                  const min = Math.floor(totalSec / 60);
+                  const sec = totalSec % 60;
+                  const stamp = `${min.toString().padStart(2, '0')}:${sec.toString().padStart(2, '0')}`;
+                  return (
+                    <li key={i}>
+                      <span className="font-mono">{stamp}</span>
+                      {b.label ? ` — ${b.label}` : ''}
+                    </li>
+                  );
+                })}
+              </ul>
             </div>
           ) : null}
           {renderedTranscript ? (

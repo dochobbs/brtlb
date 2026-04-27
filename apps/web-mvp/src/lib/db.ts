@@ -16,6 +16,13 @@ export interface SpeakerRoleAssignment {
   role: SpeakerRole;
 }
 
+export interface RecordingBookmark {
+  /** Milliseconds from the start of the recording. */
+  ms: number;
+  /** Optional short label dictated by the physician. */
+  label?: string | null;
+}
+
 export interface RecordingMeta {
   id: string;
   createdAt: string;
@@ -44,6 +51,8 @@ export interface RecordingMeta {
   pearlsMarkdown?: string | null;
   /** When pearls were last generated. */
   pearlsAt?: string | null;
+  /** Physician-tapped moments during recording, fed to the note prompt as context. */
+  bookmarks?: RecordingBookmark[];
 }
 
 interface BrtlbSchema extends DBSchema {
@@ -139,6 +148,41 @@ export async function purgeStaleAudio(cutoffIso: string): Promise<string[]> {
     purged.push(rec.id);
   }
   return purged;
+}
+
+/**
+ * Recover recordings stuck in a transient pipeline stage. If the tab closed
+ * mid-pipeline, those recordings will sit in {uploading, transcribing,
+ * generating} forever. Anything older than `cutoffMs` and still in a
+ * transient stage gets flipped to `failed` with a clear message so the
+ * existing Retry path can resume from audio.
+ */
+const TRANSIENT_STAGES: ReadonlySet<RecordingStage> = new Set([
+  'uploading',
+  'transcribing',
+  'generating',
+]);
+
+export async function recoverInterruptedRecordings(cutoffMs = 5 * 60_000): Promise<string[]> {
+  const db = await getDb();
+  const all = await db.getAll('recordings');
+  const now = Date.now();
+  const recovered: string[] = [];
+  for (const rec of all) {
+    if (!TRANSIENT_STAGES.has(rec.stage)) continue;
+    const ageMs = now - new Date(rec.createdAt).getTime();
+    if (ageMs < cutoffMs) continue;
+    const updated: RecordingMeta = {
+      ...rec,
+      stage: 'failed',
+      errorMessage: rec.audioPurgedAt
+        ? 'Recording was interrupted before processing completed and audio is no longer available.'
+        : 'Recording was interrupted before processing completed. Tap Retry to resume.',
+    };
+    await db.put('recordings', updated);
+    recovered.push(rec.id);
+  }
+  return recovered;
 }
 
 export function resetDbForTests(): void {
