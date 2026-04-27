@@ -159,9 +159,11 @@ export function Review() {
         transcriptJson: JSON.stringify(out.transcript),
         noteMarkdown: out.note,
         providerUsed: out.providerUsed,
+        templateId: out.templateId,
       };
       await putRecording(updated);
       setMeta(updated);
+      setSelectedTemplateId(out.templateId);
       setEditedNote(out.note);
       setStage('done');
     } catch (err) {

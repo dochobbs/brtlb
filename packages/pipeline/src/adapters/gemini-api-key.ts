@@ -44,14 +44,23 @@ export function createGeminiApiKeyProvider(
         `https://generativelanguage.googleapis.com/v1beta/models/${config.model}:generateContent` +
         `?key=${encodeURIComponent(config.apiKey)}`;
 
-      const res = await http(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{ role: 'user', parts: [{ text: prompt }] }],
-          generationConfig: { maxOutputTokens: config.maxOutputTokens ?? 4096 },
-        }),
-      });
+      // 10-minute timeout for long visits.
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 600_000);
+      let res: Response;
+      try {
+        res = await http(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{ role: 'user', parts: [{ text: prompt }] }],
+            generationConfig: { maxOutputTokens: config.maxOutputTokens ?? 4096 },
+          }),
+          signal: controller.signal,
+        });
+      } finally {
+        clearTimeout(timer);
+      }
 
       if (!res.ok) {
         const body = await res.text().catch(() => '');

@@ -18,6 +18,8 @@ export function createOpenAiCompatibleProvider(
     client = new OpenAICtor({
       apiKey: config.apiKey,
       dangerouslyAllowBrowser: true,
+      // Long visits + gpt-4o can take 5+ min to draft; 10-minute timeout.
+      timeout: 600_000,
       ...(config.baseUrl ? { baseURL: config.baseUrl } : {}),
     });
     return client;

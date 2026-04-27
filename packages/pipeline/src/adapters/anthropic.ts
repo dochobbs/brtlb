@@ -15,7 +15,13 @@ export function createAnthropicProvider(
   async function ensureClient(): Promise<Pick<Anthropic, 'messages'>> {
     if (client) return client;
     const { default: AnthropicCtor } = await import('@anthropic-ai/sdk');
-    client = new AnthropicCtor({ apiKey: config.apiKey, dangerouslyAllowBrowser: true });
+    client = new AnthropicCtor({
+      apiKey: config.apiKey,
+      dangerouslyAllowBrowser: true,
+      // Long ambient visits + Opus can take 5+ min to draft; explicit
+      // 10-minute timeout so the SDK waits long enough.
+      timeout: 600_000,
+    });
     return client;
   }
 

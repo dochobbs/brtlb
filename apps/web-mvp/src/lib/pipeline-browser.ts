@@ -33,6 +33,8 @@ export interface RunMvpPipelineOutput {
   transcript: Transcript;
   note: string;
   providerUsed: ProviderKind;
+  /** The template actually used — may differ from the input templateId when auto-detection picked something else. */
+  templateId: string;
 }
 
 function buildProvider(settings: Settings): {
@@ -91,12 +93,81 @@ function resolveTemplate(
   };
 }
 
+/**
+ * Built-in template IDs we ask the auto-detector to choose between. We
+ * intentionally exclude 'dictation' (mode-specific) and any user customs
+ * (we don't want the LLM picking "Dr Smith's preferred format" by name).
+ */
+const AUTO_DETECT_CANDIDATES = [
+  'soap',
+  'well-child',
+  'sick-visit',
+  'follow-up',
+  'adhd-med-check',
+  'procedure',
+] as const;
+
+const VISIT_TYPE_DETECTOR_PROMPT = `You are a pediatric documentation router. Read the transcript excerpt and pick ONE template id from this list:
+
+- soap            — generic visit, when no other category clearly fits
+- well-child      — preventive care visit (vaccines, milestones, anticipatory guidance dominate)
+- sick-visit      — acute illness or injury (URI, ear pain, rash, fever, GI, asthma, etc.)
+- follow-up       — interim check on a known problem or recently treated condition
+- adhd-med-check  — explicit ADHD medication visit (response, side effects, vitals on stimulant)
+- procedure       — an in-office procedure was performed (laceration repair, I&D, ear curettage, etc.)
+
+RULES:
+- When in doubt between sick-visit and well-child, BOTH happened, or the visit is mixed: pick "soap" (its prompt handles mixed visits explicitly).
+- When the transcript is too short or ambiguous: pick "soap".
+- Output the id ONLY. No quotes, no punctuation, no explanation. One word.
+
+Examples of valid output: soap | well-child | sick-visit | follow-up | adhd-med-check | procedure`;
+
+async function detectVisitType(
+  transcript: Transcript,
+  settings: Settings,
+): Promise<string> {
+  // Use the first ~2000 chars of transcript text for the routing decision.
+  // Longer is wasteful and the LLM rarely needs more for the call.
+  const text = transcript.utterances
+    .map((u) => u.text)
+    .join(' ')
+    .slice(0, 2000);
+  if (text.trim().length < 50) return 'soap'; // not enough to decide
+
+  const detectorTemplate: NoteTemplate = {
+    id: 'visit-type-detector',
+    name: 'Visit-Type Detector',
+    description: 'Internal — picks the best template for this transcript.',
+    promptBody: `${VISIT_TYPE_DETECTOR_PROMPT}\n\nTRANSCRIPT EXCERPT:\n${text}`,
+  };
+
+  const { provider } = buildProvider(settings);
+  let raw: string;
+  try {
+    raw = await provider.generateNote({
+      transcript: {
+        // Pass an empty utterance list so composeNotePrompt doesn't duplicate
+        // the transcript (we already embedded it in promptBody).
+        ...transcript,
+        utterances: [],
+      },
+      template: detectorTemplate,
+      pattern: NEUTRAL_PATTERN,
+      mode: 'ambient',
+      speakerRoles: [],
+    });
+  } catch {
+    return 'soap'; // any failure → safe fallback
+  }
+  const cleaned = raw.trim().toLowerCase().replace(/[^a-z0-9-]/g, '');
+  return (AUTO_DETECT_CANDIDATES as readonly string[]).includes(cleaned) ? cleaned : 'soap';
+}
+
 export async function runMvpPipeline(input: RunMvpPipelineInput): Promise<RunMvpPipelineOutput> {
-  const templateId = input.templateId ?? 'soap';
+  const initialTemplateId = input.templateId ?? (input.mode === 'dictation' ? 'dictation' : 'soap');
   const patternId = input.patternId ?? 'narrative';
-  const template = resolveTemplate(templateId, input.settings.customTemplates);
   const pattern = getPattern(patternId);
-  if (!template) throw new Error(`Unknown template: ${templateId}`);
   if (!pattern) throw new Error(`Unknown pattern: ${patternId}`);
 
   input.onStage?.('uploading');
@@ -113,6 +184,16 @@ export async function runMvpPipeline(input: RunMvpPipelineInput): Promise<RunMvp
     input.onStage?.('failed');
     throw err;
   }
+
+  // Auto-detect visit type for ambient when the caller used the default
+  // 'soap'. If the user explicitly picked a non-default template (or this
+  // is dictation mode), respect their choice.
+  let templateId = initialTemplateId;
+  if (input.mode === 'ambient' && initialTemplateId === 'soap') {
+    templateId = await detectVisitType(transcript, input.settings);
+  }
+  const template = resolveTemplate(templateId, input.settings.customTemplates);
+  if (!template) throw new Error(`Unknown template: ${templateId}`);
 
   input.onStage?.('generating');
   const { provider, kind } = buildProvider(input.settings);
@@ -144,7 +225,7 @@ export async function runMvpPipeline(input: RunMvpPipelineInput): Promise<RunMvp
   }
 
   input.onStage?.('done');
-  return { transcript, note, providerUsed: kind };
+  return { transcript, note, providerUsed: kind, templateId };
 }
 
 export interface RegenerateNoteInput {

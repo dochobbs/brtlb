@@ -24,6 +24,18 @@ interface AssemblyAiTranscriptResponse {
 
 const BASE = 'https://api.assemblyai.com/v2';
 
+// Per-request timeouts. Upload + transcript-create are short calls; the
+// long-running work happens in the polling loop, which has its own
+// overall budget.
+const REQUEST_TIMEOUT_MS = 300_000; // 5 min per HTTP request
+const TOTAL_POLL_BUDGET_MS = 30 * 60_000; // 30 min cap for transcription end-to-end
+
+function withTimeout(ms: number): { signal: AbortSignal; cancel: () => void } {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), ms);
+  return { signal: controller.signal, cancel: () => clearTimeout(timer) };
+}
+
 export interface TranscribeOptions extends TranscribeInput {
   /** Polling interval between status checks. Default 3000 ms. */
   pollIntervalMs?: number;
@@ -48,14 +60,21 @@ async function uploadAudioBody(
   apiKey: string,
   body: UploadBody,
 ): Promise<string> {
-  const res = await http(`${BASE}/upload`, {
-    method: 'POST',
-    headers: {
-      Authorization: apiKey,
-      'Content-Type': 'application/octet-stream',
-    },
-    body: body as BodyInit,
-  });
+  const t = withTimeout(REQUEST_TIMEOUT_MS);
+  let res: Response;
+  try {
+    res = await http(`${BASE}/upload`, {
+      method: 'POST',
+      headers: {
+        Authorization: apiKey,
+        'Content-Type': 'application/octet-stream',
+      },
+      body: body as BodyInit,
+      signal: t.signal,
+    });
+  } finally {
+    t.cancel();
+  }
   await expectOk(res, 'upload');
   const json = (await res.json()) as { upload_url: string };
   return json.upload_url;
@@ -90,14 +109,21 @@ async function requestTranscript(
   };
   if (wordBoost && wordBoost.length > 0) body.word_boost = wordBoost;
 
-  const res = await http(`${BASE}/transcript`, {
-    method: 'POST',
-    headers: {
-      Authorization: apiKey,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(body),
-  });
+  const t = withTimeout(REQUEST_TIMEOUT_MS);
+  let res: Response;
+  try {
+    res = await http(`${BASE}/transcript`, {
+      method: 'POST',
+      headers: {
+        Authorization: apiKey,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(body),
+      signal: t.signal,
+    });
+  } finally {
+    t.cancel();
+  }
   await expectOk(res, 'request');
   const json = (await res.json()) as AssemblyAiTranscriptResponse;
   return json.id;
@@ -110,10 +136,23 @@ async function pollTranscript(
   intervalMs: number,
   sleep: (ms: number) => Promise<void>,
 ): Promise<AssemblyAiTranscriptResponse> {
+  // Hard upper bound on total time spent waiting for a transcript so a
+  // stuck job doesn't leave the UI on "Transcribing…" forever.
+  const deadline = Date.now() + TOTAL_POLL_BUDGET_MS;
   for (;;) {
-    const res = await http(`${BASE}/transcript/${id}`, {
-      headers: { Authorization: apiKey },
-    });
+    if (Date.now() > deadline) {
+      throw new Error('AssemblyAI transcription timed out after 30 minutes');
+    }
+    const t = withTimeout(REQUEST_TIMEOUT_MS);
+    let res: Response;
+    try {
+      res = await http(`${BASE}/transcript/${id}`, {
+        headers: { Authorization: apiKey },
+        signal: t.signal,
+      });
+    } finally {
+      t.cancel();
+    }
     await expectOk(res, 'poll');
     const json = (await res.json()) as AssemblyAiTranscriptResponse;
     if (json.status === 'completed') return json;
