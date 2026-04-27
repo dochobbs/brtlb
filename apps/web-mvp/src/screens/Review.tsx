@@ -518,7 +518,44 @@ export function Review() {
               No note yet.
             </div>
           )}
-          <div className="mt-3 flex flex-wrap gap-2">
+
+          {/* Natural-language edit — the hero interaction. Tell brtlb what to change in plain English. */}
+          {transcript && editedNote ? (
+            <div className="mt-4 rounded-xl border border-seafoam/40 bg-seafoam-pale/40 p-3 sm:p-4">
+              <label className="block text-sm font-semibold text-graphite">
+                Tell brtlb what to change
+              </label>
+              <p className="mt-0.5 text-xs text-graphite-soft">
+                Plain English. Press ⌘/Ctrl + Enter to send.
+              </p>
+              <textarea
+                value={tweakInstruction}
+                onChange={(e) => setTweakInstruction(e.target.value)}
+                onKeyDown={(e) => {
+                  if ((e.metaKey || e.ctrlKey) && e.key === 'Enter' && !tweaking) {
+                    e.preventDefault();
+                    handleTweak();
+                  }
+                }}
+                disabled={tweaking}
+                rows={2}
+                placeholder='e.g., "shorten the assessment", "rewrite plan as a numbered list", "add return precautions for fever"'
+                className="mt-2 w-full resize-y rounded-md border border-graphite-soft/30 bg-white px-3 py-2 text-sm text-graphite placeholder:text-graphite-soft/60 focus:border-graphite focus:outline-none focus:ring-1 focus:ring-graphite"
+              />
+              <div className="mt-2 flex items-center justify-end">
+                <button
+                  type="button"
+                  onClick={handleTweak}
+                  disabled={tweaking || !tweakInstruction.trim()}
+                  className="rounded-md bg-graphite px-4 py-2 text-sm font-medium text-white hover:bg-graphite-soft disabled:opacity-50"
+                >
+                  {tweaking ? 'Revising…' : 'Revise note'}
+                </button>
+              </div>
+            </div>
+          ) : null}
+
+          <div className="mt-4 flex flex-wrap gap-2">
             <Button onClick={handleShare} disabled={!editedNote}>
               Share
             </Button>
@@ -539,36 +576,6 @@ export function Review() {
               Download
             </button>
           </div>
-
-          {/* Tweak / revise — Roci-style physician instruction → revised note */}
-          {transcript && editedNote ? (
-            <div className="mt-4 rounded-md border border-graphite-soft/20 bg-mist p-3">
-              <label className="block text-xs font-medium uppercase tracking-wide text-graphite-soft">
-                Ask for changes
-              </label>
-              <div className="mt-1 flex flex-col gap-2 sm:flex-row">
-                <input
-                  type="text"
-                  value={tweakInstruction}
-                  onChange={(e) => setTweakInstruction(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && !tweaking) handleTweak();
-                  }}
-                  disabled={tweaking}
-                  placeholder='"Shorten the assessment" · "Rewrite plan as a numbered list" · "Add return precautions"'
-                  className="flex-1 rounded-md border border-graphite-soft/30 bg-white px-3 py-2 text-sm text-graphite placeholder:text-graphite-soft/50 focus:border-graphite focus:outline-none focus:ring-1 focus:ring-graphite"
-                />
-                <button
-                  type="button"
-                  onClick={handleTweak}
-                  disabled={tweaking || !tweakInstruction.trim()}
-                  className="rounded-md bg-graphite px-4 py-2 text-sm font-medium text-white hover:bg-graphite-soft disabled:opacity-50"
-                >
-                  {tweaking ? 'Revising…' : 'Revise'}
-                </button>
-              </div>
-            </div>
-          ) : null}
 
           {/* QA review — Roci-style note-vs-transcript safety check */}
           {transcript && editedNote ? (
