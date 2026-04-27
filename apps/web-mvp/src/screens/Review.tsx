@@ -203,6 +203,22 @@ export function Review() {
     setTimeout(() => setCopied(false), 1500);
   }
 
+  async function handleShare(): Promise<void> {
+    if (!meta) return;
+    const title = meta.label?.trim() || 'brtlb visit note';
+    // Web Share API is best on mobile (AirDrop, Messages, Mail, etc.). Fall
+    // back to clipboard copy if the browser doesn't support it.
+    if (typeof navigator !== 'undefined' && typeof navigator.share === 'function') {
+      try {
+        await navigator.share({ title, text: editedNote });
+        return;
+      } catch {
+        // user cancelled or share failed — fall through to copy
+      }
+    }
+    await handleCopy();
+  }
+
   function handleDownload(): void {
     if (!meta) return;
     const blob = new Blob([editedNote], { type: 'text/markdown' });
@@ -461,7 +477,12 @@ export function Review() {
               {regenerating ? 'Regenerating…' : 'Regenerate'}
             </button>
             <div className="ml-auto inline-flex rounded-md border border-graphite-soft/30 p-0.5">
-              {(['edit', 'preview'] as const).map((v) => (
+              {(
+                [
+                  ['edit', 'Edit'],
+                  ['preview', 'Formatted'],
+                ] as const
+              ).map(([v, label]) => (
                 <button
                   key={v}
                   type="button"
@@ -473,7 +494,7 @@ export function Review() {
                       : 'text-graphite-soft hover:text-graphite')
                   }
                 >
-                  {v === 'edit' ? 'Edit' : 'Preview'}
+                  {label}
                 </button>
               ))}
             </div>
@@ -498,16 +519,24 @@ export function Review() {
             </div>
           )}
           <div className="mt-3 flex flex-wrap gap-2">
-            <Button onClick={handleCopy} disabled={!editedNote}>
-              {copied ? 'Copied' : 'Copy as Markdown'}
+            <Button onClick={handleShare} disabled={!editedNote}>
+              Share
             </Button>
+            <button
+              type="button"
+              onClick={handleCopy}
+              disabled={!editedNote}
+              className="rounded-md border border-graphite-soft/30 bg-white px-4 py-2 text-sm font-medium text-graphite hover:bg-mist disabled:opacity-50"
+            >
+              {copied ? 'Copied' : 'Copy text'}
+            </button>
             <button
               type="button"
               onClick={handleDownload}
               disabled={!editedNote}
               className="rounded-md border border-graphite-soft/30 bg-white px-4 py-2 text-sm font-medium text-graphite hover:bg-mist disabled:opacity-50"
             >
-              Download .md
+              Download
             </button>
           </div>
 
