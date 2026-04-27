@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Button } from '@brtlb/ui';
 import { listTemplates } from '@brtlb/prompts';
 import type { Transcript } from '@brtlb/pipeline';
@@ -9,6 +9,7 @@ import {
   getRecording,
   putRecording,
   type RecordingMeta,
+  type SpeakerRoleAssignment,
 } from '../lib/db';
 import {
   regenerateNoteFromTranscript,
@@ -16,6 +17,7 @@ import {
   type PipelineStage,
 } from '../lib/pipeline-browser';
 import { redactKeysInText } from '../lib/redact';
+import { SpeakerChips } from '../components/SpeakerChips';
 
 const STAGE_LABEL: Record<PipelineStage, string> = {
   uploading: 'Uploading audio…',
@@ -27,15 +29,36 @@ const STAGE_LABEL: Record<PipelineStage, string> = {
 
 const TEMPLATES = listTemplates();
 
+const ROLE_DISPLAY: Record<string, string> = {
+  parent: 'Parent',
+  patient: 'Patient',
+  provider: 'Provider',
+  sibling: 'Sibling',
+  other: 'Other',
+};
+
+function renderTranscriptText(transcript: Transcript, roles: SpeakerRoleAssignment[]): string {
+  const map = new Map(roles.map((r) => [r.speakerId, r.role]));
+  return transcript.utterances
+    .map((u) => {
+      const role = map.get(u.speakerId);
+      const label = role ? ROLE_DISPLAY[role] : `Speaker ${u.speakerId}`;
+      return `[${label}] ${u.text}`;
+    })
+    .join('\n');
+}
+
 export function Review() {
   const { settings, currentRecordingId, setView } = useAppStore();
   const [meta, setMeta] = useState<RecordingMeta | null>(null);
   const [stage, setStage] = useState<PipelineStage | null>(null);
   const [editedNote, setEditedNote] = useState<string>('');
+  const [editedLabel, setEditedLabel] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [regenerating, setRegenerating] = useState(false);
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>('soap');
+  const [speakerRoles, setSpeakerRoles] = useState<SpeakerRoleAssignment[]>([]);
 
   useEffect(() => {
     if (!currentRecordingId) {
@@ -52,7 +75,9 @@ export function Review() {
       if (cancelled) return;
       setMeta(m);
       setEditedNote(m.noteMarkdown ?? '');
+      setEditedLabel(m.label ?? '');
       setSelectedTemplateId(m.templateId || 'soap');
+      setSpeakerRoles(m.speakerRoles ?? []);
       if (m.stage === 'recorded') {
         await runPipelineForRecording(m);
       }
@@ -63,13 +88,40 @@ export function Review() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentRecordingId]);
 
+  const transcript = useMemo<Transcript | null>(() => {
+    if (!meta?.transcriptJson) return null;
+    try {
+      return JSON.parse(meta.transcriptJson) as Transcript;
+    } catch {
+      return null;
+    }
+  }, [meta?.transcriptJson]);
+
+  const speakerIds = useMemo<string[]>(() => {
+    if (!transcript) return [];
+    const seen = new Set<string>();
+    const order: string[] = [];
+    for (const u of transcript.utterances) {
+      if (!seen.has(u.speakerId)) {
+        seen.add(u.speakerId);
+        order.push(u.speakerId);
+      }
+    }
+    return order;
+  }, [transcript]);
+
+  const renderedTranscript = useMemo<string>(() => {
+    if (transcript) return renderTranscriptText(transcript, speakerRoles);
+    return meta?.transcriptText ?? '';
+  }, [transcript, speakerRoles, meta?.transcriptText]);
+
   async function runPipelineForRecording(m: RecordingMeta): Promise<void> {
     setError(null);
     const audio = await getAudio(m.id);
     if (!audio) {
       setError(
         m.audioPurgedAt
-          ? `Audio was auto-purged on ${new Date(m.audioPurgedAt).toLocaleString()} (privacy retention). Transcript and note are still available, but you can no longer regenerate.`
+          ? `Audio was auto-purged on ${new Date(m.audioPurgedAt).toLocaleString()} (privacy retention). Transcript and note are still available, but you can no longer regenerate from audio.`
           : 'Audio not found in storage.',
       );
       return;
@@ -82,14 +134,12 @@ export function Review() {
         onStage: setStage,
         templateId: m.templateId || 'soap',
         patternId: m.patternId || 'narrative',
+        speakerRoles: m.speakerRoles ?? [],
       });
-      const transcriptText = out.transcript.utterances
-        .map((u) => `[${u.role ?? 'Speaker ' + u.speakerId}] ${u.text}`)
-        .join('\n');
       const updated: RecordingMeta = {
         ...m,
         stage: 'ready_for_review',
-        transcriptText,
+        transcriptText: renderTranscriptText(out.transcript, m.speakerRoles ?? []),
         transcriptJson: JSON.stringify(out.transcript),
         noteMarkdown: out.note,
         providerUsed: out.providerUsed,
@@ -102,17 +152,39 @@ export function Review() {
       const msg = redactKeysInText(err instanceof Error ? err.message : 'pipeline failed');
       setError(msg);
       setStage('failed');
-      const failed: RecordingMeta = { ...meta!, stage: 'failed', errorMessage: msg };
+      const failed: RecordingMeta = { ...m, stage: 'failed', errorMessage: msg };
       await putRecording(failed);
       setMeta(failed);
     }
   }
 
-  async function handleSaveEdits(): Promise<void> {
+  async function persistMeta(patch: Partial<RecordingMeta>): Promise<void> {
     if (!meta) return;
-    const updated: RecordingMeta = { ...meta, noteMarkdown: editedNote };
+    const updated: RecordingMeta = { ...meta, ...patch };
     await putRecording(updated);
     setMeta(updated);
+  }
+
+  async function handleSaveLabel(): Promise<void> {
+    const trimmed = editedLabel.trim();
+    if ((meta?.label ?? '') === trimmed) return;
+    await persistMeta({ label: trimmed || null });
+  }
+
+  async function handleSaveEdits(): Promise<void> {
+    if (!meta) return;
+    if (meta.noteMarkdown === editedNote) return;
+    await persistMeta({ noteMarkdown: editedNote });
+  }
+
+  async function handleSpeakerRolesChange(next: SpeakerRoleAssignment[]): Promise<void> {
+    setSpeakerRoles(next);
+    if (!meta) return;
+    // Keep the rendered transcript text aligned with the new role labels
+    const nextTranscriptText = transcript
+      ? renderTranscriptText(transcript, next)
+      : meta.transcriptText;
+    await persistMeta({ speakerRoles: next, transcriptText: nextTranscriptText });
   }
 
   async function handleCopy(): Promise<void> {
@@ -127,7 +199,13 @@ export function Review() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `brtlb-${meta.id}.md`;
+    const stem = meta.label
+      ? meta.label
+          .replace(/[^a-z0-9-_ ]/gi, '')
+          .replace(/\s+/g, '-')
+          .toLowerCase()
+      : meta.id;
+    a.download = `brtlb-${stem}.md`;
     a.click();
     URL.revokeObjectURL(url);
   }
@@ -148,7 +226,7 @@ export function Review() {
 
   async function handleRegenerate(): Promise<void> {
     if (!meta) return;
-    if (!meta.transcriptJson) {
+    if (!transcript) {
       setError(
         'No structured transcript saved for this recording. Re-run the full pipeline (Retry) to capture one.',
       );
@@ -157,21 +235,18 @@ export function Review() {
     setRegenerating(true);
     setError(null);
     try {
-      const transcript = JSON.parse(meta.transcriptJson) as Transcript;
       const out = await regenerateNoteFromTranscript({
         transcript,
         mode: meta.mode,
         settings,
         templateId: selectedTemplateId,
+        speakerRoles,
       });
-      const updated: RecordingMeta = {
-        ...meta,
+      await persistMeta({
         templateId: selectedTemplateId,
         noteMarkdown: out.note,
         providerUsed: out.providerUsed,
-      };
-      await putRecording(updated);
-      setMeta(updated);
+      });
       setEditedNote(out.note);
     } catch (err) {
       const msg = redactKeysInText(err instanceof Error ? err.message : 'regenerate failed');
@@ -191,12 +266,14 @@ export function Review() {
 
   const isProcessing =
     stage !== null && stage !== 'done' && stage !== 'failed' && meta.stage !== 'ready_for_review';
-  const canRegenerate = Boolean(meta.transcriptJson) && !isProcessing && !regenerating;
+  const canRegenerate = Boolean(transcript) && !isProcessing && !regenerating;
   const templateChanged = selectedTemplateId !== meta.templateId;
+  const rolesChanged = JSON.stringify(speakerRoles) !== JSON.stringify(meta.speakerRoles ?? []);
+  const showRegenerate = templateChanged || rolesChanged;
 
   return (
-    <main className="mx-auto max-w-5xl px-4 py-8 sm:px-6 sm:py-12">
-      <header className="mb-6 flex items-center justify-between">
+    <main className="mx-auto max-w-5xl px-3 py-6 sm:px-6 sm:py-12">
+      <header className="mb-4 flex items-center justify-between gap-3 sm:mb-6">
         <button
           type="button"
           onClick={() => setView('home')}
@@ -213,16 +290,25 @@ export function Review() {
         </button>
       </header>
 
+      <input
+        type="text"
+        value={editedLabel}
+        onChange={(e) => setEditedLabel(e.target.value)}
+        onBlur={handleSaveLabel}
+        placeholder="Add a visit label (e.g., MM age 4 WCV)"
+        className="mb-4 w-full rounded-md border border-transparent bg-transparent px-2 py-1 text-base font-medium text-graphite placeholder:text-graphite-soft/60 hover:border-graphite-soft/20 focus:border-graphite-soft/40 focus:outline-none sm:text-lg"
+      />
+
       {isProcessing ? (
-        <div className="mb-6 rounded-md border border-graphite-soft/20 bg-seafoam-pale p-4 text-sm text-graphite">
+        <div className="mb-4 rounded-md border border-graphite-soft/20 bg-seafoam-pale p-3 text-sm text-graphite sm:mb-6 sm:p-4">
           {stage ? STAGE_LABEL[stage] : 'Working…'}
         </div>
       ) : null}
 
       {error ? (
-        <div className="mb-6 space-y-3 rounded-md border border-red-300 bg-red-50 p-4 text-sm text-red-800">
+        <div className="mb-4 space-y-3 rounded-md border border-red-300 bg-red-50 p-3 text-sm text-red-800 sm:mb-6 sm:p-4">
           <p className="font-medium">Something went wrong</p>
-          <p className="font-mono text-xs">{error}</p>
+          <p className="font-mono text-xs break-all">{error}</p>
           <button
             type="button"
             onClick={handleRetry}
@@ -233,21 +319,34 @@ export function Review() {
         </div>
       ) : null}
 
-      <div className="grid gap-6 lg:grid-cols-2">
-        <section className="rounded-xl bg-white p-6 shadow-sm">
+      <div className="grid gap-4 sm:gap-6 lg:grid-cols-2">
+        <section className="rounded-xl bg-white p-4 shadow-sm sm:p-6">
           <h2 className="mb-3 text-sm font-medium uppercase tracking-wide text-graphite-soft">
             Transcript
           </h2>
-          {meta.transcriptText ? (
-            <pre className="whitespace-pre-wrap text-sm leading-relaxed text-graphite">
-              {meta.transcriptText}
+          {speakerIds.length > 0 ? (
+            <div className="mb-3">
+              <SpeakerChips
+                speakerIds={speakerIds}
+                assignments={speakerRoles}
+                onChange={handleSpeakerRolesChange}
+                disabled={isProcessing || regenerating}
+              />
+              <p className="mt-2 text-xs text-graphite-soft">
+                Tap a chip to assign a role. The transcript and the next regenerate will use it.
+              </p>
+            </div>
+          ) : null}
+          {renderedTranscript ? (
+            <pre className="whitespace-pre-wrap break-words text-sm leading-relaxed text-graphite">
+              {renderedTranscript}
             </pre>
           ) : (
             <p className="text-sm text-graphite-soft">No transcript yet.</p>
           )}
         </section>
 
-        <section className="rounded-xl bg-white p-6 shadow-sm">
+        <section className="rounded-xl bg-white p-4 shadow-sm sm:p-6">
           <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
             <h2 className="text-sm font-medium uppercase tracking-wide text-graphite-soft">Note</h2>
             {meta.providerUsed ? (
@@ -272,14 +371,14 @@ export function Review() {
             <button
               type="button"
               onClick={handleRegenerate}
-              disabled={!canRegenerate || (!templateChanged && !regenerating)}
+              disabled={!canRegenerate || !showRegenerate}
               className="rounded-md border border-graphite-soft/30 bg-white px-3 py-1 text-xs font-medium text-graphite hover:bg-mist disabled:opacity-50"
               title={
-                !meta.transcriptJson
+                !transcript
                   ? 'No structured transcript saved'
-                  : templateChanged
-                    ? 'Regenerate note with the selected template'
-                    : 'Pick a different template to enable'
+                  : showRegenerate
+                    ? 'Regenerate the note with the current template + speaker roles'
+                    : 'Change template or speaker roles to enable'
               }
             >
               {regenerating ? 'Regenerating…' : 'Regenerate'}
@@ -292,7 +391,7 @@ export function Review() {
             onBlur={handleSaveEdits}
             disabled={isProcessing || regenerating}
             placeholder={isProcessing ? 'Working…' : 'No note yet.'}
-            className="min-h-[400px] w-full resize-y rounded-md border border-graphite-soft/20 bg-white p-3 font-mono text-sm leading-relaxed text-graphite focus:border-graphite focus:outline-none focus:ring-1 focus:ring-graphite"
+            className="min-h-[280px] w-full resize-y rounded-md border border-graphite-soft/20 bg-white p-3 font-mono text-sm leading-relaxed text-graphite focus:border-graphite focus:outline-none focus:ring-1 focus:ring-graphite sm:min-h-[400px]"
           />
           <div className="mt-3 flex flex-wrap gap-2">
             <Button onClick={handleCopy} disabled={!editedNote}>

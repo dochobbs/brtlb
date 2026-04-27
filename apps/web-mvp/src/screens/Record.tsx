@@ -57,7 +57,7 @@ export function Record() {
   }
 
   return (
-    <main className="flex min-h-dvh flex-col items-center justify-center px-6 py-12 text-center">
+    <main className="flex min-h-dvh flex-col items-center justify-center px-4 py-8 text-center sm:px-6 sm:py-12">
       <button
         type="button"
         onClick={handleCancel}
