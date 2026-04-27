@@ -49,3 +49,67 @@ export interface LlmProvider {
   readonly name: string;
   generateNote(input: GenerateNoteInput): Promise<string>;
 }
+
+// --- Provider configs (one per adapter) ---
+
+export interface AnthropicProviderConfig {
+  kind: 'anthropic';
+  apiKey: string;
+  model: string;
+  maxTokens?: number;
+}
+
+export interface OpenAiCompatibleProviderConfig {
+  kind: 'openai-compatible';
+  apiKey: string;
+  model: string;
+  baseUrl?: string;
+  maxTokens?: number;
+}
+
+export interface GeminiVertexProviderConfig {
+  kind: 'gemini-vertex';
+  serviceAccountJson: string;
+  projectId: string;
+  location: string;
+  model: string;
+}
+
+export type ProviderConfig =
+  | AnthropicProviderConfig
+  | OpenAiCompatibleProviderConfig
+  | GeminiVertexProviderConfig;
+
+// --- AssemblyAI ---
+
+export interface AssemblyAiConfig {
+  apiKey: string;
+}
+
+export interface TranscribeInput {
+  audioPath: string;
+  mode: RecordingMode;
+  config: AssemblyAiConfig;
+  wordBoost?: string[];
+  httpClient?: typeof fetch;
+}
+
+// --- Orchestrator ---
+
+export interface RunPipelineInput {
+  recordingId: string;
+  audioPath: string;
+  mode: RecordingMode;
+  template: NoteTemplate;
+  pattern: NotePattern;
+  speakerRoles?: SpeakerRoleAssignment[];
+  providerConfig: ProviderConfig;
+  assemblyAi: AssemblyAiConfig;
+  wordBoost?: string[];
+}
+
+export interface RunPipelineOutput {
+  transcript: Transcript;
+  note: string;
+  providerUsed: ProviderConfig['kind'];
+}
