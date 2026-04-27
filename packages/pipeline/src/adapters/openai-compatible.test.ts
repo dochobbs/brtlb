@@ -70,4 +70,13 @@ describe('createOpenAiCompatibleProvider', () => {
     );
     expect(await provider.generateNote(input())).toBe('');
   });
+
+  it('returns empty string when choices[0] has no message field', async () => {
+    const create = vi.fn().mockResolvedValue({ choices: [{}] });
+    const provider = createOpenAiCompatibleProvider(
+      { kind: 'openai-compatible', apiKey: 'k', model: 'm' },
+      { client: { chat: { completions: { create } } } as never },
+    );
+    expect(await provider.generateNote(input())).toBe('');
+  });
 });

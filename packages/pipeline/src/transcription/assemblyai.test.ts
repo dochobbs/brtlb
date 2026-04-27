@@ -165,4 +165,18 @@ describe('transcribeWithAssemblyAi', () => {
 
     expect(transcribeBody?.word_boost).toEqual(['amoxicillin', 'tympanic membrane']);
   });
+
+  it('rejects when the audio file does not exist', async () => {
+    const httpClient = vi.fn(async () => new Response('{}', { status: 200 }));
+    await expect(
+      transcribeWithAssemblyAi({
+        audioPath: '/nonexistent/path/to/audio.m4a',
+        mode: 'ambient',
+        config: { apiKey: 'k' },
+        httpClient: httpClient as unknown as typeof fetch,
+        pollIntervalMs: 1,
+        sleep: () => Promise.resolve(),
+      }),
+    ).rejects.toThrow();
+  });
 });

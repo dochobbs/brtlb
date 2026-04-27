@@ -11,5 +11,9 @@ export function createLlmProvider(config: ProviderConfig): LlmProvider {
       return createOpenAiCompatibleProvider(config);
     case 'gemini-vertex':
       return createGeminiVertexProvider(config);
+    default: {
+      const _exhaustive: never = config;
+      throw new Error(`Unknown provider kind: ${JSON.stringify(_exhaustive)}`);
+    }
   }
 }

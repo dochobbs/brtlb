@@ -26,7 +26,7 @@ export function createOpenAiCompatibleProvider(
         max_tokens: config.maxTokens ?? 4096,
         messages: [{ role: 'user', content: prompt }],
       });
-      const first = response.choices[0]?.message.content;
+      const first = response.choices[0]?.message?.content;
       return first ?? '';
     },
   };
