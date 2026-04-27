@@ -1,0 +1,22 @@
+{
+  "name": "@brtlb/electron",
+  "version": "0.0.0",
+  "private": true,
+  "type": "commonjs",
+  "main": "dist/main.js",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "pnpm build && electron .",
+    "lint": "eslint src",
+    "typecheck": "tsc --noEmit",
+    "test": "echo 'no tests at this stage'",
+    "package": "pnpm build && electron-builder"
+  },
+  "dependencies": {
+    "@brtlb/web": "workspace:*"
+  },
+  "devDependencies": {
+    "electron": "^32.3.3",
+    "electron-builder": "^25.1.8"
+  }
+}
