@@ -9,6 +9,7 @@
     "dev": "pnpm build && electron .",
     "lint": "eslint src",
     "typecheck": "tsc --noEmit",
+    "test": "echo 'no tests at this stage'",
     "package": "pnpm build && electron-builder"
   },
   "dependencies": {

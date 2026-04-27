@@ -8,7 +8,8 @@
     "open:ios": "cap open ios",
     "open:android": "cap open android",
     "lint": "echo 'no lintable sources at this stage'",
-    "typecheck": "echo 'no typecheckable sources at this stage'"
+    "typecheck": "echo 'no typecheckable sources at this stage'",
+    "test": "echo 'no tests at this stage'"
   },
   "dependencies": {
     "@brtlb/web": "workspace:*",
