@@ -12,6 +12,8 @@ export interface Settings {
   geminiApiKey: string;
   geminiModel: string;
   assemblyAiKey: string;
+  /** Audio retention in days. 0 = never purge automatically. */
+  audioPurgeDays: number;
 }
 
 const DEFAULT_SETTINGS: Settings = {
@@ -24,6 +26,7 @@ const DEFAULT_SETTINGS: Settings = {
   geminiApiKey: '',
   geminiModel: 'gemini-2.0-flash',
   assemblyAiKey: '',
+  audioPurgeDays: 7,
 };
 
 const SETTINGS_KEY = 'brtlb.settings.v1';

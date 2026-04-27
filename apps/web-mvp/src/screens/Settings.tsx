@@ -361,6 +361,31 @@ export function Settings() {
         <Button onClick={handleSave}>Save</Button>
       </div>
 
+      <section className="mt-6 space-y-4 rounded-xl bg-white p-6 shadow-sm">
+        <div>
+          <h2 className="text-sm font-semibold text-graphite">Privacy</h2>
+          <p className="mt-1 text-xs text-graphite-soft">
+            Audio is the heaviest PHI we store. Auto-purge the recording's audio file after this
+            many days. Transcripts and notes stay until you delete them manually. Set to 0 to keep
+            audio forever (not recommended).
+          </p>
+        </div>
+        <label className="block">
+          <span className="block text-sm font-medium text-graphite">Auto-purge audio after</span>
+          <div className="mt-1 flex items-center gap-2">
+            <input
+              type="number"
+              min={0}
+              max={365}
+              value={draft.audioPurgeDays}
+              onChange={(e) => update('audioPurgeDays', Number(e.target.value) || 0)}
+              className="w-24 rounded-md border border-graphite-soft/30 bg-white px-3 py-2 text-sm text-graphite focus:border-graphite focus:outline-none"
+            />
+            <span className="text-sm text-graphite-soft">days</span>
+          </div>
+        </label>
+      </section>
+
       <section className="mt-10 rounded-xl border border-red-200 bg-red-50 p-6">
         <h2 className="text-sm font-semibold text-red-800">Danger zone</h2>
         <p className="mt-1 text-xs text-red-700">

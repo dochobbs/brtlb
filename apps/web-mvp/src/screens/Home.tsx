@@ -104,6 +104,11 @@ export function Home() {
                     </div>
                     <div className="text-xs text-graphite-soft">
                       {formatDuration(r.durationMs)} · {STAGE_LABEL[r.stage]}
+                      {r.audioPurgedAt ? (
+                        <span className="ml-2 inline-flex items-center rounded-full bg-mist px-2 py-0.5 text-[10px] uppercase tracking-wide text-graphite-soft">
+                          Audio purged
+                        </span>
+                      ) : null}
                     </div>
                   </div>
                   <span className="text-graphite-soft">›</span>

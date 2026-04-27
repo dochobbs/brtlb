@@ -55,7 +55,11 @@ export function Review() {
     setError(null);
     const audio = await getAudio(m.id);
     if (!audio) {
-      setError('Audio not found in storage.');
+      setError(
+        m.audioPurgedAt
+          ? `Audio was auto-purged on ${new Date(m.audioPurgedAt).toLocaleString()} (privacy retention). Transcript and note are still available, but you can no longer regenerate.`
+          : 'Audio not found in storage.',
+      );
       return;
     }
     try {
