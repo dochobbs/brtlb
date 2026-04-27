@@ -16,9 +16,11 @@ describe('useAppStore', () => {
         geminiModel: 'gemini-2.0-flash',
         assemblyAiKey: '',
         audioPurgeDays: 7,
+        idleLockMinutes: 5,
       },
       view: 'home',
       currentRecordingId: null,
+      locked: false,
     });
   });
 

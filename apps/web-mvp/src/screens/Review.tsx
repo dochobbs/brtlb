@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Button } from '@brtlb/ui';
+import { listTemplates } from '@brtlb/prompts';
+import type { Transcript } from '@brtlb/pipeline';
 import { useAppStore } from '../store';
 import {
   deleteRecording,
@@ -8,7 +10,12 @@ import {
   putRecording,
   type RecordingMeta,
 } from '../lib/db';
-import { runMvpPipeline, type PipelineStage } from '../lib/pipeline-browser';
+import {
+  regenerateNoteFromTranscript,
+  runMvpPipeline,
+  type PipelineStage,
+} from '../lib/pipeline-browser';
+import { redactKeysInText } from '../lib/redact';
 
 const STAGE_LABEL: Record<PipelineStage, string> = {
   uploading: 'Uploading audio…',
@@ -18,6 +25,8 @@ const STAGE_LABEL: Record<PipelineStage, string> = {
   failed: 'Failed',
 };
 
+const TEMPLATES = listTemplates();
+
 export function Review() {
   const { settings, currentRecordingId, setView } = useAppStore();
   const [meta, setMeta] = useState<RecordingMeta | null>(null);
@@ -25,6 +34,8 @@ export function Review() {
   const [editedNote, setEditedNote] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [regenerating, setRegenerating] = useState(false);
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string>('soap');
 
   useEffect(() => {
     if (!currentRecordingId) {
@@ -41,6 +52,7 @@ export function Review() {
       if (cancelled) return;
       setMeta(m);
       setEditedNote(m.noteMarkdown ?? '');
+      setSelectedTemplateId(m.templateId || 'soap');
       if (m.stage === 'recorded') {
         await runPipelineForRecording(m);
       }
@@ -68,6 +80,8 @@ export function Review() {
         mode: m.mode,
         settings,
         onStage: setStage,
+        templateId: m.templateId || 'soap',
+        patternId: m.patternId || 'narrative',
       });
       const transcriptText = out.transcript.utterances
         .map((u) => `[${u.role ?? 'Speaker ' + u.speakerId}] ${u.text}`)
@@ -76,6 +90,7 @@ export function Review() {
         ...m,
         stage: 'ready_for_review',
         transcriptText,
+        transcriptJson: JSON.stringify(out.transcript),
         noteMarkdown: out.note,
         providerUsed: out.providerUsed,
       };
@@ -84,10 +99,10 @@ export function Review() {
       setEditedNote(out.note);
       setStage('done');
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'pipeline failed';
+      const msg = redactKeysInText(err instanceof Error ? err.message : 'pipeline failed');
       setError(msg);
       setStage('failed');
-      const failed: RecordingMeta = { ...m, stage: 'failed', errorMessage: msg };
+      const failed: RecordingMeta = { ...meta!, stage: 'failed', errorMessage: msg };
       await putRecording(failed);
       setMeta(failed);
     }
@@ -131,6 +146,41 @@ export function Review() {
     await runPipelineForRecording({ ...meta, stage: 'recorded' });
   }
 
+  async function handleRegenerate(): Promise<void> {
+    if (!meta) return;
+    if (!meta.transcriptJson) {
+      setError(
+        'No structured transcript saved for this recording. Re-run the full pipeline (Retry) to capture one.',
+      );
+      return;
+    }
+    setRegenerating(true);
+    setError(null);
+    try {
+      const transcript = JSON.parse(meta.transcriptJson) as Transcript;
+      const out = await regenerateNoteFromTranscript({
+        transcript,
+        mode: meta.mode,
+        settings,
+        templateId: selectedTemplateId,
+      });
+      const updated: RecordingMeta = {
+        ...meta,
+        templateId: selectedTemplateId,
+        noteMarkdown: out.note,
+        providerUsed: out.providerUsed,
+      };
+      await putRecording(updated);
+      setMeta(updated);
+      setEditedNote(out.note);
+    } catch (err) {
+      const msg = redactKeysInText(err instanceof Error ? err.message : 'regenerate failed');
+      setError(msg);
+    } finally {
+      setRegenerating(false);
+    }
+  }
+
   if (!meta) {
     return (
       <main className="flex min-h-dvh items-center justify-center">
@@ -141,6 +191,8 @@ export function Review() {
 
   const isProcessing =
     stage !== null && stage !== 'done' && stage !== 'failed' && meta.stage !== 'ready_for_review';
+  const canRegenerate = Boolean(meta.transcriptJson) && !isProcessing && !regenerating;
+  const templateChanged = selectedTemplateId !== meta.templateId;
 
   return (
     <main className="mx-auto max-w-5xl px-4 py-8 sm:px-6 sm:py-12">
@@ -169,14 +221,14 @@ export function Review() {
 
       {error ? (
         <div className="mb-6 space-y-3 rounded-md border border-red-300 bg-red-50 p-4 text-sm text-red-800">
-          <p className="font-medium">Pipeline failed</p>
+          <p className="font-medium">Something went wrong</p>
           <p className="font-mono text-xs">{error}</p>
           <button
             type="button"
             onClick={handleRetry}
             className="rounded-md border border-red-300 bg-white px-3 py-1.5 text-xs font-medium text-red-800 hover:bg-red-100"
           >
-            Retry
+            Retry from audio
           </button>
         </div>
       ) : null}
@@ -196,17 +248,49 @@ export function Review() {
         </section>
 
         <section className="rounded-xl bg-white p-6 shadow-sm">
-          <div className="mb-3 flex items-center justify-between">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
             <h2 className="text-sm font-medium uppercase tracking-wide text-graphite-soft">Note</h2>
             {meta.providerUsed ? (
               <span className="text-xs text-graphite-soft">via {meta.providerUsed}</span>
             ) : null}
           </div>
+
+          <div className="mb-3 flex flex-wrap items-center gap-2">
+            <label className="text-xs text-graphite-soft">Template</label>
+            <select
+              value={selectedTemplateId}
+              onChange={(e) => setSelectedTemplateId(e.target.value)}
+              disabled={isProcessing || regenerating}
+              className="rounded-md border border-graphite-soft/30 bg-white px-2 py-1 text-xs text-graphite focus:border-graphite focus:outline-none"
+            >
+              {TEMPLATES.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.name}
+                </option>
+              ))}
+            </select>
+            <button
+              type="button"
+              onClick={handleRegenerate}
+              disabled={!canRegenerate || (!templateChanged && !regenerating)}
+              className="rounded-md border border-graphite-soft/30 bg-white px-3 py-1 text-xs font-medium text-graphite hover:bg-mist disabled:opacity-50"
+              title={
+                !meta.transcriptJson
+                  ? 'No structured transcript saved'
+                  : templateChanged
+                    ? 'Regenerate note with the selected template'
+                    : 'Pick a different template to enable'
+              }
+            >
+              {regenerating ? 'Regenerating…' : 'Regenerate'}
+            </button>
+          </div>
+
           <textarea
             value={editedNote}
             onChange={(e) => setEditedNote(e.target.value)}
             onBlur={handleSaveEdits}
-            disabled={isProcessing}
+            disabled={isProcessing || regenerating}
             placeholder={isProcessing ? 'Working…' : 'No note yet.'}
             className="min-h-[400px] w-full resize-y rounded-md border border-graphite-soft/20 bg-white p-3 font-mono text-sm leading-relaxed text-graphite focus:border-graphite focus:outline-none focus:ring-1 focus:ring-graphite"
           />

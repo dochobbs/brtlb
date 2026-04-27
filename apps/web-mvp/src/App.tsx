@@ -1,14 +1,19 @@
 import { useEffect } from 'react';
 import { useAppStore } from './store';
 import { purgeStaleAudio } from './lib/db';
+import { useIdleLock } from './lib/useIdleLock';
 import { Home } from './screens/Home';
 import { Settings } from './screens/Settings';
 import { Record } from './screens/Record';
 import { Review } from './screens/Review';
+import { LockScreen } from './screens/LockScreen';
 
 export function App() {
   const view = useAppStore((s) => s.view);
+  const locked = useAppStore((s) => s.locked);
   const audioPurgeDays = useAppStore((s) => s.settings.audioPurgeDays);
+
+  useIdleLock();
 
   // Run audio auto-purge once on app load. The DB pass is cheap; we don't
   // need to schedule it more aggressively for a session-length use.
@@ -25,6 +30,8 @@ export function App() {
         console.warn('brtlb: audio purge failed', err);
       });
   }, [audioPurgeDays]);
+
+  if (locked) return <LockScreen />;
 
   switch (view) {
     case 'home':

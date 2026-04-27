@@ -14,6 +14,8 @@ export interface Settings {
   assemblyAiKey: string;
   /** Audio retention in days. 0 = never purge automatically. */
   audioPurgeDays: number;
+  /** Auto-lock the UI after this many minutes of inactivity. 0 = disabled. */
+  idleLockMinutes: number;
 }
 
 const DEFAULT_SETTINGS: Settings = {
@@ -27,6 +29,7 @@ const DEFAULT_SETTINGS: Settings = {
   geminiModel: 'gemini-2.0-flash',
   assemblyAiKey: '',
   audioPurgeDays: 7,
+  idleLockMinutes: 5,
 };
 
 const SETTINGS_KEY = 'brtlb.settings.v1';
@@ -67,16 +70,20 @@ interface AppState {
   settings: Settings;
   view: View;
   currentRecordingId: string | null;
+  locked: boolean;
   setView(view: View): void;
   selectRecording(id: string | null): void;
   saveSettings(partial: Partial<Settings>): void;
   hasRequiredKeys(): boolean;
+  lock(): void;
+  unlock(): void;
 }
 
 export const useAppStore = create<AppState>((set, get) => ({
   settings: loadSettings(),
   view: 'home',
   currentRecordingId: null,
+  locked: false,
   setView(view) {
     set({ view });
   },
@@ -94,5 +101,11 @@ export const useAppStore = create<AppState>((set, get) => ({
     if (s.provider === 'anthropic') return Boolean(s.anthropicApiKey);
     if (s.provider === 'gemini-api-key') return Boolean(s.geminiApiKey);
     return Boolean(s.openaiApiKey);
+  },
+  lock() {
+    set({ locked: true });
+  },
+  unlock() {
+    set({ locked: false });
   },
 }));

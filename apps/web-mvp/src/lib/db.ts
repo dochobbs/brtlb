@@ -17,6 +17,8 @@ export interface RecordingMeta {
   stage: RecordingStage;
   errorMessage: string | null;
   transcriptText: string | null;
+  /** Full structured transcript (Transcript JSON) — needed for regenerate. */
+  transcriptJson?: string | null;
   noteMarkdown: string | null;
   templateId: string;
   patternId: string;
