@@ -13,7 +13,9 @@ import {
 } from '../lib/db';
 import {
   regenerateNoteFromTranscript,
+  reviewNoteQuality,
   runMvpPipeline,
+  tweakNote,
   type PipelineStage,
 } from '../lib/pipeline-browser';
 import { redactKeysInText } from '../lib/redact';
@@ -61,6 +63,11 @@ export function Review() {
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>('soap');
   const [speakerRoles, setSpeakerRoles] = useState<SpeakerRoleAssignment[]>([]);
   const [noteView, setNoteView] = useState<'edit' | 'preview'>('edit');
+  const [qaReview, setQaReview] = useState<string | null>(null);
+  const [qaRunning, setQaRunning] = useState(false);
+  const [qaError, setQaError] = useState<string | null>(null);
+  const [tweakInstruction, setTweakInstruction] = useState<string>('');
+  const [tweaking, setTweaking] = useState(false);
 
   useEffect(() => {
     if (!currentRecordingId) {
@@ -80,6 +87,7 @@ export function Review() {
       setEditedLabel(m.label ?? '');
       setSelectedTemplateId(m.templateId || 'soap');
       setSpeakerRoles(m.speakerRoles ?? []);
+      setQaReview(m.qaReviewMarkdown ?? null);
       if (m.stage === 'recorded') {
         await runPipelineForRecording(m);
       }
@@ -248,13 +256,69 @@ export function Review() {
         templateId: selectedTemplateId,
         noteMarkdown: out.note,
         providerUsed: out.providerUsed,
+        qaReviewMarkdown: null,
+        qaReviewedAt: null,
       });
       setEditedNote(out.note);
+      setQaReview(null);
     } catch (err) {
       const msg = redactKeysInText(err instanceof Error ? err.message : 'regenerate failed');
       setError(msg);
     } finally {
       setRegenerating(false);
+    }
+  }
+
+  async function handleQualityCheck(): Promise<void> {
+    if (!meta || !transcript || !editedNote) return;
+    setQaRunning(true);
+    setQaError(null);
+    try {
+      const out = await reviewNoteQuality({
+        note: editedNote,
+        transcript,
+        mode: meta.mode,
+        settings,
+        speakerRoles,
+      });
+      setQaReview(out);
+      const stamp = new Date().toISOString();
+      await persistMeta({ qaReviewMarkdown: out, qaReviewedAt: stamp });
+    } catch (err) {
+      setQaError(redactKeysInText(err instanceof Error ? err.message : 'quality check failed'));
+    } finally {
+      setQaRunning(false);
+    }
+  }
+
+  async function handleTweak(): Promise<void> {
+    if (!meta || !transcript || !editedNote) return;
+    const instruction = tweakInstruction.trim();
+    if (!instruction) return;
+    setTweaking(true);
+    setError(null);
+    try {
+      const revised = await tweakNote({
+        note: editedNote,
+        transcript,
+        mode: meta.mode,
+        settings,
+        instruction,
+        speakerRoles,
+      });
+      await persistMeta({
+        noteMarkdown: revised,
+        // any tweak invalidates a prior QA pass
+        qaReviewMarkdown: null,
+        qaReviewedAt: null,
+      });
+      setEditedNote(revised);
+      setQaReview(null);
+      setTweakInstruction('');
+    } catch (err) {
+      setError(redactKeysInText(err instanceof Error ? err.message : 'tweak failed'));
+    } finally {
+      setTweaking(false);
     }
   }
 
@@ -435,6 +499,69 @@ export function Review() {
               Download .md
             </button>
           </div>
+
+          {/* Tweak / revise — Roci-style physician instruction → revised note */}
+          {transcript && editedNote ? (
+            <div className="mt-4 rounded-md border border-graphite-soft/20 bg-mist p-3">
+              <label className="block text-xs font-medium uppercase tracking-wide text-graphite-soft">
+                Ask for changes
+              </label>
+              <div className="mt-1 flex flex-col gap-2 sm:flex-row">
+                <input
+                  type="text"
+                  value={tweakInstruction}
+                  onChange={(e) => setTweakInstruction(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !tweaking) handleTweak();
+                  }}
+                  disabled={tweaking}
+                  placeholder='"Shorten the assessment" · "Rewrite plan as a numbered list" · "Add return precautions"'
+                  className="flex-1 rounded-md border border-graphite-soft/30 bg-white px-3 py-2 text-sm text-graphite placeholder:text-graphite-soft/50 focus:border-graphite focus:outline-none focus:ring-1 focus:ring-graphite"
+                />
+                <button
+                  type="button"
+                  onClick={handleTweak}
+                  disabled={tweaking || !tweakInstruction.trim()}
+                  className="rounded-md bg-graphite px-4 py-2 text-sm font-medium text-white hover:bg-graphite-soft disabled:opacity-50"
+                >
+                  {tweaking ? 'Revising…' : 'Revise'}
+                </button>
+              </div>
+            </div>
+          ) : null}
+
+          {/* QA review — Roci-style note-vs-transcript safety check */}
+          {transcript && editedNote ? (
+            <div className="mt-4 rounded-md border border-graphite-soft/20 bg-mist p-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <label className="block text-xs font-medium uppercase tracking-wide text-graphite-soft">
+                    Quality check
+                  </label>
+                  <p className="text-xs text-graphite-soft">
+                    {meta.qaReviewedAt
+                      ? `Last reviewed ${new Date(meta.qaReviewedAt).toLocaleString()}.`
+                      : 'Run a separate LLM pass that flags anything in the note unsupported by the transcript.'}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleQualityCheck}
+                  disabled={qaRunning}
+                  className="rounded-md border border-graphite-soft/30 bg-white px-3 py-1.5 text-xs font-medium text-graphite hover:bg-mist disabled:opacity-50"
+                >
+                  {qaRunning ? 'Checking…' : meta.qaReviewMarkdown ? 'Re-run' : 'Run quality check'}
+                </button>
+              </div>
+              {qaError ? (
+                <p className="mt-2 text-xs text-red-700">{qaError}</p>
+              ) : qaReview ? (
+                <div className="prose mt-3 max-w-none rounded-md border border-graphite-soft/20 bg-white p-3 text-sm leading-relaxed text-graphite">
+                  <Markdown remarkPlugins={[remarkGfm]}>{qaReview}</Markdown>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
         </section>
       </div>
     </main>
