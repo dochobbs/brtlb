@@ -18,7 +18,7 @@ export function isLlmProvider(value: unknown): value is LlmProvider {
 export { composeNotePrompt } from './prompts/compose';
 export { transcribeWithAssemblyAi } from './transcription/assemblyai';
 export { createAnthropicProvider } from './adapters/anthropic';
-// export { createOpenAiCompatibleProvider } from './adapters/openai-compatible';
+export { createOpenAiCompatibleProvider } from './adapters/openai-compatible';
 // export { createGeminiVertexProvider } from './adapters/gemini-vertex';
 // export { createLlmProvider } from './adapters/factory';
 // export { runPipeline } from './orchestrator';
