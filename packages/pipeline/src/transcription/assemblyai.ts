@@ -66,7 +66,13 @@ async function uploadAudioFromPath(
   apiKey: string,
   audioPath: string,
 ): Promise<string> {
-  const { readFile } = await import('node:fs/promises');
+  // The dynamic specifier hides node:fs/promises from bundler import analyzers
+  // (Vite, esbuild) so this file stays browser-safe. Real Node callers still
+  // resolve it at runtime.
+  const moduleId = 'node:fs/promises';
+  const { readFile } = (await import(
+    /* @vite-ignore */ moduleId
+  )) as typeof import('node:fs/promises');
   const data = await readFile(audioPath);
   return uploadAudioBody(http, apiKey, data);
 }

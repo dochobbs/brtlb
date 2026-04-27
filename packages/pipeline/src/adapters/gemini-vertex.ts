@@ -1,4 +1,3 @@
-import { JWT } from 'google-auth-library';
 import type { GeminiVertexProviderConfig, GenerateNoteInput, LlmProvider } from '../types';
 import { composeNotePrompt } from '../prompts/compose';
 
@@ -19,11 +18,12 @@ interface VertexResponse {
   }>;
 }
 
-function buildAuthClient(serviceAccountJson: string): VertexAuthClient {
+async function buildAuthClient(serviceAccountJson: string): Promise<VertexAuthClient> {
   const sa = JSON.parse(serviceAccountJson) as {
     client_email: string;
     private_key: string;
   };
+  const { JWT } = await import('google-auth-library');
   return new JWT({
     email: sa.client_email,
     key: sa.private_key,
@@ -35,14 +35,21 @@ export function createGeminiVertexProvider(
   config: GeminiVertexProviderConfig,
   deps: GeminiVertexAdapterDeps = {},
 ): LlmProvider {
-  const auth = deps.authClient ?? buildAuthClient(config.serviceAccountJson);
+  let auth = deps.authClient ?? null;
   const http = deps.httpClient ?? globalThis.fetch;
+
+  async function ensureAuth(): Promise<VertexAuthClient> {
+    if (auth) return auth;
+    auth = await buildAuthClient(config.serviceAccountJson);
+    return auth;
+  }
 
   return {
     name: 'gemini-vertex',
     async generateNote(input: GenerateNoteInput): Promise<string> {
       const prompt = composeNotePrompt(input);
-      const tokenResponse = await auth.getAccessToken();
+      const a = await ensureAuth();
+      const tokenResponse = await a.getAccessToken();
       const token = tokenResponse.token;
       if (!token) throw new Error('gemini-vertex: failed to obtain access token');
 

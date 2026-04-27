@@ -1,0 +1,94 @@
+import { describe, expect, it, vi } from 'vitest';
+import { createGeminiApiKeyProvider } from './gemini-api-key';
+import type { GenerateNoteInput } from '../types';
+
+function input(): GenerateNoteInput {
+  return {
+    transcript: {
+      id: 't',
+      recordingId: 'r',
+      utterances: [
+        {
+          speakerId: 'A',
+          role: 'parent',
+          startMs: 0,
+          endMs: 500,
+          text: 'rash',
+          confidence: 0.9,
+        },
+      ],
+      createdAt: '2026-04-26T00:00:00Z',
+    },
+    template: { id: 't', name: 'T', description: '', promptBody: 'SOAP.' },
+    pattern: { id: 'p', name: 'P', description: '', promptModifier: 'Brief.' },
+    mode: 'ambient',
+    speakerRoles: [],
+  };
+}
+
+describe('createGeminiApiKeyProvider', () => {
+  it('name is "gemini-api-key"', () => {
+    const p = createGeminiApiKeyProvider({
+      kind: 'gemini-api-key',
+      apiKey: 'AIza-fake',
+      model: 'gemini-2.0-flash',
+    });
+    expect(p.name).toBe('gemini-api-key');
+  });
+
+  it('POSTs to v1beta generateContent with the api key as a query param', async () => {
+    let receivedUrl = '';
+    let receivedBody: Record<string, unknown> = {};
+    const httpClient = vi.fn(async (url: string | URL | Request, init?: RequestInit) => {
+      receivedUrl = url.toString();
+      receivedBody = JSON.parse(init?.body as string);
+      return new Response(
+        JSON.stringify({ candidates: [{ content: { parts: [{ text: 'OK' }] } }] }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } },
+      );
+    }) as unknown as typeof fetch;
+
+    const p = createGeminiApiKeyProvider(
+      { kind: 'gemini-api-key', apiKey: 'AIza-fake', model: 'gemini-2.0-flash' },
+      { httpClient },
+    );
+    const note = await p.generateNote(input());
+    expect(note).toBe('OK');
+    expect(receivedUrl).toBe(
+      'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=AIza-fake',
+    );
+    expect(receivedBody).toEqual({
+      contents: [{ role: 'user', parts: [{ text: expect.stringContaining('rash') }] }],
+      generationConfig: { maxOutputTokens: 4096 },
+    });
+  });
+
+  it('throws on non-2xx response', async () => {
+    const httpClient = vi.fn(
+      async () => new Response('forbidden', { status: 403 }),
+    ) as unknown as typeof fetch;
+    const p = createGeminiApiKeyProvider(
+      { kind: 'gemini-api-key', apiKey: 'k', model: 'm' },
+      { httpClient },
+    );
+    await expect(p.generateNote(input())).rejects.toThrow(/gemini-api-key: 403/);
+  });
+
+  it('concatenates multiple text parts of the first candidate', async () => {
+    const httpClient = vi.fn(
+      async () =>
+        new Response(
+          JSON.stringify({
+            candidates: [{ content: { parts: [{ text: 'A.' }, { text: ' B.' }] } }],
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } },
+        ),
+    ) as unknown as typeof fetch;
+
+    const p = createGeminiApiKeyProvider(
+      { kind: 'gemini-api-key', apiKey: 'k', model: 'm' },
+      { httpClient },
+    );
+    expect(await p.generateNote(input())).toBe('A. B.');
+  });
+});
