@@ -1,0 +1,22 @@
+{
+  "name": "@brtlb/mobile",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "sync": "cap sync",
+    "open:ios": "cap open ios",
+    "open:android": "cap open android",
+    "lint": "echo 'no lintable sources at this stage'",
+    "typecheck": "echo 'no typecheckable sources at this stage'"
+  },
+  "dependencies": {
+    "@brtlb/web": "workspace:*",
+    "@capacitor/android": "^6.1.2",
+    "@capacitor/core": "^6.1.2",
+    "@capacitor/ios": "^6.1.2"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^6.1.2"
+  }
+}
