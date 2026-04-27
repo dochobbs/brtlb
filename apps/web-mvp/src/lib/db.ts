@@ -21,6 +21,8 @@ export interface RecordingMeta {
   templateId: string;
   patternId: string;
   providerUsed: string | null;
+  /** Set when the audio blob has been auto-purged but metadata kept. */
+  audioPurgedAt?: string | null;
 }
 
 interface BrtlbSchema extends DBSchema {
@@ -92,6 +94,30 @@ export async function getAudio(id: string): Promise<Blob | null> {
 export async function clearAll(): Promise<void> {
   const db = await getDb();
   await Promise.all([db.clear('recordings'), db.clear('audio')]);
+}
+
+/**
+ * Drop audio blobs for any recording older than `cutoffIso` AND whose
+ * audio hasn't already been purged. Keeps the metadata + transcript +
+ * note so the user can still read past visits — only the heavy PHI
+ * (raw audio) is removed. Returns the IDs that were purged.
+ */
+export async function purgeStaleAudio(cutoffIso: string): Promise<string[]> {
+  const db = await getDb();
+  const all = await db.getAll('recordings');
+  const purged: string[] = [];
+  for (const rec of all) {
+    if (rec.audioPurgedAt) continue;
+    if (rec.createdAt >= cutoffIso) continue;
+    await db.delete('audio', rec.id);
+    const updated: RecordingMeta = {
+      ...rec,
+      audioPurgedAt: new Date().toISOString(),
+    };
+    await db.put('recordings', updated);
+    purged.push(rec.id);
+  }
+  return purged;
 }
 
 export function resetDbForTests(): void {

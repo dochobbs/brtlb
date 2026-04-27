@@ -15,6 +15,7 @@ describe('useAppStore', () => {
         geminiApiKey: '',
         geminiModel: 'gemini-2.0-flash',
         assemblyAiKey: '',
+        audioPurgeDays: 7,
       },
       view: 'home',
       currentRecordingId: null,
