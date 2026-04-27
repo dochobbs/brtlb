@@ -1,6 +1,7 @@
 import {
   composeNotePrompt,
   createAnthropicProvider,
+  createGeminiApiKeyProvider,
   createOpenAiCompatibleProvider,
   transcribeBlobWithAssemblyAi,
   type GenerateNoteInput,
@@ -9,7 +10,7 @@ import {
   type Transcript,
 } from '@brtlb/pipeline';
 import { getPattern, getTemplate } from '@brtlb/prompts';
-import type { Settings } from '../store';
+import type { ProviderKind, Settings } from '../store';
 
 export type PipelineStage = 'uploading' | 'transcribing' | 'generating' | 'done' | 'failed';
 
@@ -25,12 +26,12 @@ export interface RunMvpPipelineInput {
 export interface RunMvpPipelineOutput {
   transcript: Transcript;
   note: string;
-  providerUsed: 'anthropic' | 'openai-compatible';
+  providerUsed: ProviderKind;
 }
 
 function buildProvider(settings: Settings): {
   provider: LlmProvider;
-  kind: 'anthropic' | 'openai-compatible';
+  kind: ProviderKind;
 } {
   if (settings.provider === 'anthropic') {
     return {
@@ -40,6 +41,16 @@ function buildProvider(settings: Settings): {
         model: settings.anthropicModel,
       }),
       kind: 'anthropic',
+    };
+  }
+  if (settings.provider === 'gemini-api-key') {
+    return {
+      provider: createGeminiApiKeyProvider({
+        kind: 'gemini-api-key',
+        apiKey: settings.geminiApiKey,
+        model: settings.geminiModel,
+      }),
+      kind: 'gemini-api-key',
     };
   }
   return {

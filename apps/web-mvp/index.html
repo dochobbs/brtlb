@@ -14,6 +14,27 @@
       rel="stylesheet"
     />
     <title>brtlb</title>
+    <script>
+      // Minimal Node process shim for browser. The Anthropic + OpenAI SDKs
+      // touch process.env, process.stdout.isTTY, and process.versions at
+      // module load. Provide just enough so they fall through to runtime
+      // config rather than crashing.
+      window.process = window.process || {};
+      window.process.env = window.process.env || {};
+      window.process.platform = window.process.platform || 'browser';
+      window.process.version = window.process.version || '';
+      window.process.versions = window.process.versions || {};
+      window.process.stdout = window.process.stdout || { isTTY: false, write: () => {} };
+      window.process.stderr = window.process.stderr || { isTTY: false, write: () => {} };
+      window.process.on = window.process.on || function () {};
+      window.process.off = window.process.off || function () {};
+      window.process.removeListener = window.process.removeListener || function () {};
+      window.process.emit = window.process.emit || function () {};
+      window.process.listeners = window.process.listeners || function () { return []; };
+      window.process.cwd = window.process.cwd || function () { return '/'; };
+      window.process.nextTick = window.process.nextTick || function (cb) { Promise.resolve().then(cb); };
+      window.global = window.global || window;
+    </script>
   </head>
   <body>
     <div id="root"></div>

@@ -12,6 +12,8 @@ describe('useAppStore', () => {
         openaiApiKey: '',
         openaiBaseUrl: '',
         openaiModel: 'gpt-4o',
+        geminiApiKey: '',
+        geminiModel: 'gemini-2.0-flash',
         assemblyAiKey: '',
       },
       view: 'home',
