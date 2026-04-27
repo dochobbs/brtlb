@@ -21,5 +21,7 @@ export type { TranscribeBlobOptions } from './transcription/assemblyai';
 export { createAnthropicProvider } from './adapters/anthropic';
 export { createOpenAiCompatibleProvider } from './adapters/openai-compatible';
 export { createGeminiVertexProvider } from './adapters/gemini-vertex';
+export { createGeminiApiKeyProvider } from './adapters/gemini-api-key';
+export type { GeminiApiKeyProviderConfig } from './adapters/gemini-api-key';
 export { createLlmProvider } from './adapters/factory';
 export { runPipeline } from './orchestrator';

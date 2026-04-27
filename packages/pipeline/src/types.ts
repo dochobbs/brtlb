@@ -75,10 +75,18 @@ export interface GeminiVertexProviderConfig {
   model: string;
 }
 
+export interface GeminiApiKeyProviderConfig {
+  kind: 'gemini-api-key';
+  apiKey: string;
+  model: string;
+  maxOutputTokens?: number;
+}
+
 export type ProviderConfig =
   | AnthropicProviderConfig
   | OpenAiCompatibleProviderConfig
-  | GeminiVertexProviderConfig;
+  | GeminiVertexProviderConfig
+  | GeminiApiKeyProviderConfig;
 
 // --- AssemblyAI ---
 
