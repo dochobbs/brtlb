@@ -1,0 +1,6 @@
+{
+  "id": "narrative",
+  "name": "Narrative",
+  "description": "Flowing prose paragraphs rather than bullet lists.",
+  "promptModifier": "Write each section as flowing narrative prose, not bullet points. Use full sentences and natural transitions."
+}

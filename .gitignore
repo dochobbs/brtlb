@@ -11,17 +11,13 @@ out/
 .turbo/
 .next/
 .vite/
+*.tsbuildinfo
 
 # Native shells
 apps/electron/dist/
-apps/mobile/ios/App/Pods/
-apps/mobile/ios/App/build/
-apps/mobile/android/.gradle/
-apps/mobile/android/app/build/
-apps/mobile/android/build/
-apps/mobile/android/local.properties
-apps/mobile/ios/App/App/public/
-apps/mobile/android/app/src/main/assets/public/
+# Capacitor native shells (added in Phase 9)
+apps/mobile/ios/
+apps/mobile/android/
 
 # Secrets
 .env

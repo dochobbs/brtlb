@@ -17,7 +17,7 @@ The product extracts and adapts the proven recording → transcribe → generate
 - Independent / direct-primary-care / small-group pediatricians.
 - Already has (or can obtain) a Business Associate Agreement with at least one foundation-model provider (Vertex AI, Anthropic, Azure OpenAI, etc.).
 - Already has (or will create) an AssemblyAI account with a BAA on a paid tier.
-- Wants their notes generated *for* them, not posted *into* an EHR for them.
+- Wants their notes generated _for_ them, not posted _into_ an EHR for them.
 
 ## 3. Non-Goals (v1)
 
@@ -64,16 +64,17 @@ Stale-state recovery: any stage stuck > 3 minutes is auto-flagged as `failed` wi
 
 ## 6. Recording Modes
 
-| Mode | Diarization | Prompt assumption |
-|---|---|---|
-| **Ambient** (default) | On | Multiple speakers; LLM attributes statements to roles. |
-| **Dictation** | Off | Single speaker (provider); LLM treats as a structured monologue. |
+| Mode                  | Diarization | Prompt assumption                                                |
+| --------------------- | ----------- | ---------------------------------------------------------------- |
+| **Ambient** (default) | On          | Multiple speakers; LLM attributes statements to roles.           |
+| **Dictation**         | Off         | Single speaker (provider); LLM treats as a structured monologue. |
 
 Toggle on the record screen. Both share the same recording, upload, and transcription code paths — only the AssemblyAI flag and the prompt template change.
 
 ## 7. Templates and Patterns
 
-A **template** is the *output structure*:
+A **template** is the _output structure_:
+
 - SOAP (default)
 - HPI-only
 - Well-Child Visit (age-aware variants: newborn / infant / toddler / school-age / adolescent)
@@ -83,7 +84,8 @@ A **template** is the *output structure*:
 - Behavioral
 - Procedure note
 
-A **pattern** is the *stylistic shape* applied on top:
+A **pattern** is the _stylistic shape_ applied on top:
+
 - Terse vs. narrative prose
 - Inline ROS vs. bulleted ROS
 - Numbered vs. paragraph assessment/plan
@@ -102,11 +104,11 @@ Templates and patterns are picked **after** transcription, **before** generation
 
 Three adapters behind a `LLMProvider` interface in `packages/pipeline/`:
 
-| Adapter | Auth | Primary use |
-|---|---|---|
-| **Gemini (Vertex AI)** | GCP project ID + region + service account JSON | **Default / most-used.** BAA via Google Cloud HIPAA. |
-| **Anthropic** | API key | BAA via Anthropic Enterprise. |
-| **OpenAI-compatible** | Base URL + API key + model name | Covers OpenAI, Azure OpenAI, OpenRouter, local Ollama, vLLM, custom gateways. |
+| Adapter                | Auth                                           | Primary use                                                                   |
+| ---------------------- | ---------------------------------------------- | ----------------------------------------------------------------------------- |
+| **Gemini (Vertex AI)** | GCP project ID + region + service account JSON | **Default / most-used.** BAA via Google Cloud HIPAA.                          |
+| **Anthropic**          | API key                                        | BAA via Anthropic Enterprise.                                                 |
+| **OpenAI-compatible**  | Base URL + API key + model name                | Covers OpenAI, Azure OpenAI, OpenRouter, local Ollama, vLLM, custom gateways. |
 
 User selects the active provider in settings and the model used for note generation. All three adapters expose the same `generateNote({transcript, template, pattern, speakerRoles}) → string` shape so the rest of the app is provider-agnostic.
 
@@ -185,23 +187,23 @@ Docs are bundled in-app (offline) and mirrored on a marketing site.
 
 ## 14. Tech Stack
 
-| Layer | Choice |
-|---|---|
-| UI framework | React 19 + Vite 6 + TypeScript |
-| Styling | Tailwind v4 |
-| State | Zustand |
-| DB | @capacitor-community/sqlite + SQLCipher |
-| Audio (mobile) | @capacitor-community/voice-recorder |
-| Audio (desktop) | MediaRecorder API |
-| Share (mobile) | @capacitor/share |
-| Share (desktop) | Electron `shell` + `dialog` |
-| Crypto | Web Crypto API + platform keychain bridges |
-| Native shells | Capacitor 6 (iOS + Android), Electron 30 (Mac/Win/Linux) |
-| Monorepo | Turborepo + pnpm workspaces |
-| Build | Vite for web, electron-builder for desktop, Capacitor CLI + Xcode/Gradle for mobile |
-| Testing | Vitest (unit), Playwright (E2E web), manual smoke per platform |
-| Lint/format | ESLint + Prettier + TypeScript strict |
-| CI | GitHub Actions |
+| Layer           | Choice                                                                              |
+| --------------- | ----------------------------------------------------------------------------------- |
+| UI framework    | React 19 + Vite 6 + TypeScript                                                      |
+| Styling         | Tailwind v4                                                                         |
+| State           | Zustand                                                                             |
+| DB              | @capacitor-community/sqlite + SQLCipher                                             |
+| Audio (mobile)  | @capacitor-community/voice-recorder                                                 |
+| Audio (desktop) | MediaRecorder API                                                                   |
+| Share (mobile)  | @capacitor/share                                                                    |
+| Share (desktop) | Electron `shell` + `dialog`                                                         |
+| Crypto          | Web Crypto API + platform keychain bridges                                          |
+| Native shells   | Capacitor 6 (iOS + Android), Electron 30 (Mac/Win/Linux)                            |
+| Monorepo        | Turborepo + pnpm workspaces                                                         |
+| Build           | Vite for web, electron-builder for desktop, Capacitor CLI + Xcode/Gradle for mobile |
+| Testing         | Vitest (unit), Playwright (E2E web), manual smoke per platform                      |
+| Lint/format     | ESLint + Prettier + TypeScript strict                                               |
+| CI              | GitHub Actions                                                                      |
 
 ## 15. Repo Layout
 
@@ -227,6 +229,7 @@ brtlb/
 ```
 
 Bundle / product identifiers:
+
 - Capacitor app ID: `com.brtlb.app`
 - Electron product name: `brtlb`
 - SQLite filename: `brtlb.db`
@@ -263,15 +266,15 @@ All sensitive fields encrypted via SQLCipher at rest.
 
 ## 17. Risks and Open Questions
 
-| Risk / Question | Mitigation |
-|---|---|
-| **iOS background recording** can be killed by the OS. | Declare `audio` background mode in `Info.plist`, show the system recording indicator, write audio in small chunks so a kill loses ≤ 30 sec. |
-| **App Store review for medical apps.** | Clear privacy disclosure: PHI never leaves the device; all third-party calls are user-configured. Expect extra review cycles. |
-| **AssemblyAI BAA gating.** | Document required plan tier in onboarding; refuse to send any audio if user hasn't checked the "I have a BAA" attestation. |
-| **Vertex AI service-account JSON UX** is awkward on mobile. | Provide an in-app file picker + paste-from-clipboard fallback, with a "How do I create this?" deep-linked guide. |
-| **Diarization quality** varies wildly with mic placement. | Show real-time audio meter while recording; in onboarding test, surface the speaker count detected so the user calibrates expectations. |
-| **Passphrase loss = total data loss.** | Big warning during setup. Offer optional written-down recovery word list (BIP-39 style) printed once during setup. |
-| **License** for the codebase. | TBD — likely AGPL-3.0 or source-available; decide before first public push. |
+| Risk / Question                                             | Mitigation                                                                                                                                  |
+| ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| **iOS background recording** can be killed by the OS.       | Declare `audio` background mode in `Info.plist`, show the system recording indicator, write audio in small chunks so a kill loses ≤ 30 sec. |
+| **App Store review for medical apps.**                      | Clear privacy disclosure: PHI never leaves the device; all third-party calls are user-configured. Expect extra review cycles.               |
+| **AssemblyAI BAA gating.**                                  | Document required plan tier in onboarding; refuse to send any audio if user hasn't checked the "I have a BAA" attestation.                  |
+| **Vertex AI service-account JSON UX** is awkward on mobile. | Provide an in-app file picker + paste-from-clipboard fallback, with a "How do I create this?" deep-linked guide.                            |
+| **Diarization quality** varies wildly with mic placement.   | Show real-time audio meter while recording; in onboarding test, surface the speaker count detected so the user calibrates expectations.     |
+| **Passphrase loss = total data loss.**                      | Big warning during setup. Offer optional written-down recovery word list (BIP-39 style) printed once during setup.                          |
+| **License** for the codebase.                               | TBD — likely AGPL-3.0 or source-available; decide before first public push.                                                                 |
 
 ## 18. Out of Scope (deferred to later versions)
 
