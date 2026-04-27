@@ -7,6 +7,7 @@ import {
   type GenerateNoteInput,
   type LlmProvider,
   type RecordingMode,
+  type SpeakerRoleAssignment,
   type Transcript,
 } from '@brtlb/pipeline';
 import { getPattern, getTemplate } from '@brtlb/prompts';
@@ -21,6 +22,7 @@ export interface RunMvpPipelineInput {
   onStage?: (stage: PipelineStage) => void;
   templateId?: string;
   patternId?: string;
+  speakerRoles?: SpeakerRoleAssignment[];
 }
 
 export interface RunMvpPipelineOutput {
@@ -103,7 +105,7 @@ export async function runMvpPipeline(input: RunMvpPipelineInput): Promise<RunMvp
       promptModifier: pattern.promptModifier,
     },
     mode: input.mode,
-    speakerRoles: [],
+    speakerRoles: input.speakerRoles ?? [],
   };
 
   let note: string;
@@ -124,6 +126,7 @@ export interface RegenerateNoteInput {
   settings: Settings;
   templateId: string;
   patternId?: string;
+  speakerRoles?: SpeakerRoleAssignment[];
 }
 
 export interface RegenerateNoteOutput {
@@ -160,7 +163,7 @@ export async function regenerateNoteFromTranscript(
       promptModifier: pattern.promptModifier,
     },
     mode: input.mode,
-    speakerRoles: [],
+    speakerRoles: input.speakerRoles ?? [],
   };
   const note = await provider.generateNote(noteInput);
   return { note, providerUsed: kind };

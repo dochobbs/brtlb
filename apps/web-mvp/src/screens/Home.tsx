@@ -55,26 +55,26 @@ export function Home() {
   }
 
   return (
-    <main className="mx-auto max-w-3xl px-4 py-8 sm:px-6 sm:py-12">
-      <header className="mb-10 flex items-center justify-between">
+    <main className="mx-auto max-w-3xl px-3 py-6 sm:px-6 sm:py-12">
+      <header className="mb-6 flex items-center justify-between sm:mb-10">
         <Lockup size="md" />
         <button
           type="button"
           onClick={() => setView('settings')}
-          className="text-sm text-graphite-soft hover:text-graphite"
+          className="rounded-md px-3 py-2 text-sm text-graphite-soft hover:text-graphite"
         >
           Settings
         </button>
       </header>
 
-      <section className="mb-10 rounded-xl bg-white p-8 shadow-sm">
+      <section className="mb-8 rounded-xl bg-white p-5 shadow-sm sm:mb-10 sm:p-8">
         <h2 className="text-xl font-semibold text-graphite">New visit</h2>
         <p className="mt-1 text-sm text-graphite-soft">
           {hasRequiredKeys()
             ? 'Press record to start an ambient or dictation session.'
             : 'Add your AssemblyAI and foundation-model keys to begin.'}
         </p>
-        <div className="mt-6">
+        <div className="mt-5 sm:mt-6">
           <Button onClick={startNew}>{hasRequiredKeys() ? 'New recording' : 'Set up keys'}</Button>
         </div>
       </section>
@@ -96,22 +96,28 @@ export function Home() {
                 <button
                   type="button"
                   onClick={() => openRecording(r.id)}
-                  className="flex w-full items-center justify-between rounded-md bg-white px-4 py-3 text-left shadow-sm transition hover:bg-mist"
+                  className="flex w-full items-center justify-between gap-3 rounded-md bg-white px-4 py-3 text-left shadow-sm transition hover:bg-mist active:bg-mist"
                 >
-                  <div>
-                    <div className="text-sm font-medium text-graphite">
-                      {formatDate(r.createdAt)} · {r.mode}
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-sm font-medium text-graphite">
+                      {r.label || `${formatDate(r.createdAt)} · ${r.mode}`}
                     </div>
-                    <div className="text-xs text-graphite-soft">
-                      {formatDuration(r.durationMs)} · {STAGE_LABEL[r.stage]}
+                    <div className="mt-0.5 flex flex-wrap items-center gap-x-2 text-xs text-graphite-soft">
+                      <span>{formatDate(r.createdAt)}</span>
+                      <span>·</span>
+                      <span>{r.mode}</span>
+                      <span>·</span>
+                      <span>{formatDuration(r.durationMs)}</span>
+                      <span>·</span>
+                      <span>{STAGE_LABEL[r.stage]}</span>
                       {r.audioPurgedAt ? (
-                        <span className="ml-2 inline-flex items-center rounded-full bg-mist px-2 py-0.5 text-[10px] uppercase tracking-wide text-graphite-soft">
+                        <span className="inline-flex items-center rounded-full bg-mist px-2 py-0.5 text-[10px] uppercase tracking-wide text-graphite-soft">
                           Audio purged
                         </span>
                       ) : null}
                     </div>
                   </div>
-                  <span className="text-graphite-soft">›</span>
+                  <span className="shrink-0 text-graphite-soft">›</span>
                 </button>
               </li>
             ))}
@@ -119,7 +125,7 @@ export function Home() {
         )}
       </section>
 
-      <footer className="mt-12 text-center text-xs text-graphite-soft">
+      <footer className="mt-12 pb-8 text-center text-xs text-graphite-soft">
         Less noise. Same meaning.
       </footer>
     </main>
