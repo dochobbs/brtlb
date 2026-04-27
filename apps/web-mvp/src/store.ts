@@ -16,6 +16,15 @@ export interface Settings {
   audioPurgeDays: number;
   /** Auto-lock the UI after this many minutes of inactivity. 0 = disabled. */
   idleLockMinutes: number;
+  /** User-authored note templates / instructions (saved across sessions). */
+  customTemplates: CustomTemplate[];
+}
+
+export interface CustomTemplate {
+  id: string;
+  name: string;
+  description?: string;
+  promptBody: string;
 }
 
 const DEFAULT_SETTINGS: Settings = {
@@ -30,6 +39,7 @@ const DEFAULT_SETTINGS: Settings = {
   assemblyAiKey: '',
   audioPurgeDays: 7,
   idleLockMinutes: 5,
+  customTemplates: [],
 };
 
 const SETTINGS_KEY = 'brtlb.settings.v1';

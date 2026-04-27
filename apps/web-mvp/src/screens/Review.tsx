@@ -30,7 +30,7 @@ const STAGE_LABEL: Record<PipelineStage, string> = {
   failed: 'Failed',
 };
 
-const TEMPLATES = listTemplates();
+const BUILTIN_TEMPLATES = listTemplates();
 
 const ROLE_DISPLAY: Record<string, string> = {
   parent: 'Parent',
@@ -428,11 +428,22 @@ export function Review() {
               disabled={isProcessing || regenerating}
               className="rounded-md border border-graphite-soft/30 bg-white px-2 py-1 text-xs text-graphite focus:border-graphite focus:outline-none"
             >
-              {TEMPLATES.map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.name}
-                </option>
-              ))}
+              <optgroup label="Built-in">
+                {BUILTIN_TEMPLATES.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.name}
+                  </option>
+                ))}
+              </optgroup>
+              {settings.customTemplates.length > 0 ? (
+                <optgroup label="Yours">
+                  {settings.customTemplates.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.name}
+                    </option>
+                  ))}
+                </optgroup>
+              ) : null}
             </select>
             <button
               type="button"

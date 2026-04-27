@@ -4,6 +4,7 @@ import { useAppStore, type ProviderKind } from '../store';
 import { KeyField } from '../components/KeyField';
 import { redactKeysInText } from '../lib/redact';
 import { clearAll } from '../lib/db';
+import { CustomTemplateEditor } from '../components/CustomTemplateEditor';
 import {
   createAnthropicProvider,
   createGeminiApiKeyProvider,
@@ -360,6 +361,13 @@ export function Settings() {
         </button>
         <Button onClick={handleSave}>Save</Button>
       </div>
+
+      <section className="mt-6 rounded-xl bg-white p-6 shadow-sm">
+        <CustomTemplateEditor
+          templates={draft.customTemplates}
+          onChange={(next) => update('customTemplates', next)}
+        />
+      </section>
 
       <section className="mt-6 space-y-4 rounded-xl bg-white p-6 shadow-sm">
         <div>
