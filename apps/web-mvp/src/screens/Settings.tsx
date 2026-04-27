@@ -384,6 +384,23 @@ export function Settings() {
             <span className="text-sm text-graphite-soft">days</span>
           </div>
         </label>
+
+        <label className="block">
+          <span className="block text-sm font-medium text-graphite">Idle auto-lock</span>
+          <div className="mt-1 flex items-center gap-2">
+            <input
+              type="number"
+              min={0}
+              max={120}
+              value={draft.idleLockMinutes}
+              onChange={(e) => update('idleLockMinutes', Number(e.target.value) || 0)}
+              className="w-24 rounded-md border border-graphite-soft/30 bg-white px-3 py-2 text-sm text-graphite focus:border-graphite focus:outline-none"
+            />
+            <span className="text-sm text-graphite-soft">
+              minutes — hides PHI behind a tap-to-continue screen after inactivity. 0 = disabled.
+            </span>
+          </div>
+        </label>
       </section>
 
       <section className="mt-10 rounded-xl border border-red-200 bg-red-50 p-6">

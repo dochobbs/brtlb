@@ -118,5 +118,53 @@ export async function runMvpPipeline(input: RunMvpPipelineInput): Promise<RunMvp
   return { transcript, note, providerUsed: kind };
 }
 
+export interface RegenerateNoteInput {
+  transcript: Transcript;
+  mode: RecordingMode;
+  settings: Settings;
+  templateId: string;
+  patternId?: string;
+}
+
+export interface RegenerateNoteOutput {
+  note: string;
+  providerUsed: ProviderKind;
+}
+
+/**
+ * Re-run only the LLM step against an existing transcript with a (possibly
+ * different) template. Skips AssemblyAI entirely — no extra transcription
+ * cost, no need to keep the audio.
+ */
+export async function regenerateNoteFromTranscript(
+  input: RegenerateNoteInput,
+): Promise<RegenerateNoteOutput> {
+  const template = getTemplate(input.templateId);
+  const pattern = getPattern(input.patternId ?? 'narrative');
+  if (!template) throw new Error(`Unknown template: ${input.templateId}`);
+  if (!pattern) throw new Error(`Unknown pattern: ${input.patternId}`);
+
+  const { provider, kind } = buildProvider(input.settings);
+  const noteInput: GenerateNoteInput = {
+    transcript: input.transcript,
+    template: {
+      id: template.id,
+      name: template.name,
+      description: template.description,
+      promptBody: template.promptBody,
+    },
+    pattern: {
+      id: pattern.id,
+      name: pattern.name,
+      description: pattern.description,
+      promptModifier: pattern.promptModifier,
+    },
+    mode: input.mode,
+    speakerRoles: [],
+  };
+  const note = await provider.generateNote(noteInput);
+  return { note, providerUsed: kind };
+}
+
 // Re-export composeNotePrompt for tests / dev tooling
 export { composeNotePrompt };
