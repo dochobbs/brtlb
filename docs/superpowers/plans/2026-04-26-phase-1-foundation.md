@@ -102,6 +102,7 @@ brtlb/
 ## Task 1: Workspace Tooling Baseline
 
 **Files:**
+
 - Create: `.nvmrc`
 - Create: `.editorconfig`
 - Create: `.prettierrc.json`
@@ -176,8 +177,8 @@ trim_trailing_whitespace = false
 
 ```yaml
 packages:
-  - "apps/*"
-  - "packages/*"
+  - 'apps/*'
+  - 'packages/*'
 ```
 
 - [ ] **Step 1.6: Create `tsconfig.base.json`**
@@ -207,6 +208,7 @@ packages:
 - [ ] **Step 1.7: Install root deps and verify pnpm sees workspaces**
 
 Run:
+
 ```bash
 cd ~/Downloads/Consult/pedsdpc/brtlb
 pnpm install
@@ -227,6 +229,7 @@ git commit -m "CHORE: scaffold pnpm + turborepo workspace baseline"
 ## Task 2: Turbo Pipeline Config
 
 **Files:**
+
 - Create: `turbo.json`
 
 - [ ] **Step 2.1: Create `turbo.json`**
@@ -258,6 +261,7 @@ git commit -m "CHORE: scaffold pnpm + turborepo workspace baseline"
 - [ ] **Step 2.2: Verify turbo can enumerate the (still-empty) graph**
 
 Run:
+
 ```bash
 pnpm exec turbo run build --dry-run
 ```
@@ -276,6 +280,7 @@ git commit -m "CHORE: add turborepo pipeline config"
 ## Task 3: ESLint Flat Config
 
 **Files:**
+
 - Create: `eslint.config.js`
 
 - [ ] **Step 3.1: Add ESLint deps to root `package.json`**
@@ -356,6 +361,7 @@ git commit -m "CHORE: add eslint flat config for ts/tsx"
 ## Task 4: `packages/pipeline` Skeleton with Interface Stubs
 
 **Files:**
+
 - Create: `packages/pipeline/package.json`
 - Create: `packages/pipeline/tsconfig.json`
 - Create: `packages/pipeline/src/types.ts`
@@ -432,12 +438,7 @@ describe('@brtlb/pipeline', () => {
 ```ts
 export type RecordingMode = 'ambient' | 'dictation';
 
-export type SpeakerRole =
-  | 'parent'
-  | 'patient'
-  | 'provider'
-  | 'sibling'
-  | 'other';
+export type SpeakerRole = 'parent' | 'patient' | 'provider' | 'sibling' | 'other';
 
 export interface Utterance {
   speakerId: string;
@@ -526,6 +527,7 @@ git commit -m "FEATURE(pipeline): scaffold package with LlmProvider interface"
 ## Task 5: `packages/db` Skeleton with Schema Strings
 
 **Files:**
+
 - Create: `packages/db/package.json`
 - Create: `packages/db/tsconfig.json`
 - Create: `packages/db/src/schema.ts`
@@ -701,6 +703,7 @@ export const SCHEMA_VERSION = 1;
 - [ ] **Step 5.6: Install + run test**
 
 Run:
+
 ```bash
 pnpm install
 pnpm --filter @brtlb/db test
@@ -720,6 +723,7 @@ git commit -m "FEATURE(db): scaffold schema strings for v1 tables"
 ## Task 6: `packages/prompts` Skeleton with Initial SOAP Template
 
 **Files:**
+
 - Create: `packages/prompts/package.json`
 - Create: `packages/prompts/tsconfig.json`
 - Create: `packages/prompts/src/templates/soap.json`
@@ -860,6 +864,7 @@ export function getPattern(id: string): NotePattern | undefined {
 - [ ] **Step 6.7: Run test**
 
 Run:
+
 ```bash
 pnpm install
 pnpm --filter @brtlb/prompts test
@@ -879,6 +884,7 @@ git commit -m "FEATURE(prompts): scaffold templates/patterns with initial SOAP+n
 ## Task 7: `packages/ui` Skeleton with One Shared Component
 
 **Files:**
+
 - Create: `packages/ui/package.json`
 - Create: `packages/ui/tsconfig.json`
 - Create: `packages/ui/src/Button.tsx`
@@ -1014,6 +1020,7 @@ export type { ButtonProps } from './Button';
 - [ ] **Step 7.7: Run test**
 
 Run:
+
 ```bash
 pnpm install
 pnpm --filter @brtlb/ui test
@@ -1033,6 +1040,7 @@ git commit -m "FEATURE(ui): scaffold shared component library with Button"
 ## Task 8: `apps/web` — React + Vite + Tailwind Shell
 
 **Files:**
+
 - Create: `apps/web/package.json`
 - Create: `apps/web/tsconfig.json`
 - Create: `apps/web/vite.config.ts`
@@ -1061,9 +1069,7 @@ describe('App', () => {
 
   it('renders the placeholder tagline', () => {
     render(<App />);
-    expect(
-      screen.getByText(/pediatric ai scribe/i),
-    ).toBeDefined();
+    expect(screen.getByText(/pediatric ai scribe/i)).toBeDefined();
   });
 });
 ```
@@ -1143,11 +1149,7 @@ export default defineConfig({
 import type { Config } from 'tailwindcss';
 
 const config: Config = {
-  content: [
-    './index.html',
-    './src/**/*.{ts,tsx}',
-    '../../packages/ui/src/**/*.{ts,tsx}',
-  ],
+  content: ['./index.html', './src/**/*.{ts,tsx}', '../../packages/ui/src/**/*.{ts,tsx}'],
   theme: { extend: {} },
   plugins: [],
 };
@@ -1228,6 +1230,7 @@ createRoot(rootEl).render(
 - [ ] **Step 8.11: Install + run test**
 
 Run:
+
 ```bash
 pnpm install
 pnpm --filter @brtlb/web test
@@ -1238,6 +1241,7 @@ Expected: 2 passing tests.
 - [ ] **Step 8.12: Verify dev server starts**
 
 Run (in foreground for ~5 sec, then Ctrl-C):
+
 ```bash
 pnpm --filter @brtlb/web dev
 ```
@@ -1247,6 +1251,7 @@ Expected: Vite reports `Local: http://localhost:5180/` and serves the page witho
 - [ ] **Step 8.13: Verify production build**
 
 Run:
+
 ```bash
 pnpm --filter @brtlb/web build
 ```
@@ -1265,6 +1270,7 @@ git commit -m "FEATURE(web): scaffold React + Vite + Tailwind shell"
 ## Task 9: `apps/electron` — Desktop Shell that Loads `apps/web`
 
 **Files:**
+
 - Create: `apps/electron/package.json`
 - Create: `apps/electron/tsconfig.json`
 - Create: `apps/electron/electron-builder.yml`
@@ -1324,7 +1330,7 @@ directories:
   output: dist-pkg
 files:
   - dist/**/*
-  - "../../apps/web/dist/**/*"
+  - '../../apps/web/dist/**/*'
 mac:
   category: public.app-category.medical
   target: dmg
@@ -1394,6 +1400,7 @@ app.on('activate', () => {
 - [ ] **Step 9.6: Build the web app first, then launch Electron**
 
 Run:
+
 ```bash
 pnpm install
 pnpm --filter @brtlb/web build
@@ -1405,6 +1412,7 @@ Expected: both produce `dist/` folders with no errors.
 - [ ] **Step 9.7: Smoke-launch electron**
 
 Run (foreground, close the window when verified):
+
 ```bash
 pnpm --filter @brtlb/electron dev
 ```
@@ -1423,6 +1431,7 @@ git commit -m "FEATURE(electron): scaffold desktop shell loading apps/web build"
 ## Task 10: `apps/mobile` — Capacitor Config Skeleton
 
 **Files:**
+
 - Create: `apps/mobile/package.json`
 - Create: `apps/mobile/capacitor.config.ts`
 - Create: `apps/mobile/README.md`
@@ -1477,7 +1486,7 @@ export default config;
 
 - [ ] **Step 10.3: Create `apps/mobile/README.md`**
 
-```markdown
+````markdown
 # @brtlb/mobile
 
 Capacitor wrapper around `apps/web`. The native iOS and Android projects are
@@ -1490,6 +1499,7 @@ Build the web app first so Capacitor has something to copy:
 ```bash
 pnpm --filter @brtlb/web build
 ```
+````
 
 Then add the platforms:
 
@@ -1511,6 +1521,7 @@ pnpm --filter @brtlb/mobile sync
 pnpm --filter @brtlb/mobile open:ios       # opens Xcode
 pnpm --filter @brtlb/mobile open:android   # opens Android Studio
 ```
+
 ```
 
 - [ ] **Step 10.4: Add mobile native dirs to `.gitignore`**
@@ -1518,10 +1529,13 @@ pnpm --filter @brtlb/mobile open:android   # opens Android Studio
 Append to root `.gitignore` (these lines may already exist; ensure they do):
 
 ```
+
 # Capacitor native shells (added in Phase 9)
+
 apps/mobile/ios/
 apps/mobile/android/
-```
+
+````
 
 (If already present from the initial `.gitignore`, leave it.)
 
@@ -1536,13 +1550,14 @@ Expected: Capacitor packages install. No build/run yet — those are Phase 9.
 ```bash
 git add apps/mobile .gitignore pnpm-lock.yaml
 git commit -m "FEATURE(mobile): scaffold capacitor config; native shells deferred to Phase 9"
-```
+````
 
 ---
 
 ## Task 11: GitHub Actions CI
 
 **Files:**
+
 - Create: `.github/workflows/ci.yml`
 
 - [ ] **Step 11.1: Create `.github/workflows/ci.yml`**
@@ -1597,6 +1612,7 @@ jobs:
 - [ ] **Step 11.2: Run the same commands locally to confirm CI will pass**
 
 Run:
+
 ```bash
 pnpm install --frozen-lockfile
 pnpm format:check
@@ -1621,13 +1637,14 @@ git commit -m "CI: add GitHub Actions workflow for lint/typecheck/test/build"
 ## Task 12: Docs Polish + Phase Handoff Notes
 
 **Files:**
+
 - Modify: `README.md`
 - Create: `docs/user-guides/.gitkeep`
 - Create: `docs/superpowers/plans/README.md`
 
 - [ ] **Step 12.1: Replace `README.md`**
 
-```markdown
+````markdown
 # brtlb
 
 A pediatric-focused, BYO-keys AI scribe for desktop and mobile.
@@ -1641,18 +1658,18 @@ Status: **Phase 1 (foundation) complete.** No product features yet.
 
 ## Repo layout
 
-| Path | Purpose |
-|---|---|
-| `apps/web` | React + Vite app — the product |
-| `apps/electron` | Desktop shell |
-| `apps/mobile` | Capacitor config (native shells generated locally, see its README) |
-| `packages/pipeline` | LLM adapter interface + future AssemblyAI client |
-| `packages/db` | Schema strings + future SQLCipher wrapper |
-| `packages/ui` | Shared React components |
-| `packages/prompts` | Versioned templates and patterns |
-| `docs/superpowers/specs` | Design specs |
-| `docs/superpowers/plans` | Phased implementation plans |
-| `docs/user-guides` | API key setup walkthroughs (filled in Phase 8) |
+| Path                     | Purpose                                                            |
+| ------------------------ | ------------------------------------------------------------------ |
+| `apps/web`               | React + Vite app — the product                                     |
+| `apps/electron`          | Desktop shell                                                      |
+| `apps/mobile`            | Capacitor config (native shells generated locally, see its README) |
+| `packages/pipeline`      | LLM adapter interface + future AssemblyAI client                   |
+| `packages/db`            | Schema strings + future SQLCipher wrapper                          |
+| `packages/ui`            | Shared React components                                            |
+| `packages/prompts`       | Versioned templates and patterns                                   |
+| `docs/superpowers/specs` | Design specs                                                       |
+| `docs/superpowers/plans` | Phased implementation plans                                        |
+| `docs/user-guides`       | API key setup walkthroughs (filled in Phase 8)                     |
 
 ## Quick start
 
@@ -1662,6 +1679,7 @@ corepack enable               # enables pnpm if needed
 pnpm install
 pnpm --filter @brtlb/web dev  # http://localhost:5180
 ```
+````
 
 Run all checks:
 
@@ -1674,12 +1692,14 @@ pnpm format:check && pnpm lint && pnpm typecheck && pnpm test
 See `docs/superpowers/plans/` for the phased roadmap. Phase 1 stands the repo up; Phases 2–10 build the product.
 
 License: TBD.
+
 ```
 
 - [ ] **Step 12.2: Create `docs/user-guides/.gitkeep`** (empty file so the directory is tracked)
 
 ```
-```
+
+````
 
 - [ ] **Step 12.3: Create `docs/superpowers/plans/README.md`**
 
@@ -1700,7 +1720,7 @@ Phased rollout. Each phase produces working, testable software on its own.
 | 8 | Onboarding & settings | Pending |
 | 9 | Mobile shell finalization | Pending |
 | 10 | Desktop shell finalization | Pending |
-```
+````
 
 - [ ] **Step 12.4: Final commit**
 
