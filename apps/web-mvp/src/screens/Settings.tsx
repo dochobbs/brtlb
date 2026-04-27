@@ -2,16 +2,38 @@ import { useEffect, useState } from 'react';
 import { Button } from '@brtlb/ui';
 import { useAppStore, type ProviderKind } from '../store';
 import { KeyField } from '../components/KeyField';
-import { createAnthropicProvider, createOpenAiCompatibleProvider } from '@brtlb/pipeline';
+import {
+  createAnthropicProvider,
+  createGeminiApiKeyProvider,
+  createOpenAiCompatibleProvider,
+} from '@brtlb/pipeline';
 
 const ANTHROPIC_MODELS = ['claude-sonnet-4-6', 'claude-opus-4-7', 'claude-haiku-4-5'];
 const OPENAI_MODELS = ['gpt-4o', 'gpt-4o-mini', 'gpt-4-turbo'];
+// Conservative starter list — known to exist as of Jan 2026. The "List my
+// models" button will replace this with whatever the user's key actually has
+// access to.
+const GEMINI_MODELS_DEFAULT = [
+  'gemini-2.0-flash',
+  'gemini-2.0-flash-exp',
+  'gemini-1.5-pro',
+  'gemini-1.5-flash',
+];
+
+const PROVIDER_LABEL: Record<ProviderKind, string> = {
+  anthropic: 'Anthropic',
+  'gemini-api-key': 'Gemini',
+  'openai-compatible': 'OpenAI-compatible',
+};
 
 export function Settings() {
   const { settings, saveSettings, setView } = useAppStore();
   const [draft, setDraft] = useState(settings);
   const [testStatus, setTestStatus] = useState<null | { ok: boolean; message: string }>(null);
   const [testing, setTesting] = useState(false);
+  const [geminiModels, setGeminiModels] = useState<string[]>(GEMINI_MODELS_DEFAULT);
+  const [listingGeminiModels, setListingGeminiModels] = useState(false);
+  const [geminiModelsError, setGeminiModelsError] = useState<string | null>(null);
 
   useEffect(() => {
     setDraft(settings);
@@ -19,6 +41,43 @@ export function Settings() {
 
   function update<K extends keyof typeof draft>(key: K, value: (typeof draft)[K]): void {
     setDraft((d) => ({ ...d, [key]: value }));
+  }
+
+  async function handleListGeminiModels(): Promise<void> {
+    setListingGeminiModels(true);
+    setGeminiModelsError(null);
+    try {
+      const res = await fetch(
+        'https://generativelanguage.googleapis.com/v1beta/models?key=' +
+          encodeURIComponent(draft.geminiApiKey),
+      );
+      if (!res.ok) {
+        throw new Error(`${res.status} ${(await res.text().catch(() => '')).slice(0, 200)}`);
+      }
+      const json = (await res.json()) as {
+        models?: Array<{ name?: string; supportedGenerationMethods?: string[] }>;
+      };
+      const ids = (json.models ?? [])
+        .filter(
+          (m) =>
+            m.name &&
+            m.name.includes('gemini') &&
+            Array.isArray(m.supportedGenerationMethods) &&
+            m.supportedGenerationMethods.includes('generateContent'),
+        )
+        .map((m) => (m.name ?? '').replace(/^models\//, ''))
+        .sort();
+      if (ids.length === 0) throw new Error('no gemini models with generateContent support found');
+      setGeminiModels(ids);
+      // Auto-select the first if the current draft model isn't in the list
+      if (!ids.includes(draft.geminiModel)) {
+        update('geminiModel', ids[0] ?? draft.geminiModel);
+      }
+    } catch (err) {
+      setGeminiModelsError(err instanceof Error ? err.message : 'unknown error');
+    } finally {
+      setListingGeminiModels(false);
+    }
   }
 
   async function handleSave() {
@@ -38,13 +97,20 @@ export function Settings() {
               model: draft.anthropicModel,
               maxTokens: 64,
             })
-          : createOpenAiCompatibleProvider({
-              kind: 'openai-compatible',
-              apiKey: draft.openaiApiKey,
-              model: draft.openaiModel,
-              maxTokens: 64,
-              ...(draft.openaiBaseUrl ? { baseUrl: draft.openaiBaseUrl } : {}),
-            });
+          : draft.provider === 'gemini-api-key'
+            ? createGeminiApiKeyProvider({
+                kind: 'gemini-api-key',
+                apiKey: draft.geminiApiKey,
+                model: draft.geminiModel,
+                maxOutputTokens: 64,
+              })
+            : createOpenAiCompatibleProvider({
+                kind: 'openai-compatible',
+                apiKey: draft.openaiApiKey,
+                model: draft.openaiModel,
+                maxTokens: 64,
+                ...(draft.openaiBaseUrl ? { baseUrl: draft.openaiBaseUrl } : {}),
+              });
 
       const out = await provider.generateNote({
         transcript: {
@@ -81,7 +147,11 @@ export function Settings() {
           : `Reached ${draft.provider} but got an unexpected reply.`,
       });
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'unknown error';
+      const raw = err instanceof Error ? err.message : 'unknown error';
+      const isAnthropicCors = /CORS requests are not allowed for this Organization/i.test(raw);
+      const message = isAnthropicCors
+        ? 'Anthropic blocks browser calls for BAA / Enterprise orgs (custom retention). Switch to Gemini for now, use a personal Anthropic key without custom retention, or wait for the native app.'
+        : raw;
       setTestStatus({ ok: false, message });
     } finally {
       setTesting(false);
@@ -108,8 +178,8 @@ export function Settings() {
             Pick a provider you have a Business Associate Agreement with. Keys are stored in your
             browser's localStorage and never leave this device.
           </p>
-          <div className="mt-3 inline-flex rounded-md border border-graphite-soft/30 p-0.5">
-            {(['anthropic', 'openai-compatible'] as ProviderKind[]).map((p) => (
+          <div className="mt-3 inline-flex flex-wrap rounded-md border border-graphite-soft/30 p-0.5">
+            {(['anthropic', 'gemini-api-key', 'openai-compatible'] as ProviderKind[]).map((p) => (
               <button
                 key={p}
                 type="button"
@@ -121,7 +191,7 @@ export function Settings() {
                     : 'text-graphite-soft hover:text-graphite')
                 }
               >
-                {p === 'anthropic' ? 'Anthropic' : 'OpenAI-compatible'}
+                {PROVIDER_LABEL[p]}
               </button>
             ))}
           </div>
@@ -150,6 +220,53 @@ export function Settings() {
                 ))}
               </select>
             </label>
+          </div>
+        ) : draft.provider === 'gemini-api-key' ? (
+          <div className="space-y-4">
+            <KeyField
+              label="Gemini API key"
+              value={draft.geminiApiKey}
+              onChange={(v) => update('geminiApiKey', v)}
+              placeholder="AIzaSy..."
+              helperText="Get a key at aistudio.google.com. Note: AI Studio keys are NOT BAA-eligible — for PHI, use Vertex AI (BAA via Google Cloud HIPAA) once that adapter ships."
+            />
+            <div>
+              <div className="flex items-end justify-between gap-3">
+                <label className="block flex-1">
+                  <span className="block text-sm font-medium text-graphite">Model</span>
+                  <input
+                    type="text"
+                    list="gemini-models"
+                    value={draft.geminiModel}
+                    onChange={(e) => update('geminiModel', e.target.value)}
+                    className="mt-1 w-full rounded-md border border-graphite-soft/30 bg-white px-3 py-2 text-sm text-graphite focus:border-graphite focus:outline-none"
+                    autoComplete="off"
+                    spellCheck={false}
+                  />
+                  <datalist id="gemini-models">
+                    {geminiModels.map((m) => (
+                      <option key={m} value={m} />
+                    ))}
+                  </datalist>
+                </label>
+                <button
+                  type="button"
+                  onClick={handleListGeminiModels}
+                  disabled={listingGeminiModels || !draft.geminiApiKey}
+                  className="mb-px rounded-md border border-graphite-soft/30 bg-white px-3 py-2 text-xs font-medium text-graphite hover:bg-mist disabled:opacity-50"
+                >
+                  {listingGeminiModels ? 'Listing…' : 'List my models'}
+                </button>
+              </div>
+              {geminiModelsError ? (
+                <p className="mt-1 text-xs text-red-700">{geminiModelsError}</p>
+              ) : (
+                <p className="mt-1 text-xs text-graphite-soft">
+                  Click "List my models" to populate the dropdown with what your key actually has
+                  access to.
+                </p>
+              )}
+            </div>
           </div>
         ) : (
           <div className="space-y-4">

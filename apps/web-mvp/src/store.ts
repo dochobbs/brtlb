@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 
-export type ProviderKind = 'anthropic' | 'openai-compatible';
+export type ProviderKind = 'anthropic' | 'openai-compatible' | 'gemini-api-key';
 
 export interface Settings {
   provider: ProviderKind;
@@ -9,6 +9,8 @@ export interface Settings {
   openaiApiKey: string;
   openaiBaseUrl: string;
   openaiModel: string;
+  geminiApiKey: string;
+  geminiModel: string;
   assemblyAiKey: string;
 }
 
@@ -19,6 +21,8 @@ const DEFAULT_SETTINGS: Settings = {
   openaiApiKey: '',
   openaiBaseUrl: '',
   openaiModel: 'gpt-4o',
+  geminiApiKey: '',
+  geminiModel: 'gemini-2.0-flash',
   assemblyAiKey: '',
 };
 
@@ -85,6 +89,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     const s = get().settings;
     if (!s.assemblyAiKey) return false;
     if (s.provider === 'anthropic') return Boolean(s.anthropicApiKey);
+    if (s.provider === 'gemini-api-key') return Boolean(s.geminiApiKey);
     return Boolean(s.openaiApiKey);
   },
 }));
