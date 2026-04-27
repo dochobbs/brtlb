@@ -7,7 +7,7 @@ A pediatric-focused, BYO-keys AI scribe for desktop and mobile.
 - **Local-only**, encrypted at rest — PHI never leaves the device
 - **Cross-platform** via Capacitor (iOS, Android) + Electron (Mac, Windows, Linux)
 
-Status: **Phase 1 + Brand v0.1 + Phase 2 (pipeline core) complete.** No product features yet.
+Status: **Phase 1 + Brand v0.1 + Phase 2 (pipeline) + Phase 3 (data layer) complete.**
 
 ## Repo layout
 
