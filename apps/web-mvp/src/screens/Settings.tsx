@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import { Button } from '@brtlb/ui';
 import { useAppStore, type ProviderKind } from '../store';
 import { KeyField } from '../components/KeyField';
+import { redactKeysInText } from '../lib/redact';
+import { clearAll } from '../lib/db';
 import {
   createAnthropicProvider,
   createGeminiApiKeyProvider,
@@ -151,11 +153,25 @@ export function Settings() {
       const isAnthropicCors = /CORS requests are not allowed for this Organization/i.test(raw);
       const message = isAnthropicCors
         ? 'Anthropic blocks browser calls for BAA / Enterprise orgs (custom retention). Switch to Gemini for now, use a personal Anthropic key without custom retention, or wait for the native app.'
-        : raw;
+        : redactKeysInText(raw);
       setTestStatus({ ok: false, message });
     } finally {
       setTesting(false);
     }
+  }
+
+  async function handleWipeAll(): Promise<void> {
+    const confirmed = window.confirm(
+      'Wipe ALL local brtlb data? This deletes:\n\n' +
+        '  • All recordings (audio + transcripts + notes)\n' +
+        '  • Saved API keys and settings\n' +
+        '  • Any in-progress work\n\n' +
+        'There is no undo. Continue?',
+    );
+    if (!confirmed) return;
+    await clearAll();
+    if (typeof localStorage !== 'undefined') localStorage.clear();
+    window.location.reload();
   }
 
   return (
@@ -202,6 +218,7 @@ export function Settings() {
             <KeyField
               label="Anthropic API key"
               value={draft.anthropicApiKey}
+              savedValue={settings.anthropicApiKey}
               onChange={(v) => update('anthropicApiKey', v)}
               placeholder="sk-ant-..."
               helperText="Get a key with BAA at console.anthropic.com (Enterprise / BAA Add-on)."
@@ -226,6 +243,7 @@ export function Settings() {
             <KeyField
               label="Gemini API key"
               value={draft.geminiApiKey}
+              savedValue={settings.geminiApiKey}
               onChange={(v) => update('geminiApiKey', v)}
               placeholder="AIzaSy..."
               helperText="Get a key at aistudio.google.com. Note: AI Studio keys are NOT BAA-eligible — for PHI, use Vertex AI (BAA via Google Cloud HIPAA) once that adapter ships."
@@ -273,6 +291,7 @@ export function Settings() {
             <KeyField
               label="OpenAI-compatible API key"
               value={draft.openaiApiKey}
+              savedValue={settings.openaiApiKey}
               onChange={(v) => update('openaiApiKey', v)}
               placeholder="sk-..."
               helperText="Works with OpenAI, Azure OpenAI, OpenRouter, Ollama, and other compatible endpoints."
@@ -323,6 +342,7 @@ export function Settings() {
         <KeyField
           label="AssemblyAI API key"
           value={draft.assemblyAiKey}
+          savedValue={settings.assemblyAiKey}
           onChange={(v) => update('assemblyAiKey', v)}
           placeholder="aai-..."
           helperText="Get a key at assemblyai.com. Sign a BAA before using with PHI."
@@ -340,6 +360,22 @@ export function Settings() {
         </button>
         <Button onClick={handleSave}>Save</Button>
       </div>
+
+      <section className="mt-10 rounded-xl border border-red-200 bg-red-50 p-6">
+        <h2 className="text-sm font-semibold text-red-800">Danger zone</h2>
+        <p className="mt-1 text-xs text-red-700">
+          Wipe every recording, transcript, note, key, and setting from this device. There is no
+          undo. Use this when you're done testing or if you suspect this device has been
+          compromised.
+        </p>
+        <button
+          type="button"
+          onClick={handleWipeAll}
+          className="mt-4 rounded-md border border-red-300 bg-white px-3 py-2 text-sm font-medium text-red-700 hover:bg-red-100"
+        >
+          Wipe all local data
+        </button>
+      </section>
       {testStatus ? (
         <p className={'mt-3 text-sm ' + (testStatus.ok ? 'text-emerald-700' : 'text-red-700')}>
           {testStatus.message}
