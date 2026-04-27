@@ -36,6 +36,10 @@ export interface RecordingMeta {
   label?: string | null;
   /** Speaker → role assignments fed into regenerate prompts. */
   speakerRoles?: SpeakerRoleAssignment[];
+  /** Markdown output from the Roci-style QA review pass; null if not run. */
+  qaReviewMarkdown?: string | null;
+  /** When QA review was last run. */
+  qaReviewedAt?: string | null;
 }
 
 interface BrtlbSchema extends DBSchema {
