@@ -1,0 +1,14 @@
+appId: com.brtlb.app
+productName: brtlb
+directories:
+  output: dist-pkg
+files:
+  - dist/**/*
+  - "../../apps/web/dist/**/*"
+mac:
+  category: public.app-category.medical
+  target: dmg
+win:
+  target: nsis
+linux:
+  target: AppImage
