@@ -68,10 +68,31 @@ function buildProvider(settings: Settings): {
   };
 }
 
+function resolveTemplate(
+  id: string,
+  customTemplates: readonly {
+    id: string;
+    name: string;
+    description?: string;
+    promptBody: string;
+  }[],
+): NoteTemplate | undefined {
+  const builtin = getTemplate(id);
+  if (builtin) return builtin;
+  const custom = customTemplates.find((t) => t.id === id);
+  if (!custom) return undefined;
+  return {
+    id: custom.id,
+    name: custom.name,
+    description: custom.description ?? '',
+    promptBody: custom.promptBody,
+  };
+}
+
 export async function runMvpPipeline(input: RunMvpPipelineInput): Promise<RunMvpPipelineOutput> {
   const templateId = input.templateId ?? 'soap';
   const patternId = input.patternId ?? 'narrative';
-  const template = getTemplate(templateId);
+  const template = resolveTemplate(templateId, input.settings.customTemplates);
   const pattern = getPattern(patternId);
   if (!template) throw new Error(`Unknown template: ${templateId}`);
   if (!pattern) throw new Error(`Unknown pattern: ${patternId}`);
@@ -145,7 +166,7 @@ export interface RegenerateNoteOutput {
 export async function regenerateNoteFromTranscript(
   input: RegenerateNoteInput,
 ): Promise<RegenerateNoteOutput> {
-  const template = getTemplate(input.templateId);
+  const template = resolveTemplate(input.templateId, input.settings.customTemplates);
   const pattern = getPattern(input.patternId ?? 'narrative');
   if (!template) throw new Error(`Unknown template: ${input.templateId}`);
   if (!pattern) throw new Error(`Unknown pattern: ${input.patternId}`);

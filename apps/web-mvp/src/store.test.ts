@@ -17,6 +17,7 @@ describe('useAppStore', () => {
         assemblyAiKey: '',
         audioPurgeDays: 7,
         idleLockMinutes: 5,
+        customTemplates: [],
       },
       view: 'home',
       currentRecordingId: null,
