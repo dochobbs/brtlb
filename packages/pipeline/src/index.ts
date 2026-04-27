@@ -21,4 +21,4 @@ export { createAnthropicProvider } from './adapters/anthropic';
 export { createOpenAiCompatibleProvider } from './adapters/openai-compatible';
 export { createGeminiVertexProvider } from './adapters/gemini-vertex';
 export { createLlmProvider } from './adapters/factory';
-// export { runPipeline } from './orchestrator';
+export { runPipeline } from './orchestrator';
