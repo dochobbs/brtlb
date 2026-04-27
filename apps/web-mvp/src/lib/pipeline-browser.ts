@@ -200,28 +200,59 @@ const NEUTRAL_PATTERN = {
   promptModifier: '',
 };
 
-const QA_REVIEW_PROMPT_HEADER = `You are a clinical QA reviewer checking whether a pediatric note accurately reflects a transcript.
-Your job is to flag only concrete, clinically meaningful risks supported by the transcript.
+const QA_REVIEW_PROMPT_HEADER = `You are a clinical QA reviewer checking whether a pediatric note accurately reflects the transcript.
+Your job is to flag concrete, clinically meaningful risks of HALLUCINATION (note says something the transcript doesn't support) and OMISSION (note misses something the transcript clearly addresses).
 
-REVIEW PRIORITIES:
-1. Findings, vitals, diagnoses, or exam details that are NOT supported by the transcript (possible hallucination).
-2. Mixed-visit collapse, especially well-child + acute visits reduced to only the sick problem.
-3. Major concerns discussed in the transcript that are missing from the note.
-4. Major assessment/plan mismatch with the discussed problem.
-5. Wrong-patient or sibling-contamination risk if the note appears to describe a different child than the encounter is about.
+REVIEW PRIORITIES (in order):
+1. HALLUCINATION — findings, vitals, diagnoses, history, exam details, or plan items in the note that are NOT supported by the transcript.
+2. OMISSION — concerns, symptoms, exam findings, or plan items clearly discussed in the transcript that are MISSING from the note.
+3. MIXED-VISIT COLLAPSE — preventive + acute visits reduced to only the sick problem (or only the well-child portion).
+4. ASSESSMENT/PLAN MISMATCH — the assessment or plan doesn't match the chief complaint or what was actually discussed.
+5. WRONG-PATIENT RISK — the note appears to describe a different child than the encounter (sibling contamination, name drift).
 
 RULES:
-- Be conservative. Do not nitpick style.
-- Only report issues that are supported by the transcript or obvious from the note itself.
+- Be conservative. Do not nitpick style or wording.
+- Only report issues supported by the transcript or obvious from the note itself.
+- Prefer omission over fabrication when in doubt — but flag both equally when concrete.
 - If there are no meaningful issues, return exactly: "No issues found."
 - Max 5 issues.
 
-OUTPUT — markdown bullet list, with one of these prefixes per issue:
-- 🔴 Critical: safety-relevant fabrications or major missing content.
-- 🟡 Warning: less-severe risks.
-- ⚪ Info: minor concerns or style notes.
+OUTPUT — markdown bullet list. Each bullet starts with a severity emoji, then a category tag, then a one-sentence explanation. Cite a short excerpt from the note or transcript when it makes the issue concrete.
 
-Each bullet should be one short sentence. Cite the relevant excerpt from the note or transcript when concrete.`;
+Severity:
+- 🔴 Critical — safety-relevant fabrication, missing red-flag content, wrong patient.
+- 🟡 Warning — clinically meaningful but not immediately unsafe.
+- ⚪ Info — minor concerns.
+
+Category tags (use exactly one per bullet):
+- (possible hallucination)
+- (missing from note)
+- (mixed-visit collapse)
+- (assessment/plan mismatch)
+- (wrong patient risk)
+
+Example:
+- 🔴 (possible hallucination) Note documents temp 102°F but transcript only mentions "felt warm last night."
+- 🟡 (missing from note) Transcript discusses fluoride varnish counseling at length; note has no anticipatory guidance section.`;
+
+const PEARLS_PROMPT_HEADER = `You are a pediatric charting assistant doing a brief pearls pass on a finished note.
+Your job is to surface 0–3 short, genuinely useful collegial observations about THIS visit. Pearls are noticing-the-pattern observations a senior colleague might mention in passing — not restatements of the note.
+
+GOOD PEARLS:
+- Connect a timing pattern to a likely cause (e.g., "Episodes cluster between Concerta peak and unstructured school time — worth distinguishing pharmacologic activation from environmental triggers.").
+- Flag a subtle differential or red-flag worth keeping on the radar.
+- Note a parent or family dynamic that affects care without restating exam findings.
+- Highlight a useful contextual factor the parent gave that doesn't fit cleanly in HPI but matters.
+
+HARD RULES:
+- Be conservative. Better to return an empty list than to invent.
+- Do not restate the assessment or plan.
+- Do not give generic pediatric advice.
+- Do not propose tests, imaging, or referrals — those belong in the plan.
+- Each pearl is 1–2 sentences. Plain prose. No labels.
+- If there is nothing genuinely useful to add, return exactly: "No pearls."
+
+OUTPUT — markdown bullet list, 0 to 3 bullets, one observation each.`;
 
 export interface ReviewNoteInput {
   note: string;
@@ -248,6 +279,38 @@ export async function reviewNoteQuality(input: ReviewNoteInput): Promise<string>
   const out = await provider.generateNote({
     transcript: input.transcript,
     template: reviewTemplate,
+    pattern: NEUTRAL_PATTERN,
+    mode: input.mode,
+    speakerRoles: input.speakerRoles ?? [],
+  });
+  return out.trim();
+}
+
+export interface ClinicalPearlsInput {
+  note: string;
+  transcript: Transcript;
+  mode: RecordingMode;
+  settings: Settings;
+  speakerRoles?: SpeakerRoleAssignment[];
+}
+
+/**
+ * Roci-style enrichment pass scoped to clinical pearls only — 0-3 brief
+ * collegial observations grounded in the transcript and note. Cheap (one
+ * short reply), surfaced after the note in the UI.
+ */
+export async function generateClinicalPearls(input: ClinicalPearlsInput): Promise<string> {
+  const pearlsTemplate: NoteTemplate = {
+    id: 'clinical-pearls',
+    name: 'Clinical Pearls',
+    description: 'Internal — pediatric pearls pass.',
+    promptBody: `${PEARLS_PROMPT_HEADER}\n\nNOTE:\n${input.note}`,
+  };
+
+  const { provider } = buildProvider(input.settings);
+  const out = await provider.generateNote({
+    transcript: input.transcript,
+    template: pearlsTemplate,
     pattern: NEUTRAL_PATTERN,
     mode: input.mode,
     speakerRoles: input.speakerRoles ?? [],

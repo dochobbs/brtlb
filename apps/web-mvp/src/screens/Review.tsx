@@ -12,6 +12,7 @@ import {
   type SpeakerRoleAssignment,
 } from '../lib/db';
 import {
+  generateClinicalPearls,
   regenerateNoteFromTranscript,
   reviewNoteQuality,
   runMvpPipeline,
@@ -68,6 +69,9 @@ export function Review() {
   const [qaError, setQaError] = useState<string | null>(null);
   const [tweakInstruction, setTweakInstruction] = useState<string>('');
   const [tweaking, setTweaking] = useState(false);
+  const [pearls, setPearls] = useState<string | null>(null);
+  const [pearlsRunning, setPearlsRunning] = useState(false);
+  const [pearlsError, setPearlsError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!currentRecordingId) {
@@ -88,6 +92,7 @@ export function Review() {
       setSelectedTemplateId(m.templateId || 'soap');
       setSpeakerRoles(m.speakerRoles ?? []);
       setQaReview(m.qaReviewMarkdown ?? null);
+      setPearls(m.pearlsMarkdown ?? null);
       if (m.stage === 'recorded') {
         await runPipelineForRecording(m);
       }
@@ -274,9 +279,12 @@ export function Review() {
         providerUsed: out.providerUsed,
         qaReviewMarkdown: null,
         qaReviewedAt: null,
+        pearlsMarkdown: null,
+        pearlsAt: null,
       });
       setEditedNote(out.note);
       setQaReview(null);
+      setPearls(null);
     } catch (err) {
       const msg = redactKeysInText(err instanceof Error ? err.message : 'regenerate failed');
       setError(msg);
@@ -324,17 +332,42 @@ export function Review() {
       });
       await persistMeta({
         noteMarkdown: revised,
-        // any tweak invalidates a prior QA pass
+        // any tweak invalidates a prior QA pass + pearls
         qaReviewMarkdown: null,
         qaReviewedAt: null,
+        pearlsMarkdown: null,
+        pearlsAt: null,
       });
       setEditedNote(revised);
       setQaReview(null);
+      setPearls(null);
       setTweakInstruction('');
     } catch (err) {
       setError(redactKeysInText(err instanceof Error ? err.message : 'tweak failed'));
     } finally {
       setTweaking(false);
+    }
+  }
+
+  async function handlePearls(): Promise<void> {
+    if (!meta || !transcript || !editedNote) return;
+    setPearlsRunning(true);
+    setPearlsError(null);
+    try {
+      const out = await generateClinicalPearls({
+        note: editedNote,
+        transcript,
+        mode: meta.mode,
+        settings,
+        speakerRoles,
+      });
+      setPearls(out);
+      const stamp = new Date().toISOString();
+      await persistMeta({ pearlsMarkdown: out, pearlsAt: stamp });
+    } catch (err) {
+      setPearlsError(redactKeysInText(err instanceof Error ? err.message : 'pearls failed'));
+    } finally {
+      setPearlsRunning(false);
     }
   }
 
@@ -583,12 +616,12 @@ export function Review() {
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div>
                   <label className="block text-xs font-medium uppercase tracking-wide text-graphite-soft">
-                    Quality check
+                    Review warnings
                   </label>
                   <p className="text-xs text-graphite-soft">
                     {meta.qaReviewedAt
                       ? `Last reviewed ${new Date(meta.qaReviewedAt).toLocaleString()}.`
-                      : 'Run a separate LLM pass that flags anything in the note unsupported by the transcript.'}
+                      : 'Flags risks of hallucination (note says something the transcript doesn’t support) and omission (transcript content missing from the note).'}
                   </p>
                 </div>
                 <button
@@ -597,7 +630,7 @@ export function Review() {
                   disabled={qaRunning}
                   className="rounded-md border border-graphite-soft/30 bg-white px-3 py-1.5 text-xs font-medium text-graphite hover:bg-mist disabled:opacity-50"
                 >
-                  {qaRunning ? 'Checking…' : meta.qaReviewMarkdown ? 'Re-run' : 'Run quality check'}
+                  {qaRunning ? 'Checking…' : meta.qaReviewMarkdown ? 'Re-run' : 'Check for warnings'}
                 </button>
               </div>
               {qaError ? (
@@ -605,6 +638,39 @@ export function Review() {
               ) : qaReview ? (
                 <div className="prose mt-3 max-w-none rounded-md border border-graphite-soft/20 bg-white p-3 text-sm leading-relaxed text-graphite">
                   <Markdown remarkPlugins={[remarkGfm]}>{qaReview}</Markdown>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+
+          {/* Clinical pearls — Roci-style 0-3 collegial observations */}
+          {transcript && editedNote ? (
+            <div className="mt-4 rounded-md border border-graphite-soft/20 bg-mist p-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <label className="block text-xs font-medium uppercase tracking-wide text-graphite-soft">
+                    Clinical pearls
+                  </label>
+                  <p className="text-xs text-graphite-soft">
+                    {meta.pearlsAt
+                      ? `Generated ${new Date(meta.pearlsAt).toLocaleString()}.`
+                      : 'Helpful observations surfaced from the visit — patterns, differentials, family dynamics worth noting.'}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={handlePearls}
+                  disabled={pearlsRunning}
+                  className="rounded-md border border-graphite-soft/30 bg-white px-3 py-1.5 text-xs font-medium text-graphite hover:bg-mist disabled:opacity-50"
+                >
+                  {pearlsRunning ? 'Generating…' : meta.pearlsMarkdown ? 'Re-generate' : 'Generate pearls'}
+                </button>
+              </div>
+              {pearlsError ? (
+                <p className="mt-2 text-xs text-red-700">{pearlsError}</p>
+              ) : pearls ? (
+                <div className="prose mt-3 max-w-none rounded-md border border-graphite-soft/20 bg-white p-3 text-sm leading-relaxed text-graphite">
+                  <Markdown remarkPlugins={[remarkGfm]}>{pearls}</Markdown>
                 </div>
               ) : null}
             </div>
