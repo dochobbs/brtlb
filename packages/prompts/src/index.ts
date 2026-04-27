@@ -1,0 +1,35 @@
+import soapTemplate from './templates/soap.json' with { type: 'json' };
+import narrativePattern from './patterns/narrative.json' with { type: 'json' };
+
+export interface NoteTemplate {
+  id: string;
+  name: string;
+  description: string;
+  promptBody: string;
+}
+
+export interface NotePattern {
+  id: string;
+  name: string;
+  description: string;
+  promptModifier: string;
+}
+
+const templates: ReadonlyArray<NoteTemplate> = [soapTemplate as NoteTemplate];
+const patterns: ReadonlyArray<NotePattern> = [narrativePattern as NotePattern];
+
+export function listTemplates(): ReadonlyArray<NoteTemplate> {
+  return templates;
+}
+
+export function listPatterns(): ReadonlyArray<NotePattern> {
+  return patterns;
+}
+
+export function getTemplate(id: string): NoteTemplate | undefined {
+  return templates.find((t) => t.id === id);
+}
+
+export function getPattern(id: string): NotePattern | undefined {
+  return patterns.find((p) => p.id === id);
+}
