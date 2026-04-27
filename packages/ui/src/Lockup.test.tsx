@@ -16,12 +16,12 @@ describe('brand marks', () => {
     expect(screen.getByText('brtlb')).toBeDefined();
   });
 
-  it('DotsMark accepts a custom color prop', () => {
+  it('DotsMark renders three dot spans with the custom color', () => {
     const { container } = render(<DotsMark color="#000000" />);
-    const circles = container.querySelectorAll('circle');
-    expect(circles.length).toBe(3);
-    circles.forEach((c) => {
-      expect(c.parentElement?.getAttribute('fill')).toBe('#000000');
+    const dots = container.querySelectorAll('span[aria-hidden]');
+    expect(dots.length).toBe(3);
+    dots.forEach((dot) => {
+      expect((dot as HTMLElement).style.background).toContain('rgb(0, 0, 0)');
     });
   });
 });

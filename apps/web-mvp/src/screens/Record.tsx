@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Button, DotsMark } from '@brtlb/ui';
 import { useAppStore } from '../store';
-import { useRecorder } from '../components/Recorder';
+import { useRecorderStore } from '../lib/recorder-store';
 import { putAudio, putRecording, type RecordingMeta } from '../lib/db';
 
 function formatElapsed(ms: number): string {
@@ -18,9 +18,17 @@ function generateId(): string {
 
 export function Record() {
   const { setView, selectRecording } = useAppStore();
-  const { state, elapsedMs, level, error, start, pause, resume, stop } = useRecorder();
-  const [mode, setMode] = useState<'ambient' | 'dictation'>('ambient');
-  const [label, setLabel] = useState<string>('');
+  const state = useRecorderStore((s) => s.state);
+  const elapsedMs = useRecorderStore((s) => s.elapsedMs);
+  const level = useRecorderStore((s) => s.level);
+  const error = useRecorderStore((s) => s.error);
+  const mode = useRecorderStore((s) => s.mode);
+  const start = useRecorderStore((s) => s.start);
+  const pause = useRecorderStore((s) => s.pause);
+  const resume = useRecorderStore((s) => s.resume);
+  const stop = useRecorderStore((s) => s.stop);
+  const reset = useRecorderStore((s) => s.reset);
+
   const [saving, setSaving] = useState(false);
 
   async function handleStop(): Promise<void> {
@@ -43,11 +51,12 @@ export function Record() {
       templateId: 'soap',
       patternId: 'narrative',
       providerUsed: null,
-      label: label.trim() || null,
+      label: null,
     };
     await putAudio(id, blob);
     await putRecording(meta);
     selectRecording(id);
+    reset();
     setView('review');
   }
 
@@ -55,11 +64,14 @@ export function Record() {
     if (state === 'recording' || state === 'paused') {
       stop().catch(() => {});
     }
+    reset();
     setView('home');
   }
 
+  const isLive = state === 'recording' || state === 'paused';
+
   return (
-    <main className="flex min-h-dvh flex-col items-center justify-center px-4 py-8 text-center sm:px-6 sm:py-12">
+    <main className="relative flex min-h-dvh flex-col items-center justify-center px-4 py-8 text-center sm:px-6 sm:py-12">
       <button
         type="button"
         onClick={handleCancel}
@@ -68,25 +80,26 @@ export function Record() {
         ← Cancel
       </button>
 
-      {state === 'idle' && !error ? (
+      {error ? (
+        <div className="max-w-md space-y-4">
+          <p className="text-base font-medium text-red-700">{error}</p>
+          <p className="text-sm text-graphite-soft">
+            Make sure you've granted microphone permission and that no other tab is using the mic.
+          </p>
+          <Button onClick={() => start(mode)}>Try again</Button>
+        </div>
+      ) : null}
+
+      {!error && state === 'idle' ? (
         <div className="w-full max-w-md space-y-5">
-          <DotsMark size={64} />
-          <h1 className="text-2xl font-semibold text-graphite">Ready to record</h1>
-          <input
-            type="text"
-            value={label}
-            onChange={(e) => setLabel(e.target.value)}
-            placeholder="Visit label (optional, e.g. MM age 4 WCV)"
-            className="w-full rounded-md border border-graphite-soft/30 bg-white px-3 py-2 text-sm text-graphite placeholder:text-graphite-soft/60 focus:border-graphite focus:outline-none focus:ring-1 focus:ring-graphite"
-            autoComplete="off"
-            spellCheck={false}
-          />
+          <DotsMark size={56} />
+          <h1 className="text-2xl font-semibold text-graphite">Ready when you are</h1>
           <div className="inline-flex rounded-md border border-graphite-soft/30 p-0.5">
             {(['ambient', 'dictation'] as const).map((m) => (
               <button
                 key={m}
                 type="button"
-                onClick={() => setMode(m)}
+                onClick={() => start(m)}
                 className={
                   'rounded px-4 py-1.5 text-sm font-medium transition ' +
                   (mode === m ? 'bg-graphite text-white' : 'text-graphite-soft hover:text-graphite')
@@ -98,24 +111,14 @@ export function Record() {
           </div>
           <p className="text-sm text-graphite-soft">
             {mode === 'ambient'
-              ? 'Captures the full room. Speakers are diarized.'
+              ? 'Captures the full room with speaker diarization.'
               : 'Provider-only dictation. No diarization.'}
           </p>
-          <Button onClick={start}>Start recording</Button>
+          <Button onClick={() => start(mode)}>Start recording</Button>
         </div>
       ) : null}
 
-      {error ? (
-        <div className="max-w-md space-y-4">
-          <p className="text-base font-medium text-red-700">{error}</p>
-          <p className="text-sm text-graphite-soft">
-            Make sure you've granted microphone permission and that no other tab is using the mic.
-          </p>
-          <Button onClick={start}>Try again</Button>
-        </div>
-      ) : null}
-
-      {(state === 'recording' || state === 'paused') && !error ? (
+      {!error && isLive ? (
         <div className="w-full max-w-md space-y-8">
           <div className="text-center">
             <p className="text-xs uppercase tracking-wide text-graphite-soft">

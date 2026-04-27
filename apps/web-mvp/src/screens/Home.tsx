@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { DotsMark, Lockup } from '@brtlb/ui';
 import { useAppStore } from '../store';
+import { useRecorderStore } from '../lib/recorder-store';
 import { listRecordings, type RecordingMeta } from '../lib/db';
 
 const TAGLINES = [
@@ -95,7 +96,9 @@ function groupRecordings(recordings: RecordingMeta[], now: Date): RecordingGroup
 
 export function Home() {
   const { setView, selectRecording, hasRequiredKeys } = useAppStore();
+  const startRecording = useRecorderStore((s) => s.start);
   const [recordings, setRecordings] = useState<RecordingMeta[] | null>(null);
+  const [starting, setStarting] = useState(false);
   const now = useMemo(() => new Date(), []);
   const tagline = useMemo(() => {
     // Stable across the day so the page doesn't feel chatty mid-session.
@@ -109,13 +112,21 @@ export function Home() {
       .catch(() => setRecordings([]));
   }, []);
 
-  function startNew(): void {
+  async function startNew(mode: 'ambient' | 'dictation'): Promise<void> {
     if (!hasRequiredKeys()) {
       setView('settings');
       return;
     }
-    selectRecording(null);
-    setView('record');
+    setStarting(true);
+    try {
+      // Kick off the mic permission + MediaRecorder before navigating so the
+      // browser treats it as part of the user gesture from this click.
+      await startRecording(mode);
+    } finally {
+      selectRecording(null);
+      setView('record');
+      setStarting(false);
+    }
   }
 
   function openRecording(id: string): void {
@@ -176,11 +187,22 @@ export function Home() {
           </p>
           <button
             type="button"
-            onClick={startNew}
-            className="mt-2 inline-flex min-h-[44px] items-center justify-center rounded-full bg-white px-6 py-2 text-sm font-semibold text-graphite shadow-sm transition hover:bg-seafoam-pale active:scale-95"
+            onClick={() => startNew('ambient')}
+            disabled={starting}
+            className="mt-2 inline-flex min-h-[44px] items-center justify-center rounded-full bg-white px-6 py-2 text-sm font-semibold text-graphite shadow-sm transition hover:bg-seafoam-pale active:scale-95 disabled:opacity-70"
           >
-            {hasRequiredKeys() ? 'New recording' : 'Set up keys'}
+            {hasRequiredKeys() ? (starting ? 'Starting…' : 'Record visit') : 'Set up keys'}
           </button>
+          {hasRequiredKeys() ? (
+            <button
+              type="button"
+              onClick={() => startNew('dictation')}
+              disabled={starting}
+              className="text-xs text-white/60 underline-offset-4 hover:text-white hover:underline disabled:opacity-70"
+            >
+              or dictate instead
+            </button>
+          ) : null}
         </div>
       </section>
 
