@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="apple-touch-icon" href="/app-icon.png" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#1F2328" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="brtlb" />
+    <meta name="format-detection" content="telephone=no" />
+    <meta name="description" content="brtlb — pediatric AI scribe. Less noise. Same meaning." />
+    <!-- Content Security Policy — restricts outbound destinations so a -->
+    <!-- bug, browser extension, or future code change can't accidentally -->
+    <!-- exfiltrate PHI to a wrong domain. ws/wss is for Vite HMR (dev). -->
+    <!-- script-src includes 'unsafe-eval' for Vite dev; production builds -->
+    <!-- can tighten this further via response headers. -->
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="
+        default-src 'self';
+        connect-src 'self' ws: wss:
+          https://api.assemblyai.com https://cdn.assemblyai.com
+          https://api.openai.com
+          https://api.anthropic.com
+          https://generativelanguage.googleapis.com
+          https://*.googleapis.com
+          https://*.run.app;
+        script-src 'self' 'unsafe-inline' 'unsafe-eval';
+        style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
+        font-src 'self' https://fonts.gstatic.com data:;
+        img-src 'self' data: blob:;
+        media-src 'self' blob:;
+        worker-src 'self' blob:;
+        base-uri 'self';
+        form-action 'self';
+        object-src 'none';
+      "
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <title>brtlb</title>
+    <script>
+      // Minimal Node process shim for browser. The Anthropic + OpenAI SDKs
+      // touch process.env, process.stdout.isTTY, and process.versions at
+      // module load. Provide just enough so they fall through to runtime
+      // config rather than crashing.
+      window.process = window.process || {};
+      window.process.env = window.process.env || {};
+      window.process.platform = window.process.platform || 'browser';
+      window.process.version = window.process.version || '';
+      window.process.versions = window.process.versions || {};
+      window.process.stdout = window.process.stdout || { isTTY: false, write: () => {} };
+      window.process.stderr = window.process.stderr || { isTTY: false, write: () => {} };
+      window.process.on = window.process.on || function () {};
+      window.process.off = window.process.off || function () {};
+      window.process.removeListener = window.process.removeListener || function () {};
+      window.process.emit = window.process.emit || function () {};
+      window.process.listeners = window.process.listeners || function () { return []; };
+      window.process.cwd = window.process.cwd || function () { return '/'; };
+      window.process.nextTick = window.process.nextTick || function (cb) { Promise.resolve().then(cb); };
+      window.global = window.global || window;
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
