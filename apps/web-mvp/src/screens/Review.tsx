@@ -17,6 +17,7 @@ import {
   type PipelineStage,
 } from '../lib/pipeline-browser';
 import { redactKeysInText } from '../lib/redact';
+import { Markdown, remarkGfm } from '../lib/markdown';
 import { SpeakerChips } from '../components/SpeakerChips';
 
 const STAGE_LABEL: Record<PipelineStage, string> = {
@@ -59,6 +60,7 @@ export function Review() {
   const [regenerating, setRegenerating] = useState(false);
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>('soap');
   const [speakerRoles, setSpeakerRoles] = useState<SpeakerRoleAssignment[]>([]);
+  const [noteView, setNoteView] = useState<'edit' | 'preview'>('edit');
 
   useEffect(() => {
     if (!currentRecordingId) {
@@ -383,16 +385,43 @@ export function Review() {
             >
               {regenerating ? 'Regenerating…' : 'Regenerate'}
             </button>
+            <div className="ml-auto inline-flex rounded-md border border-graphite-soft/30 p-0.5">
+              {(['edit', 'preview'] as const).map((v) => (
+                <button
+                  key={v}
+                  type="button"
+                  onClick={() => setNoteView(v)}
+                  className={
+                    'rounded px-2 py-1 text-xs font-medium transition ' +
+                    (noteView === v
+                      ? 'bg-graphite text-white'
+                      : 'text-graphite-soft hover:text-graphite')
+                  }
+                >
+                  {v === 'edit' ? 'Edit' : 'Preview'}
+                </button>
+              ))}
+            </div>
           </div>
 
-          <textarea
-            value={editedNote}
-            onChange={(e) => setEditedNote(e.target.value)}
-            onBlur={handleSaveEdits}
-            disabled={isProcessing || regenerating}
-            placeholder={isProcessing ? 'Working…' : 'No note yet.'}
-            className="min-h-[280px] w-full resize-y rounded-md border border-graphite-soft/20 bg-white p-3 font-mono text-sm leading-relaxed text-graphite focus:border-graphite focus:outline-none focus:ring-1 focus:ring-graphite sm:min-h-[400px]"
-          />
+          {noteView === 'edit' ? (
+            <textarea
+              value={editedNote}
+              onChange={(e) => setEditedNote(e.target.value)}
+              onBlur={handleSaveEdits}
+              disabled={isProcessing || regenerating}
+              placeholder={isProcessing ? 'Working…' : 'No note yet.'}
+              className="min-h-[280px] w-full resize-y rounded-md border border-graphite-soft/20 bg-white p-3 font-mono text-sm leading-relaxed text-graphite focus:border-graphite focus:outline-none focus:ring-1 focus:ring-graphite sm:min-h-[400px]"
+            />
+          ) : editedNote ? (
+            <div className="prose min-h-[280px] max-w-none overflow-y-auto rounded-md border border-graphite-soft/20 bg-white p-3 text-sm leading-relaxed text-graphite sm:min-h-[400px]">
+              <Markdown remarkPlugins={[remarkGfm]}>{editedNote}</Markdown>
+            </div>
+          ) : (
+            <div className="min-h-[280px] rounded-md border border-graphite-soft/20 bg-white p-3 text-sm text-graphite-soft sm:min-h-[400px]">
+              No note yet.
+            </div>
+          )}
           <div className="mt-3 flex flex-wrap gap-2">
             <Button onClick={handleCopy} disabled={!editedNote}>
               {copied ? 'Copied' : 'Copy as Markdown'}

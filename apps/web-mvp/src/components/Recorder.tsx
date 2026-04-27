@@ -103,7 +103,12 @@ export function useRecorder(): UseRecorderResult {
         : MediaRecorder.isTypeSupported('audio/mp4')
           ? 'audio/mp4'
           : 'audio/webm';
-      const recorder = new MediaRecorder(stream, { mimeType: mime });
+      // 32 kbps opus is plenty for clear voice and keeps Blobs small enough
+      // to round-trip through IndexedDB without bumping into quota limits.
+      const recorder = new MediaRecorder(stream, {
+        mimeType: mime,
+        audioBitsPerSecond: 32_000,
+      });
       chunksRef.current = [];
       recorder.ondataavailable = (e) => {
         if (e.data.size > 0) chunksRef.current.push(e.data);

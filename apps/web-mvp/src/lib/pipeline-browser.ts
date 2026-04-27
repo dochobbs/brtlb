@@ -12,6 +12,7 @@ import {
 } from '@brtlb/pipeline';
 import { getPattern, getTemplate } from '@brtlb/prompts';
 import type { ProviderKind, Settings } from '../store';
+import { PEDIATRIC_WORD_BOOST } from './peds-vocabulary';
 
 export type PipelineStage = 'uploading' | 'transcribing' | 'generating' | 'done' | 'failed';
 
@@ -81,6 +82,7 @@ export async function runMvpPipeline(input: RunMvpPipelineInput): Promise<RunMvp
       audio: input.audio,
       mode: input.mode,
       config: { apiKey: input.settings.assemblyAiKey },
+      wordBoost: [...PEDIATRIC_WORD_BOOST],
     });
     input.onStage?.('transcribing');
   } catch (err) {
