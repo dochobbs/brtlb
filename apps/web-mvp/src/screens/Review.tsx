@@ -225,9 +225,29 @@ export function Review() {
     await handleCopy();
   }
 
+  function markdownToPlainText(md: string): string {
+    return md
+      // Strip fenced code blocks but keep their content.
+      .replace(/```[a-zA-Z0-9]*\n?/g, '')
+      // Drop heading hashes; keep the heading text.
+      .replace(/^#{1,6}\s+/gm, '')
+      // Bold / italic / inline code wrappers.
+      .replace(/(\*\*|__)(.*?)\1/g, '$2')
+      .replace(/(\*|_)(.*?)\1/g, '$2')
+      .replace(/`([^`]+)`/g, '$1')
+      // Bullet list markers → "- " stays readable; ordered list stays.
+      .replace(/^\s*[-*+]\s+/gm, '- ')
+      // Markdown links [text](url) → text
+      .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '$1')
+      // Collapse triple+ blank lines.
+      .replace(/\n{3,}/g, '\n\n')
+      .trim();
+  }
+
   function handleDownload(): void {
     if (!meta) return;
-    const blob = new Blob([editedNote], { type: 'text/markdown' });
+    const plain = markdownToPlainText(editedNote);
+    const blob = new Blob([plain], { type: 'text/plain;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
@@ -237,7 +257,7 @@ export function Review() {
           .replace(/\s+/g, '-')
           .toLowerCase()
       : meta.id;
-    a.download = `brtlb-${stem}.md`;
+    a.download = `brtlb-${stem}.txt`;
     a.click();
     URL.revokeObjectURL(url);
   }
@@ -476,9 +496,15 @@ export function Review() {
             </div>
           ) : null}
           {renderedTranscript ? (
-            <pre className="whitespace-pre-wrap break-words text-sm leading-relaxed text-graphite">
-              {renderedTranscript}
-            </pre>
+            <details className="group">
+              <summary className="cursor-pointer list-none text-sm font-medium text-graphite-soft hover:text-graphite">
+                <span className="inline group-open:hidden">Show transcript</span>
+                <span className="hidden group-open:inline">Hide transcript</span>
+              </summary>
+              <pre className="mt-3 max-h-[400px] overflow-y-auto whitespace-pre-wrap break-words rounded-md border border-graphite-soft/20 bg-mist/40 p-3 text-sm leading-relaxed text-graphite">
+                {renderedTranscript}
+              </pre>
+            </details>
           ) : (
             <p className="text-sm text-graphite-soft">No transcript yet.</p>
           )}

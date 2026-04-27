@@ -74,15 +74,34 @@ export const useRecorderStore = create<RecorderStore>((set, get) => {
   }
 
   function startMeter(stream: MediaStream) {
-    if (typeof window === 'undefined' || !window.AudioContext) return;
-    const ctx = new window.AudioContext();
+    if (typeof window === 'undefined') return;
+    // iOS Safari exposes only webkitAudioContext until iOS ~14.5; keep the
+    // fallback so the meter still works on older devices.
+    const Ctor: typeof AudioContext | undefined =
+      window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+    if (!Ctor) return;
+    const ctx = new Ctor();
+    // iOS starts AudioContext in 'suspended' state; without resume() the
+    // analyser feeds back zeros and the bars never light up.
+    if (ctx.state === 'suspended') {
+      ctx.resume().catch(() => {});
+    }
     const source = ctx.createMediaStreamSource(stream);
     const analyser = ctx.createAnalyser();
     analyser.fftSize = 512;
     source.connect(analyser);
+    // iOS WebKit bug: a MediaStreamAudioSourceNode that isn't routed to
+    // the destination won't actually pump samples, so the analyser
+    // returns silence forever. Route through a silent gain node so the
+    // graph runs without leaking mic audio to the speakers.
+    const silentGain = ctx.createGain();
+    silentGain.gain.value = 0;
+    analyser.connect(silentGain);
+    silentGain.connect(ctx.destination);
     internals.audioCtx = ctx;
     internals.analyser = analyser;
     const buf = new Uint8Array(analyser.frequencyBinCount);
+    let smoothed = 0;
     const tick = () => {
       const a = internals.analyser;
       if (!a) return;
@@ -93,7 +112,11 @@ export const useRecorderStore = create<RecorderStore>((set, get) => {
         sum += v * v;
       }
       const rms = Math.sqrt(sum / buf.length) / 128;
-      set({ level: Math.min(1, rms * 2) });
+      const raw = Math.min(1, rms * 2);
+      // Same smoothing constants as Roci's native iOS meter — makes the
+      // bars feel less jittery and reach high thresholds more readily.
+      smoothed = smoothed * 0.6 + raw * 0.4;
+      set({ level: smoothed });
       internals.rafId = requestAnimationFrame(tick);
     };
     internals.rafId = requestAnimationFrame(tick);

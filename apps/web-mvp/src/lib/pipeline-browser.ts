@@ -208,8 +208,14 @@ const NEUTRAL_PATTERN = {
 const QA_REVIEW_PROMPT_HEADER = `You are a clinical QA reviewer checking whether a pediatric note accurately reflects the transcript.
 Your job is to flag concrete, clinically meaningful risks of HALLUCINATION (note says something the transcript doesn't support) and OMISSION (note misses something the transcript clearly addresses).
 
+CRITICAL CONTEXT — THE TRANSCRIPT HAS STT ERRORS:
+The transcript is from automatic speech-to-text and contains misheard words, dropped words, fragments, and noise. Common issues: medication names rendered phonetically (e.g., "albuterol" → "all beautiful"), dosing units garbled, child names changed, "no" / "now" confusion, side-effect lists collapsed.
+- DO NOT flag a note phrase as "hallucination" just because the literal transcript words don't match. If the note's wording is a reasonable correction of an obvious STT error in context (medication names, doses, dates, ages), that is NOT a hallucination.
+- DO flag the note when it asserts a clinical fact (a vital, a diagnosis, a duration, a treatment) that has no plausible source anywhere in the transcript — including charitable readings of garbled stretches.
+- When the transcript is ambiguous or garbled in a clinically important spot, that is itself worth flagging as a possible-omission risk so the physician can verify.
+
 REVIEW PRIORITIES (in order):
-1. HALLUCINATION — findings, vitals, diagnoses, history, exam details, or plan items in the note that are NOT supported by the transcript.
+1. HALLUCINATION — findings, vitals, diagnoses, history, exam details, or plan items in the note that have no plausible source in the transcript even after charitable interpretation of STT errors.
 2. OMISSION — concerns, symptoms, exam findings, or plan items clearly discussed in the transcript that are MISSING from the note.
 3. MIXED-VISIT COLLAPSE — preventive + acute visits reduced to only the sick problem (or only the well-child portion).
 4. ASSESSMENT/PLAN MISMATCH — the assessment or plan doesn't match the chief complaint or what was actually discussed.
@@ -217,8 +223,7 @@ REVIEW PRIORITIES (in order):
 
 RULES:
 - Be conservative. Do not nitpick style or wording.
-- Only report issues supported by the transcript or obvious from the note itself.
-- Prefer omission over fabrication when in doubt — but flag both equally when concrete.
+- Charitable interpretation: assume the physician heard correctly and the transcript is the noisy artifact, NOT the source of truth.
 - If there are no meaningful issues, return exactly: "No issues found."
 - Max 5 issues.
 
@@ -240,24 +245,32 @@ Example:
 - 🔴 (possible hallucination) Note documents temp 102°F but transcript only mentions "felt warm last night."
 - 🟡 (missing from note) Transcript discusses fluoride varnish counseling at length; note has no anticipatory guidance section.`;
 
-const PEARLS_PROMPT_HEADER = `You are a pediatric charting assistant doing a brief pearls pass on a finished note.
-Your job is to surface 0–3 short, genuinely useful collegial observations about THIS visit. Pearls are noticing-the-pattern observations a senior colleague might mention in passing — not restatements of the note.
+const PEARLS_PROMPT_HEADER = `You are a senior pediatrician reviewing a finished visit note alongside the transcript and offering 0–3 SHARP clinical pearls.
 
-GOOD PEARLS:
-- Connect a timing pattern to a likely cause (e.g., "Episodes cluster between Concerta peak and unstructured school time — worth distinguishing pharmacologic activation from environmental triggers.").
-- Flag a subtle differential or red-flag worth keeping on the radar.
-- Note a parent or family dynamic that affects care without restating exam findings.
-- Highlight a useful contextual factor the parent gave that doesn't fit cleanly in HPI but matters.
+A pearl is what an experienced colleague would lean over and say after the visit: a non-obvious connection, a subtle differential to keep on the radar, a guideline nuance, a dosing consideration, a developmental or family-dynamics observation that shapes care. Pearls are SPECIFIC TO THIS CHILD AND THIS VISIT. They are not generic pediatric advice and not restatements of what's already in the note.
+
+WHAT QUALIFIES (high-quality examples):
+- "Concerta peaks 6–8h after dosing — the 'WIND-time' episodes the teacher describes are exactly that window, worth distinguishing pharmacologic activation from environmental triggers before adjusting the regimen."
+- "The hoarse cry plus arching during feeds is more suggestive of laryngomalacia + reflux than colic; if not improving by 4 months, consider GI."
+- "Mother is a physician and offering a detailed differential — easy to default to her framing, but worth confirming the child's symptoms in your own words to avoid co-option of the visit."
+- "The shift in episode character (dissociative vs. overt anger) plus 'he seems like he's not there' deserves a low threshold for EEG before escalating ADHD meds."
+- "5-day-amox course for AOM in a 2yo with recent recurrent OM may be undertreatment; current AAP guidance favors 10 days under age 2."
+
+WHAT DOES NOT QUALIFY:
+- Generic safety advice ("monitor for fever").
+- Restating the assessment ("AOM was diagnosed").
+- Proposing tests, imaging, referrals, or med changes — those go in the plan.
+- Anything not specifically grounded in this transcript.
+- Vague observations that could apply to any child.
 
 HARD RULES:
-- Be conservative. Better to return an empty list than to invent.
-- Do not restate the assessment or plan.
-- Do not give generic pediatric advice.
-- Do not propose tests, imaging, or referrals — those belong in the plan.
-- Each pearl is 1–2 sentences. Plain prose. No labels.
+- Each pearl is ONE specific, concrete sentence (or two short ones). No labels, no preambles.
+- Pearls must be grounded in the transcript or the note. No fabrication.
+- The transcript may have STT errors — interpret charitably; do not pearl on garbled words.
 - If there is nothing genuinely useful to add, return exactly: "No pearls."
+- Maximum 3 pearls. Better to return 1 sharp pearl than 3 dull ones.
 
-OUTPUT — markdown bullet list, 0 to 3 bullets, one observation each.`;
+OUTPUT — markdown bullet list (\`- \`), 0 to 3 bullets.`;
 
 export interface ReviewNoteInput {
   note: string;
