@@ -39,6 +39,8 @@ export interface RunMvpPipelineOutput {
   patientSegments: PatientSegment[];
   /** Long-visit chapter markers for navigation. Empty for short visits. */
   transcriptChapters: TranscriptChapter[];
+  /** Auto-generated short label, or null if the transcript was too short / ambiguous. */
+  suggestedLabel: string | null;
 }
 
 const LONG_VISIT_CHAPTER_THRESHOLD_MS = 30 * 60_000; // 30 min
@@ -293,19 +295,27 @@ export async function runMvpPipeline(input: RunMvpPipelineInput): Promise<RunMvp
     throw err;
   }
 
-  // For long ambient visits, surface chapter markers so the transcript is
-  // navigable. Don't block the pipeline on this — if it fails, ship the
-  // note without chapters.
+  // Post-note enrichments: chapters (long visits only) + auto label. Run in
+  // parallel since both are read-only against the transcript. Best-effort —
+  // if either fails, ship the note without that field.
   let transcriptChapters: TranscriptChapter[] = [];
-  if (input.mode === 'ambient' && transcript.utterances.length > 0) {
+  let suggestedLabel: string | null = null;
+  if (transcript.utterances.length > 0) {
     const lastUtterance = transcript.utterances[transcript.utterances.length - 1];
     const visitDurationMs = lastUtterance?.endMs ?? 0;
-    if (visitDurationMs >= LONG_VISIT_CHAPTER_THRESHOLD_MS) {
-      try {
-        transcriptChapters = await detectChapters(transcript, input.settings);
-      } catch {
-        // best effort — continue without chapters
-      }
+    const wantsChapters =
+      input.mode === 'ambient' && visitDurationMs >= LONG_VISIT_CHAPTER_THRESHOLD_MS;
+    const [chaptersResult, labelResult] = await Promise.allSettled([
+      wantsChapters
+        ? detectChapters(transcript, input.settings)
+        : Promise.resolve([] as TranscriptChapter[]),
+      suggestLabel(transcript, input.settings),
+    ]);
+    if (chaptersResult.status === 'fulfilled') {
+      transcriptChapters = chaptersResult.value;
+    }
+    if (labelResult.status === 'fulfilled') {
+      suggestedLabel = labelResult.value;
     }
   }
 
@@ -317,7 +327,75 @@ export async function runMvpPipeline(input: RunMvpPipelineInput): Promise<RunMvp
     templateId,
     patientSegments,
     transcriptChapters,
+    suggestedLabel,
   };
+}
+
+// ---------------------------------------------------------------------------
+// Auto label suggestion — short visit label for the home-screen list
+// ---------------------------------------------------------------------------
+
+const SUGGEST_LABEL_PROMPT = `You are reading a pediatric visit transcript and writing a SHORT label (3-6 words) that helps the physician find this visit later in a list of recordings.
+
+GOOD EXAMPLES:
+- "Tommy ear pain f/u"
+- "MM age 4 WCV"
+- "Lily ADHD med check"
+- "Well child + ear pain"
+- "Autism eval — James"
+- "MH visit — anxiety"
+- "Lac repair 3yo"
+
+HARD RULES:
+- 3-6 words. NEVER more than 8.
+- Use a first name if clearly mentioned. Otherwise initials, age, or just visit-type.
+- Capture the REASON for the visit, not the assessment or plan.
+- Use common pediatric abbreviations (WCV, f/u, AOM, MH, etc.) where natural.
+- No quotes, no trailing punctuation, no leading "Visit:".
+- If transcript is too short or ambiguous to summarize, output exactly: "Visit"
+- Output the label ONLY. One line. No explanation.`;
+
+async function suggestLabel(
+  transcript: Transcript,
+  settings: Settings,
+): Promise<string | null> {
+  if (transcript.utterances.length === 0) return null;
+  // First ~1500 chars is enough for routing-style decisions.
+  const text = transcript.utterances
+    .map((u) => u.text)
+    .join(' ')
+    .slice(0, 1500);
+  if (text.trim().length < 30) return null;
+
+  const labelTemplate: NoteTemplate = {
+    id: 'auto-label',
+    name: 'Auto Label',
+    description: 'Internal — generates a short visit label from transcript.',
+    promptBody: `${SUGGEST_LABEL_PROMPT}\n\nTRANSCRIPT EXCERPT:\n${text}`,
+  };
+
+  const { provider } = buildProvider(settings);
+  let raw: string;
+  try {
+    raw = await provider.generateNote({
+      transcript: { ...transcript, utterances: [] },
+      template: labelTemplate,
+      pattern: NEUTRAL_PATTERN,
+      mode: 'ambient',
+      speakerRoles: [],
+    });
+  } catch {
+    return null;
+  }
+  const cleaned = raw
+    .trim()
+    .split('\n')[0]
+    ?.replace(/^["']|["']$/g, '')
+    .replace(/[.!?,;:]+$/, '')
+    .trim();
+  if (!cleaned || cleaned.toLowerCase() === 'visit') return null;
+  // Cap at 60 chars regardless of what the model returned.
+  return cleaned.slice(0, 60);
 }
 
 // ---------------------------------------------------------------------------

@@ -319,12 +319,16 @@ in the background while you're already moving on to the next chart task.
 Top of the Review screen there's a free-form **label** field. Type
 anything: "MM age 4 WCV", "Tommy ear pain f/u", "Lac repair 3yo".
 
+**Auto-label.** If you don't type one, brtlb generates a short label
+from the transcript automatically when the pipeline finishes — uses
+the patient's first name if mentioned, or initials + age + visit type,
+in the same style ("Lily ADHD med check", "Sick visit + WCV combined",
+"Autism eval — James"). The label is editable: type over it any time.
+
 The label is used as:
 - The download filename (`brtlb-tommy-ear-pain-fu.txt`)
 - The first line on the home screen list, so you can find this visit
   later
-
-Labels are optional. Visits without a label show up by date + mode.
 
 ---
 
@@ -411,8 +415,8 @@ brtlb is paranoid by default.
 
 ## Tips from real use
 
-- **Label visits as you go.** Future-you searching by date alone is
-  painful; future-you searching by "Tommy ear pain f/u" is instant.
+- **Let brtlb auto-label.** It's usually correct; just edit when it's
+  not. Saves typing on every visit.
 - **Mark moments liberally.** It's free and improves note specificity.
   Especially for visits with a worry, a quotable parent moment, or a
   subtle exam finding.

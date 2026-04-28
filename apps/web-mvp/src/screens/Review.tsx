@@ -157,9 +157,20 @@ export function Review() {
         speakerRoles: m.speakerRoles ?? [],
         bookmarks: m.bookmarks ?? [],
       });
+      // Apply the auto-suggested label only when the user hasn't already
+      // typed one — never overwrite their explicit choice.
+      const existingLabel = (m.label ?? '').trim();
+      const newLabel =
+        existingLabel.length > 0
+          ? existingLabel
+          : out.suggestedLabel
+            ? out.suggestedLabel
+            : (m.label ?? null);
+
       const updated: RecordingMeta = {
         ...m,
         stage: 'ready_for_review',
+        label: newLabel,
         transcriptText: renderTranscriptText(out.transcript, m.speakerRoles ?? []),
         transcriptJson: JSON.stringify(out.transcript),
         noteMarkdown: out.note,
@@ -180,6 +191,11 @@ export function Review() {
       setMeta(updated);
       setSelectedTemplateId(out.templateId);
       setEditedNote(out.note);
+      // If the auto-label was applied, mirror it into the editable label
+      // field so the user sees it populated rather than empty.
+      if (newLabel && (!existingLabel || existingLabel.length === 0)) {
+        setEditedLabel(newLabel);
+      }
       setStage('done');
     } catch (err) {
       const msg = redactKeysInText(err instanceof Error ? err.message : 'pipeline failed');
