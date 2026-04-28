@@ -295,7 +295,7 @@ export function Settings() {
               savedValue={settings.geminiApiKey}
               onChange={(v) => update('geminiApiKey', v)}
               placeholder="AIzaSy..."
-              helperText="Get a key at aistudio.google.com (personal Gmail) or in your Google Cloud project (APIs & Services → Credentials). Keys created in a billing-enabled Cloud project are covered under Google Cloud's HIPAA BAA. Personal-Gmail / free-tier keys are not."
+              helperText="Get a key at aistudio.google.com or in your Google Cloud project. BAA coverage of this endpoint (generativelanguage.googleapis.com) is ambiguous in Google's public docs — Vertex AI is the unambiguous BAA path. For PHI, confirm coverage with Google directly. See docs/BAAs.md."
             />
             <div>
               <div className="flex items-end justify-between gap-3">

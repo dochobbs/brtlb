@@ -6,11 +6,14 @@ import { composeNotePrompt } from '../prompts/compose';
  * Generative Language REST endpoint. Browser-safe, no SDK, no service
  * account JSON.
  *
- * BAA NOTE: Gemini API keys created in a Google Cloud project with
- * billing enabled are covered under Google Cloud's HIPAA BAA. Free-tier
- * keys created at aistudio.google.com from a personal Gmail (no Cloud
- * project) are NOT covered. The Vertex AI adapter is also BAA-eligible
- * but uses service-account auth instead of an API key.
+ * BAA NOTE: Coverage of the standalone Gemini API endpoint
+ * (generativelanguage.googleapis.com) under Google Cloud's HIPAA BAA
+ * is AMBIGUOUS based on Google's public docs (verified April 2026).
+ * Vertex AI (a different endpoint, *-aiplatform.googleapis.com) is
+ * unambiguously BAA-covered but uses service-account auth. For PHI
+ * workloads via this adapter, confirm coverage with Google directly
+ * for your specific Cloud account. Free aistudio.google.com keys with
+ * no associated Cloud project are not BAA-covered. See docs/BAAs.md.
  */
 
 export interface GeminiApiKeyProviderConfig {

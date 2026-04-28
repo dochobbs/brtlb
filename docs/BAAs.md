@@ -33,24 +33,43 @@ agreement enables custom retention which disables CORS. Plan to use
 Anthropic only via a server-side proxy or a future native shell, not
 the browser BYO-keys path.
 
-## Google (Gemini API + Vertex AI)
+## Google (Vertex AI; Gemini API ambiguous)
 
 BAAs come through the **Google Cloud HIPAA-covered services** agreement.
-Both **Vertex AI** and the **Gemini API** (when used through a billing-
-enabled Google Cloud project) are on the covered list.
 
-What's covered:
-- Gemini API key issued from your Google Cloud project (APIs & Services
-  → Credentials → Create API Key) with billing enabled on the project
-- Vertex AI (`*-aiplatform.googleapis.com`) via service-account auth
+**Confirmed BAA-covered (per Google's own docs):**
+- **Vertex AI** (`*-aiplatform.googleapis.com`) — listed by name in
+  Google's GCP HIPAA whitepaper. Uses service-account auth, not API
+  keys. This is the unambiguous PHI path.
 
-What's NOT covered:
-- Free-tier `aistudio.google.com` keys created from a personal Gmail
-  with no associated Cloud project — fine for synthetic-data testing
-  only
+**Confirmed BAA-covered, but a different surface than brtlb uses:**
+- **Gemini for Google Workspace** (`gemini.google.com`) — listed by
+  name in the September 2025 Workspace HIPAA Implementation Guide.
+  This is the user-facing chat product, NOT the API.
+
+**Ambiguous from public docs:**
+- The standalone **Gemini API** at `generativelanguage.googleapis.com`
+  — which is what brtlb's `gemini-api-key` adapter calls — does NOT
+  appear by name in Google's published HIPAA covered-services lists I
+  could verify. Secondary sources (Nightfall AI, Paubox, etc.) suggest
+  API-driven workloads in a billing-enabled Cloud project ARE covered,
+  but I have not seen this confirmed in Google's own BAA terms or
+  whitepapers.
+
+**Recommendation:**
+- For an ambiguity-free BAA-clean Gemini deployment, use **Vertex AI**.
+- If you want to use the Gemini API endpoint directly, **confirm
+  coverage with Google** for your specific Cloud account before sending
+  PHI. Don't rely on third-party blog posts.
+- Free `aistudio.google.com` keys from a personal Gmail (no associated
+  Cloud project) are NOT under any GCP BAA. Fine for synthetic-data
+  testing only.
 
 To set up the BAA:
 - Workspace admin console → accept the HIPAA agreement, OR contact
   Google Cloud sales for non-Workspace orgs
-- Confirm Gemini API + Vertex AI are listed under your covered services
-- Reference: https://cloud.google.com/security/compliance/hipaa
+- Confirm in writing which specific services the BAA covers
+- References:
+  - https://cloud.google.com/security/compliance/hipaa
+  - https://services.google.com/fh/files/misc/hipaa_overview_guide_googlecloud_whitepaper.pdf
+  - https://services.google.com/fh/files/misc/gsuite_cloud_identity_hipaa_implementation_guide.pdf
