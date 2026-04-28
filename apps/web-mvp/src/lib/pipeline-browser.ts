@@ -107,23 +107,29 @@ const AUTO_DETECT_CANDIDATES = [
   'follow-up',
   'adhd-med-check',
   'procedure',
+  'behavioral-health',
+  'developmental-eval',
 ] as const;
 
 const VISIT_TYPE_DETECTOR_PROMPT = `You are a pediatric documentation router. Read the transcript excerpt and pick ONE template id from this list:
 
-- soap            — generic visit, when no other category clearly fits
-- well-child      — preventive care visit (vaccines, milestones, anticipatory guidance dominate)
-- sick-visit      — acute illness or injury (URI, ear pain, rash, fever, GI, asthma, etc.)
-- follow-up       — interim check on a known problem or recently treated condition
-- adhd-med-check  — explicit ADHD medication visit (response, side effects, vitals on stimulant)
-- procedure       — an in-office procedure was performed (laceration repair, I&D, ear curettage, etc.)
+- soap                — generic visit, when no other category clearly fits
+- well-child          — preventive care visit (vaccines, milestones, anticipatory guidance dominate)
+- sick-visit          — acute illness or injury (URI, ear pain, rash, fever, GI, asthma, etc.)
+- follow-up           — interim check on a known problem or recently treated condition
+- adhd-med-check      — explicit ADHD medication visit (response, side effects, vitals on stimulant)
+- procedure           — an in-office procedure was performed (laceration repair, I&D, ear curettage, etc.)
+- behavioral-health   — pediatric mental-health visit (mood, anxiety, depression screen, suicidality, trauma, ADHD diagnostic intake, family conflict, substance use, eating disorders, therapy referral)
+- developmental-eval  — long-form developmental or autism evaluation (M-CHAT, ADOS-style observation, parent interview about milestones + social communication + repetitive behaviors, diagnostic feedback discussion)
 
 RULES:
 - When in doubt between sick-visit and well-child, BOTH happened, or the visit is mixed: pick "soap" (its prompt handles mixed visits explicitly).
+- behavioral-health: pick when mood/behavior/relationships/safety/mental-health screens dominate the transcript. NOT for routine wellness checks that happen to ask "any worries?".
+- developmental-eval: pick when the transcript reads like a structured evaluation — extensive milestone history, deliberate observation of communication / social / repetitive behaviors, formal screening tools mentioned, or visit duration suggests a multi-component eval.
 - When the transcript is too short or ambiguous: pick "soap".
 - Output the id ONLY. No quotes, no punctuation, no explanation. One word.
 
-Examples of valid output: soap | well-child | sick-visit | follow-up | adhd-med-check | procedure`;
+Examples of valid output: soap | well-child | sick-visit | follow-up | adhd-med-check | procedure | behavioral-health | developmental-eval`;
 
 async function detectVisitType(
   transcript: Transcript,
@@ -295,6 +301,12 @@ function templateForVisitType(visitType: string): string {
       return 'sick-visit';
     case 'follow_up':
       return 'follow-up';
+    case 'behavioral_health':
+    case 'mental_health':
+      return 'behavioral-health';
+    case 'developmental_eval':
+    case 'autism_eval':
+      return 'developmental-eval';
     default:
       return 'soap';
   }
@@ -598,10 +610,15 @@ REVIEW PRIORITIES (in order):
 4. ASSESSMENT/PLAN MISMATCH — the assessment or plan doesn't match the chief complaint or what was actually discussed.
 5. WRONG-PATIENT RISK — the note appears to describe a different child than the encounter (sibling contamination, name drift).
 
+SENSITIVE-CONTENT FLAG (always run this check):
+If the transcript discusses suicidality, self-harm, abuse (physical / sexual / emotional / neglect), substance use, sexual activity, eating-disorder behaviors, custody conflicts, intimate partner violence, or other content a parent or chart-recipient should NOT see by default — output exactly ONE line at the end of the issues list:
+- 🟡 (sensitive content) [one short phrase naming the topic, e.g., "suicidality discussed", "substance use disclosed"]
+This line surfaces the topic so the physician reviews before sharing. Do not redact or omit anything from the actual note — that's the physician's call.
+
 RULES:
 - Be conservative. Do not nitpick style or wording.
 - Charitable interpretation: assume the physician heard correctly and the transcript is the noisy artifact, NOT the source of truth.
-- If there are no meaningful issues, return exactly: "No issues found."
+- If there are no meaningful issues AND no sensitive content, return exactly: "No issues found."
 - Max 5 issues.
 
 OUTPUT — markdown bullet list. Each bullet starts with a severity emoji, then a category tag, then a one-sentence explanation. Cite a short excerpt from the note or transcript when it makes the issue concrete.
@@ -617,6 +634,7 @@ Category tags (use exactly one per bullet):
 - (mixed-visit collapse)
 - (assessment/plan mismatch)
 - (wrong patient risk)
+- (sensitive content)
 
 Example:
 - 🔴 (possible hallucination) Note documents temp 102°F but transcript only mentions "felt warm last night."

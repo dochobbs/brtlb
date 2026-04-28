@@ -47,6 +47,9 @@ function bookmarksBlock(bookmarks: NoteBookmark[] | undefined): string {
   ].join('\n');
 }
 
+const ADAPTIVE_LENGTH_RULE = `NOTE LENGTH:
+Match the note length to the visit's complexity, not a fixed template. A focused 5-minute URI visit gets a brief note; a 60-minute mental-health follow-up or 90-minute autism evaluation gets a longer, richer note that captures the breadth of what was discussed. Do not pad short visits and do not truncate long ones. Length is a function of clinical content density, not template defaults.`;
+
 export function composeNotePrompt(input: GenerateNoteInput): string {
   const roleMap = buildRoleMap(input.speakerRoles);
   const lines = input.transcript.utterances
@@ -57,6 +60,8 @@ export function composeNotePrompt(input: GenerateNoteInput): string {
 
   return [
     input.template.promptBody,
+    '',
+    ADAPTIVE_LENGTH_RULE,
     '',
     input.pattern.promptModifier,
     '',

@@ -5,6 +5,8 @@ import followUpTemplate from './templates/follow-up.json' with { type: 'json' };
 import adhdMedCheckTemplate from './templates/adhd-med-check.json' with { type: 'json' };
 import procedureTemplate from './templates/procedure.json' with { type: 'json' };
 import dictationTemplate from './templates/dictation.json' with { type: 'json' };
+import behavioralHealthTemplate from './templates/behavioral-health.json' with { type: 'json' };
+import developmentalEvalTemplate from './templates/developmental-eval.json' with { type: 'json' };
 import narrativePattern from './patterns/narrative.json' with { type: 'json' };
 
 export interface NoteTemplate {
@@ -28,6 +30,8 @@ const templates: ReadonlyArray<NoteTemplate> = [
   followUpTemplate as NoteTemplate,
   adhdMedCheckTemplate as NoteTemplate,
   procedureTemplate as NoteTemplate,
+  behavioralHealthTemplate as NoteTemplate,
+  developmentalEvalTemplate as NoteTemplate,
   dictationTemplate as NoteTemplate,
 ];
 const patterns: ReadonlyArray<NotePattern> = [narrativePattern as NotePattern];
