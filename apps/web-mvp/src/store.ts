@@ -72,10 +72,31 @@ function loadSettings(): Settings {
   }
 }
 
-function persistSettings(settings: Settings): void {
+/**
+ * Returns null on success, an error message string on failure.
+ * Failures we've seen on iOS Safari:
+ * - Private browsing (setItem throws QuotaExceededError despite the
+ *   API being present)
+ * - "Block All Cookies" in Settings → Safari (silently denies storage)
+ * - PWA standalone storage container isolated from Safari proper —
+ *   keys saved in one mode aren't visible from the other
+ * - ITP wipes localStorage after 7 days of no first-party interaction
+ */
+function persistSettings(settings: Settings): string | null {
   const ls = safeStorage();
-  if (!ls) return;
-  ls.setItem(SETTINGS_KEY, JSON.stringify(settings));
+  if (!ls) return 'Browser storage is not available (private mode? cookies blocked?).';
+  try {
+    ls.setItem(SETTINGS_KEY, JSON.stringify(settings));
+    // Roundtrip check — some iOS modes silently no-op the write.
+    const probe = ls.getItem(SETTINGS_KEY);
+    if (!probe) {
+      return 'Browser storage rejected the write silently. Disable Private Browsing / "Block All Cookies" and try again.';
+    }
+    return null;
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return `Couldn't save: ${msg}`;
+  }
 }
 
 export type View = 'home' | 'settings' | 'record' | 'review';
@@ -87,7 +108,8 @@ interface AppState {
   locked: boolean;
   setView(view: View): void;
   selectRecording(id: string | null): void;
-  saveSettings(partial: Partial<Settings>): void;
+  /** Returns null on success, an error string if the storage layer rejected the write. */
+  saveSettings(partial: Partial<Settings>): string | null;
   hasRequiredKeys(): boolean;
   lock(): void;
   unlock(): void;
@@ -106,8 +128,9 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
   saveSettings(partial) {
     const next = { ...get().settings, ...partial };
-    persistSettings(next);
+    const err = persistSettings(next);
     set({ settings: next });
+    return err;
   },
   hasRequiredKeys() {
     const s = get().settings;

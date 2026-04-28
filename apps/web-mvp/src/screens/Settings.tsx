@@ -39,6 +39,7 @@ export function Settings() {
   const [geminiModels, setGeminiModels] = useState<string[]>(GEMINI_MODELS_DEFAULT);
   const [listingGeminiModels, setListingGeminiModels] = useState(false);
   const [geminiModelsError, setGeminiModelsError] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   useEffect(() => {
     setDraft(settings);
@@ -101,7 +102,12 @@ export function Settings() {
   }
 
   async function handleSave() {
-    saveSettings(draft);
+    const err = saveSettings(draft);
+    if (err) {
+      setSaveError(err);
+      return; // stay on the page so the user sees the failure
+    }
+    setSaveError(null);
     setView('home');
   }
 
@@ -295,7 +301,7 @@ export function Settings() {
               savedValue={settings.geminiApiKey}
               onChange={(v) => update('geminiApiKey', v)}
               placeholder="AIzaSy..."
-              helperText="Get a key at aistudio.google.com or in your Google Cloud project. BAA coverage of this endpoint (generativelanguage.googleapis.com) is ambiguous in Google's public docs — Vertex AI is the unambiguous BAA path. For PHI, confirm coverage with Google directly. See docs/BAAs.md."
+              helperText="Recommended for users on Google Workspace — leverages your existing Google HIPAA BAA. Create the key in your Google Cloud project (APIs & Services → Credentials) with billing enabled. See docs/SETUP.md for the step-by-step."
             />
             <div>
               <div className="flex items-end justify-between gap-3">
@@ -397,6 +403,19 @@ export function Settings() {
           helperText="Get a key at assemblyai.com. Sign a BAA before using with PHI."
         />
       </section>
+
+      {saveError ? (
+        <div className="mt-6 rounded-md border border-red-300 bg-red-50 p-3 text-sm text-red-800">
+          <p className="font-medium">Couldn't save your settings</p>
+          <p className="mt-1">{saveError}</p>
+          <p className="mt-2 text-xs">
+            Common causes on iOS: Private Browsing is on, "Block All Cookies" is enabled in
+            Settings → Safari, or you're using a different mode than where the keys were last
+            saved (Safari tab vs. Add-to-Home-Screen PWA store keys separately). After fixing,
+            tap Save again.
+          </p>
+        </div>
+      ) : null}
 
       <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <button

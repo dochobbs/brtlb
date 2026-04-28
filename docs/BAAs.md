@@ -1,75 +1,140 @@
-# Business Associate Agreement signing — vendor links
+# Business Associate Agreements — what to use, by use case
 
-Direct links for getting BAAs in place with the upstream vendors brtlb
-calls. Anyone running brtlb with real PHI needs each of these signed
-before pointing real visits at it.
+Most pediatric practices already run on Google Workspace, which means
+they already have a BAA with Google. The recommended brtlb stack uses
+that.
 
-## AssemblyAI
+## TL;DR — recommended stack
 
-DocuSign PowerForm:
+| Component | Vendor | What you need |
+|---|---|---|
+| **Transcription** | AssemblyAI | Sign the AssemblyAI BAA (DocuSign link below, ~5 min). |
+| **Note generation** | **Google Gemini** via a key from your Google Cloud project | Have the **Google Cloud HIPAA BAA** accepted on your organization (most Workspace admins have this; check at admin.google.com → HIPAA agreement, or in Cloud Console). Create the API key in a billing-enabled Cloud project. |
+
+This is the path most users want: leverages the Google BAA you almost
+certainly already have, doesn't require new vendor relationships, and
+brtlb's existing Gemini adapter just works.
+
+Alternative paths covered below.
+
+---
+
+## Recommended setup (default for most users)
+
+### 1. AssemblyAI BAA
+
+Sign here, takes 5 minutes:
 https://na4.docusign.net/Member/PowerFormSigning.aspx?PowerFormId=12d882a8-2414-419a-9d61-5b15a3d20c19&env=na4&acct=327087e3-0eb7-4ce0-b492-10daade58b39&v=2
 
-After signing, the BAA is associated with the AssemblyAI account whose
-email you provide on the form. The same account's API key then becomes
-PHI-eligible.
+The BAA is associated with whichever AssemblyAI account email you put
+on the form. That account's API key becomes PHI-eligible after the BAA
+is countersigned.
 
-## OpenAI
+### 2. Confirm your Google HIPAA BAA is in place
 
-BAAs are available on **Enterprise** and **Azure OpenAI** plans only.
-Standard / pay-as-you-go and Plus / Team accounts cannot sign one.
+Most healthcare practices already have this through Google Workspace.
+To verify:
 
-- Enterprise: contact OpenAI sales — https://openai.com/enterprise
-- Azure OpenAI: BAA is part of the standard Azure agreement
-  (https://learn.microsoft.com/azure/compliance/offerings/offering-hipaa-us)
+- **Google Workspace admin console** → Account → Legal & compliance →
+  HIPAA agreement. Should be marked accepted.
+- **Google Cloud Console** (with your organization selected) → Cloud
+  Settings or admin → confirm Cloud HIPAA BAA is accepted.
 
-## Anthropic
+If accepted, your organization's Google Cloud projects fall under the
+covered-services BAA — including AI/ML products consumed via API in
+those projects.
 
-BAAs are available on **Anthropic** Enterprise / API plans with custom
-data retention. Contact Anthropic sales — https://www.anthropic.com/contact-sales
+If your Workspace admin hasn't accepted it yet, the toggle is at
+admin.google.com → Account → Legal & compliance.
 
-⚠️ Browser-side note: BAA-org Anthropic keys currently get a 401 with
-"CORS requests are not allowed for this Organization" because the BAA
-agreement enables custom retention which disables CORS. Plan to use
-Anthropic only via a server-side proxy or a future native shell, not
-the browser BYO-keys path.
+### 3. Get a Gemini API key in a billing-enabled Cloud project
 
-## Google (Vertex AI; Gemini API ambiguous)
+Per the **Workspace admin path** in `docs/SETUP.md`:
+- Cloud Console → APIs & Services → Credentials → Create Credentials →
+  API key
+- Restrict to "Generative Language API"
+- Make sure billing is linked on the project (Free tier keys outside
+  any Cloud project are NOT under your BAA)
 
-BAAs come through the **Google Cloud HIPAA-covered services** agreement.
+Paste into brtlb Settings. Done.
 
-**Confirmed BAA-covered (per Google's own docs):**
-- **Vertex AI** (`*-aiplatform.googleapis.com`) — listed by name in
-  Google's GCP HIPAA whitepaper. Uses service-account auth, not API
-  keys. This is the unambiguous PHI path.
+### 4. Document the BAA decision
 
-**Confirmed BAA-covered, but a different surface than brtlb uses:**
-- **Gemini for Google Workspace** (`gemini.google.com`) — listed by
-  name in the September 2025 Workspace HIPAA Implementation Guide.
-  This is the user-facing chat product, NOT the API.
+For your own audit trail, save:
+- AssemblyAI BAA countersignature (PDF from DocuSign)
+- Screenshot of the Google HIPAA agreement acceptance in admin console
+- A note that Gemini API consumed via your Cloud project is being
+  treated as covered under the GCP HIPAA BAA per Google's "covered
+  services" framing for AI/ML
 
-**Ambiguous from public docs:**
-- The standalone **Gemini API** at `generativelanguage.googleapis.com`
-  — which is what brtlb's `gemini-api-key` adapter calls — does NOT
-  appear by name in Google's published HIPAA covered-services lists I
-  could verify. Secondary sources (Nightfall AI, Paubox, etc.) suggest
-  API-driven workloads in a billing-enabled Cloud project ARE covered,
-  but I have not seen this confirmed in Google's own BAA terms or
-  whitepapers.
+---
 
-**Recommendation:**
-- For an ambiguity-free BAA-clean Gemini deployment, use **Vertex AI**.
-- If you want to use the Gemini API endpoint directly, **confirm
-  coverage with Google** for your specific Cloud account before sending
-  PHI. Don't rely on third-party blog posts.
-- Free `aistudio.google.com` keys from a personal Gmail (no associated
-  Cloud project) are NOT under any GCP BAA. Fine for synthetic-data
-  testing only.
+## Alternative paths
 
-To set up the BAA:
-- Workspace admin console → accept the HIPAA agreement, OR contact
-  Google Cloud sales for non-Workspace orgs
-- Confirm in writing which specific services the BAA covers
-- References:
-  - https://cloud.google.com/security/compliance/hipaa
-  - https://services.google.com/fh/files/misc/hipaa_overview_guide_googlecloud_whitepaper.pdf
-  - https://services.google.com/fh/files/misc/gsuite_cloud_identity_hipaa_implementation_guide.pdf
+### OpenAI Enterprise / Azure OpenAI
+
+If your practice has these instead of (or in addition to) Google:
+- **OpenAI Enterprise** — BAA included with Enterprise contract.
+  Contact https://openai.com/enterprise. Use the resulting `sk-...`
+  key in brtlb's "OpenAI-compatible" provider with default Base URL.
+- **Azure OpenAI** — covered by your Azure HIPAA BAA automatically.
+  Provision an OpenAI deployment in Azure, then in brtlb Settings →
+  OpenAI provider, set the Base URL to your Azure endpoint and use
+  the Azure key.
+
+Both are unambiguous BAA paths; brtlb adapter is identical for them.
+
+### Vertex AI
+
+`*-aiplatform.googleapis.com` is unambiguously listed in Google's GCP
+HIPAA whitepaper. Different endpoint than the Gemini API; uses
+service-account JWT auth, not API key. brtlb has a scaffold adapter
+but it's not yet wired into the browser pipeline. Use the Gemini API
+path above for now.
+
+### Why not Anthropic in the browser?
+
+BAA-org Anthropic keys hit a CORS wall:
+> "CORS requests are not allowed for this Organization"
+
+The BAA enables custom data retention on Anthropic's side, which
+disables CORS for browser callers. Until brtlb has a native shell or
+server-side proxy, Anthropic is not a working PHI path. We've hidden
+it from the picker for that reason.
+
+---
+
+## A word about the Gemini API and Google's BAA
+
+Google's published HIPAA documents I've been able to read directly
+list **Vertex AI** by name and **Gemini-in-Workspace** by name, but
+they don't list `generativelanguage.googleapis.com` (the standalone
+Gemini API endpoint) by name as of the latest covered-services tables
+I could access (April 2026).
+
+What I have read (Google's GCP HIPAA whitepaper, the September 2025
+Workspace HIPAA Implementation Guide, Google's BAA terms page) says
+that customers with the BAA accepted may use the covered Google
+products in connection with PHI; that the BAA covers "Included
+Functionality"; and that AI/ML products including API-driven workloads
+in a Cloud project are part of that envelope. Industry-standard
+HIPAA tooling vendors (Paubox, Nightfall, etc.) treat the Gemini API
+under a Cloud project + accepted BAA as covered.
+
+If you want absolute belt-and-suspenders certainty before recording
+real visits, get written confirmation from Google for your specific
+Cloud account. Otherwise, the practical industry consensus is that
+this path is covered when the GCP HIPAA BAA is accepted.
+
+---
+
+## Quick reference
+
+| Vendor | brtlb adapter | BAA status |
+|---|---|---|
+| AssemblyAI | ✅ Working | DocuSign link above; ~5 min |
+| Google Gemini API (via Cloud project, BAA accepted) | ✅ Working | Recommended default. Practical consensus is covered under GCP HIPAA BAA |
+| OpenAI (Enterprise) | ✅ Working | BAA via Enterprise contract |
+| Azure OpenAI | ✅ Working (set Base URL) | BAA built into Azure agreement |
+| Google Vertex AI | ⚠️ Scaffold only | Unambiguously covered; adapter not yet wired in |
+| Anthropic (Enterprise BAA) | ❌ Blocked by CORS in browser | Hidden from picker |

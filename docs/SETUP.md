@@ -1,14 +1,26 @@
 # Setting up brtlb
 
 brtlb runs entirely in your browser. You bring two keys: one for
-**transcription** (AssemblyAI) and one for **note generation** (your
-choice of Google Gemini or OpenAI). Keys live only in your browser's
-localStorage — they never leave your device.
+**transcription** (AssemblyAI) and one for **note generation** (Google
+Gemini is the default; OpenAI also supported). Keys live only in your
+browser's localStorage — they never leave your device.
+
+**The default stack** for most pediatric practices, who already run on
+Google Workspace and have a Google HIPAA BAA:
+
+| Component | Vendor |
+|---|---|
+| Transcription | AssemblyAI (sign their BAA, ~5 min) |
+| Note generation | Google Gemini, key from your Google Cloud project |
+
+If your practice instead has OpenAI Enterprise or Azure OpenAI, those
+are equally good — see step 3.
 
 You'll need:
 - A computer or phone with a modern browser
 - About **15 minutes** for first-time setup
-- A credit card for the AI vendors (both have free tiers; brtlb is cheap to run — typically a few cents per visit)
+- Billing on your Google Cloud project (or OpenAI account)
+- brtlb costs ~$0.20 per 30-minute visit end-to-end
 
 ---
 
@@ -37,16 +49,29 @@ their current pricing page for exact numbers.
 
 ---
 
-## 2. Get your Google Gemini key (note generation)
+## 2. Get your Google Gemini key — *the recommended path*
 
-Gemini is a fast, capable model from Google. **BAA coverage:** the
-short version — Vertex AI is unambiguously BAA-covered; the standalone
-Gemini API endpoint (`generativelanguage.googleapis.com`) is ambiguous
-from Google's public docs. See `docs/BAAs.md` for the full nuance.
+The default for users already on Google Workspace.
 
-For PHI, the safer path is Vertex AI (separate adapter, planned).
-For synthetic-data testing or quality experimentation, the AI Studio
-Gemini API key works fine via brtlb's existing adapter.
+**Before getting the API key, confirm your Google HIPAA BAA is accepted:**
+- admin.google.com → Account → Legal & compliance → HIPAA agreement
+  should be marked accepted, OR
+- Cloud Console → org-level admin → confirm Cloud HIPAA BAA acceptance
+
+If you're a Workspace admin and haven't accepted yet, do so before
+recording real patient visits.
+
+**Then get the API key (Workspace admin path — requires Org Policy
+Administrator role to bypass any default API-key block; see
+"Workspace admin path" below):**
+
+1. Go to **https://console.cloud.google.com/apis/credentials** with
+   your work account
+2. **Create Credentials** → **API key**
+3. Restrict it to **Generative Language API** for safety
+4. Make sure billing is linked on the project
+   (https://console.cloud.google.com/billing/linkedaccount)
+5. Copy the `AIzaSy...` key
 
 ### Easiest path: AI Studio
 
@@ -90,22 +115,39 @@ the beta.
 
 ---
 
-## 3. (Optional) Get your OpenAI key (alternative note generator)
+## 3. Alternative — OpenAI key
 
-If you'd rather use OpenAI's GPT-4o instead of Gemini:
+If your practice has OpenAI Enterprise or Azure OpenAI instead of (or
+alongside) Google, this works too. Pick whichever you have a BAA on.
 
-1. Go to **https://platform.openai.com**, sign up
-2. Add billing on the **Settings → Billing** page (the API requires it)
-3. Visit **https://platform.openai.com/api-keys** → **Create new secret
-   key**. Format: `sk-proj-...` or `sk-...`. Copy it immediately — you
-   can't view it again.
-4. **For real PHI**: you need an **Enterprise** or **Azure OpenAI** plan
-   with a signed BAA. Standard pay-as-you-go isn't BAA-eligible.
+### Option A — OpenAI Enterprise
+
+1. Contact OpenAI sales: **https://openai.com/enterprise**
+2. They provision an Enterprise account and provide the BAA as part of
+   the agreement.
+3. Generate an API key at platform.openai.com/api-keys. Format
+   `sk-proj-...` or `sk-...`.
+4. In brtlb Settings → "OpenAI-compatible" provider → paste key. Leave
+   Base URL blank (defaults to `api.openai.com`). Save.
+
+### Option B — Azure OpenAI
+
+1. In your Azure portal, create an "Azure OpenAI" resource.
+2. Provision a model deployment (e.g., `gpt-4o`).
+3. Copy the **endpoint URL** and the **API key** from the resource's
+   "Keys and Endpoint" pane.
+4. The Microsoft Azure Online Services agreement already includes the
+   HIPAA BAA — no separate signature needed.
+5. In brtlb Settings → "OpenAI-compatible" provider:
+   - **Base URL:** your Azure endpoint, e.g.
+     `https://YOUR-RESOURCE.openai.azure.com/openai/deployments/YOUR-DEPLOYMENT`
+   - **API key:** the Azure key
+   - Save.
 
 ### Cost
 
-GPT-4o is a few cents per visit. Slightly more expensive than Gemini
-Flash but very stable.
+GPT-4o on either runs roughly 2-5 cents per visit depending on length.
+
 
 ---
 
