@@ -13,14 +13,15 @@ import {
 
 const ANTHROPIC_MODELS = ['claude-sonnet-4-6', 'claude-opus-4-7', 'claude-haiku-4-5'];
 const OPENAI_MODELS = ['gpt-4o', 'gpt-4o-mini', 'gpt-4-turbo'];
-// Conservative starter list — known to exist as of Jan 2026. The "List my
-// models" button will replace this with whatever the user's key actually has
-// access to.
+// Starter list of recent Gemini models. The "List my models" button replaces
+// this with whatever the user's key actually has access to. Older keys may
+// not have 2.5 / 3.x availability — typing a model name into the field
+// directly works even when List my models doesn't surface it.
 const GEMINI_MODELS_DEFAULT = [
-  'gemini-2.0-flash',
-  'gemini-2.0-flash-exp',
-  'gemini-1.5-pro',
-  'gemini-1.5-flash',
+  'gemini-2.5-flash',
+  'gemini-2.5-pro',
+  'gemini-2.0-flash-001',
+  'gemini-2.0-flash-lite',
 ];
 
 const PROVIDER_LABEL: Record<ProviderKind, string> = {
@@ -60,7 +61,9 @@ export function Settings() {
       const json = (await res.json()) as {
         models?: Array<{ name?: string; supportedGenerationMethods?: string[] }>;
       };
-      const ids = (json.models ?? [])
+      const all = json.models ?? [];
+      // Prefer Gemini models that support generateContent for the dropdown.
+      const generateCapable = all
         .filter(
           (m) =>
             m.name &&
@@ -70,11 +73,23 @@ export function Settings() {
         )
         .map((m) => (m.name ?? '').replace(/^models\//, ''))
         .sort();
-      if (ids.length === 0) throw new Error('no gemini models with generateContent support found');
-      setGeminiModels(ids);
+
+      if (generateCapable.length === 0) {
+        // Diagnostic: show what we DID get so the user can see why nothing matched.
+        const allNames = all
+          .map((m) => (m.name ?? '').replace(/^models\//, ''))
+          .filter(Boolean)
+          .join(', ');
+        throw new Error(
+          allNames
+            ? `No Gemini models with generateContent support. API returned: ${allNames}`
+            : 'API returned 0 models. Project may need billing enabled at console.cloud.google.com/billing/linkedaccount',
+        );
+      }
+      setGeminiModels(generateCapable);
       // Auto-select the first if the current draft model isn't in the list
-      if (!ids.includes(draft.geminiModel)) {
-        update('geminiModel', ids[0] ?? draft.geminiModel);
+      if (!generateCapable.includes(draft.geminiModel)) {
+        update('geminiModel', generateCapable[0] ?? draft.geminiModel);
       }
     } catch (err) {
       setGeminiModelsError(err instanceof Error ? err.message : 'unknown error');
