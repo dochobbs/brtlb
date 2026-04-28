@@ -222,9 +222,11 @@ export function Review() {
 
   async function handleShare(): Promise<void> {
     if (!meta) return;
-    const title = meta.label?.trim() || 'brtlb visit note';
-    // Web Share API is best on mobile (AirDrop, Messages, Mail, etc.). Fall
-    // back to clipboard copy if the browser doesn't support it.
+    // Use a generic title — the user's label may contain patient name / DOB
+    // / other PHI, and the Web Share title is visible to every recipient app
+    // (AirDrop preview, Messages thread title, Mail subject, etc.). The
+    // note text in `text` is the actual content; the title is just chrome.
+    const title = 'brtlb visit note';
     if (typeof navigator !== 'undefined' && typeof navigator.share === 'function') {
       try {
         await navigator.share({ title, text: editedNote });

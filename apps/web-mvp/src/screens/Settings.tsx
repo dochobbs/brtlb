@@ -52,10 +52,11 @@ export function Settings() {
     setListingGeminiModels(true);
     setGeminiModelsError(null);
     try {
-      const res = await fetch(
-        'https://generativelanguage.googleapis.com/v1beta/models?key=' +
-          encodeURIComponent(draft.geminiApiKey),
-      );
+      // Pass the key in the x-goog-api-key header — keeps it out of browser
+      // history, referrer headers, and any URL-based logs.
+      const res = await fetch('https://generativelanguage.googleapis.com/v1beta/models', {
+        headers: { 'x-goog-api-key': draft.geminiApiKey },
+      });
       if (!res.ok) {
         throw new Error(`${res.status} ${(await res.text().catch(() => '')).slice(0, 200)}`);
       }
@@ -188,6 +189,25 @@ export function Settings() {
     if (!confirmed) return;
     await clearAll();
     if (typeof localStorage !== 'undefined') localStorage.clear();
+    if (typeof sessionStorage !== 'undefined') sessionStorage.clear();
+    // Clear PWA / Service Worker caches so cached note pages aren't recoverable
+    // post-wipe. Best-effort; failures here shouldn't block the wipe.
+    if (typeof caches !== 'undefined') {
+      try {
+        const names = await caches.keys();
+        await Promise.all(names.map((n) => caches.delete(n)));
+      } catch {
+        // ignore — caches API may not exist or may throw on private mode
+      }
+    }
+    if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator) {
+      try {
+        const regs = await navigator.serviceWorker.getRegistrations();
+        await Promise.all(regs.map((r) => r.unregister()));
+      } catch {
+        // ignore
+      }
+    }
     window.location.reload();
   }
 

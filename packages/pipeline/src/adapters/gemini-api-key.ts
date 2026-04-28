@@ -40,9 +40,11 @@ export function createGeminiApiKeyProvider(
     name: 'gemini-api-key',
     async generateNote(input: GenerateNoteInput): Promise<string> {
       const prompt = composeNotePrompt(input);
-      const url =
-        `https://generativelanguage.googleapis.com/v1beta/models/${config.model}:generateContent` +
-        `?key=${encodeURIComponent(config.apiKey)}`;
+      // Pass the API key in the x-goog-api-key header (NOT a ?key= query
+      // param) so it doesn't end up in browser history, referrer headers,
+      // CDN access logs, or anything else that might persist URLs. Google's
+      // Generative Language API supports both; header is strictly safer.
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${config.model}:generateContent`;
 
       // 10-minute timeout for long visits.
       const controller = new AbortController();
@@ -51,7 +53,10 @@ export function createGeminiApiKeyProvider(
       try {
         res = await http(url, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+            'x-goog-api-key': config.apiKey,
+          },
           body: JSON.stringify({
             contents: [{ role: 'user', parts: [{ text: prompt }] }],
             generationConfig: { maxOutputTokens: config.maxOutputTokens ?? 4096 },

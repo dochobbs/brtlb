@@ -1,6 +1,10 @@
 import { useEffect } from 'react';
 import { useAppStore } from './store';
-import { purgeStaleAudio, recoverInterruptedRecordings } from './lib/db';
+import {
+  purgeStaleAudio,
+  recoverInterruptedRecordings,
+  recoverOrphanedRecordings,
+} from './lib/db';
 import { useIdleLock } from './lib/useIdleLock';
 import { Home } from './screens/Home';
 import { Settings } from './screens/Settings';
@@ -41,6 +45,22 @@ export function App() {
       })
       .catch((err) => {
         console.warn('brtlb: recovery scan failed', err);
+      });
+  }, []);
+
+  // Recover any audio chunks that were persisted mid-recording but never
+  // assembled into a full recording (tab crashed during the visit itself).
+  useEffect(() => {
+    recoverOrphanedRecordings()
+      .then((ids) => {
+        if (ids.length > 0) {
+          console.info(
+            `brtlb: reconstructed ${ids.length} crashed recording(s) from chunked saves`,
+          );
+        }
+      })
+      .catch((err) => {
+        console.warn('brtlb: chunk recovery failed', err);
       });
   }, []);
 

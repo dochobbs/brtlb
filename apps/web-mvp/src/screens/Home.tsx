@@ -283,7 +283,11 @@ export function Home() {
         )}
       </section>
 
-      <footer className="mt-16 pb-8 text-center text-xs text-graphite-soft">{tagline}</footer>
+      <footer className="mt-16 pb-8 text-center text-xs text-graphite-soft">
+        <p>{tagline}</p>
+        <p className="mt-2 italic">the Scrivener</p>
+        <p className="italic">&ldquo;I would prefer not to&hellip; chart after hours.&rdquo;</p>
+      </footer>
     </main>
   );
 }

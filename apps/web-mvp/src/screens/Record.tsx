@@ -11,10 +11,6 @@ function formatElapsed(ms: number): string {
   return `${min}:${sec.toString().padStart(2, '0')}`;
 }
 
-function generateId(): string {
-  if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) return crypto.randomUUID();
-  return `r_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-}
 
 export function Record() {
   const { setView, selectRecording } = useAppStore();
@@ -24,6 +20,7 @@ export function Record() {
   const error = useRecorderStore((s) => s.error);
   const mode = useRecorderStore((s) => s.mode);
   const bookmarks = useRecorderStore((s) => s.bookmarks);
+  const activeRecordingId = useRecorderStore((s) => s.activeRecordingId);
   const start = useRecorderStore((s) => s.start);
   const pause = useRecorderStore((s) => s.pause);
   const resume = useRecorderStore((s) => s.resume);
@@ -40,7 +37,13 @@ export function Record() {
       setSaving(false);
       return;
     }
-    const id = generateId();
+    // Use the id the recorder-store generated at start time so persisted
+    // audio chunks are tied to the same id we save the final blob under.
+    const id =
+      activeRecordingId ??
+      (typeof crypto !== 'undefined' && 'randomUUID' in crypto
+        ? crypto.randomUUID()
+        : `r_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`);
     const meta: RecordingMeta = {
       id,
       createdAt: new Date().toISOString(),

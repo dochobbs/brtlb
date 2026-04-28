@@ -78,23 +78,46 @@ interface BrtlbSchema extends DBSchema {
     key: string;
     value: { id: string; blob: Blob; mimeType: string };
   };
+  /**
+   * Chunked audio that's persisted while a recording is in progress so a
+   * tab crash mid-visit doesn't lose the audio. Each chunk is a single
+   * `ondataavailable` callback's data (typically ~1s). On successful
+   * stop+save the chunks for that recording are cleared. On app load,
+   * any chunks whose recordingId has no matching `recordings` entry are
+   * treated as orphans from a crashed session and reconstructed.
+   */
+  audio_chunks: {
+    key: [string, number];
+    value: { recordingId: string; seq: number; blob: Blob; mimeType: string };
+    indexes: { 'by-recordingId': string };
+  };
 }
 
 const DB_NAME = 'brtlb-mvp';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 
 let dbPromise: Promise<IDBPDatabase<BrtlbSchema>> | null = null;
 
 export function getDb(): Promise<IDBPDatabase<BrtlbSchema>> {
   if (!dbPromise) {
     dbPromise = openDB<BrtlbSchema>(DB_NAME, DB_VERSION, {
-      upgrade(db) {
-        if (!db.objectStoreNames.contains('recordings')) {
-          const store = db.createObjectStore('recordings', { keyPath: 'id' });
-          store.createIndex('by-createdAt', 'createdAt');
+      upgrade(db, oldVersion) {
+        if (oldVersion < 1) {
+          if (!db.objectStoreNames.contains('recordings')) {
+            const store = db.createObjectStore('recordings', { keyPath: 'id' });
+            store.createIndex('by-createdAt', 'createdAt');
+          }
+          if (!db.objectStoreNames.contains('audio')) {
+            db.createObjectStore('audio', { keyPath: 'id' });
+          }
         }
-        if (!db.objectStoreNames.contains('audio')) {
-          db.createObjectStore('audio', { keyPath: 'id' });
+        if (oldVersion < 2) {
+          if (!db.objectStoreNames.contains('audio_chunks')) {
+            const chunks = db.createObjectStore('audio_chunks', {
+              keyPath: ['recordingId', 'seq'],
+            });
+            chunks.createIndex('by-recordingId', 'recordingId');
+          }
         }
       },
     });
@@ -136,7 +159,102 @@ export async function getAudio(id: string): Promise<Blob | null> {
 
 export async function clearAll(): Promise<void> {
   const db = await getDb();
-  await Promise.all([db.clear('recordings'), db.clear('audio')]);
+  await Promise.all([
+    db.clear('recordings'),
+    db.clear('audio'),
+    db.clear('audio_chunks'),
+  ]);
+}
+
+export async function appendAudioChunk(
+  recordingId: string,
+  seq: number,
+  blob: Blob,
+): Promise<void> {
+  const db = await getDb();
+  await db.put('audio_chunks', {
+    recordingId,
+    seq,
+    blob,
+    mimeType: blob.type,
+  });
+}
+
+export async function getAudioChunks(
+  recordingId: string,
+): Promise<Array<{ seq: number; blob: Blob; mimeType: string }>> {
+  const db = await getDb();
+  const all = await db.getAllFromIndex('audio_chunks', 'by-recordingId', recordingId);
+  return all
+    .sort((a, b) => a.seq - b.seq)
+    .map((c) => ({ seq: c.seq, blob: c.blob, mimeType: c.mimeType }));
+}
+
+export async function clearAudioChunks(recordingId: string): Promise<void> {
+  const db = await getDb();
+  const all = await db.getAllFromIndex('audio_chunks', 'by-recordingId', recordingId);
+  await Promise.all(all.map((c) => db.delete('audio_chunks', [c.recordingId, c.seq])));
+}
+
+/**
+ * Find chunks whose recordingId has no matching `recordings` entry — these
+ * are orphans from a crashed session. Reconstruct each as a "recovered"
+ * recording so the user can still process the audio.
+ */
+export async function recoverOrphanedRecordings(): Promise<string[]> {
+  const db = await getDb();
+  const allChunks = await db.getAll('audio_chunks');
+  if (allChunks.length === 0) return [];
+
+  const byRecording = new Map<string, typeof allChunks>();
+  for (const c of allChunks) {
+    const list = byRecording.get(c.recordingId);
+    if (list) list.push(c);
+    else byRecording.set(c.recordingId, [c]);
+  }
+
+  const recovered: string[] = [];
+  for (const [recordingId, chunks] of byRecording) {
+    const existing = await db.get('recordings', recordingId);
+    if (existing) continue; // not orphaned — chunks just haven't been cleared yet
+    chunks.sort((a, b) => a.seq - b.seq);
+    const mimeType = chunks[0]?.mimeType || 'audio/webm';
+    const blob = new Blob(
+      chunks.map((c) => c.blob),
+      { type: mimeType },
+    );
+    if (blob.size === 0) {
+      // empty / corrupted — drop the chunks and move on
+      await Promise.all(
+        chunks.map((c) => db.delete('audio_chunks', [c.recordingId, c.seq])),
+      );
+      continue;
+    }
+    // Approximate duration from chunk count — recorder fires every 1s
+    const approxDurationMs = chunks.length * 1000;
+    const meta: RecordingMeta = {
+      id: recordingId,
+      createdAt: new Date().toISOString(),
+      durationMs: approxDurationMs,
+      mode: 'ambient',
+      stage: 'recorded',
+      errorMessage:
+        'Recovered from a crashed session. Tap to process — the pipeline will run automatically.',
+      transcriptText: null,
+      noteMarkdown: null,
+      templateId: 'soap',
+      patternId: 'narrative',
+      providerUsed: null,
+      label: `Recovered ${Math.max(1, Math.round(approxDurationMs / 60_000))} min recording`,
+    };
+    await db.put('audio', { id: recordingId, blob, mimeType });
+    await db.put('recordings', meta);
+    await Promise.all(
+      chunks.map((c) => db.delete('audio_chunks', [c.recordingId, c.seq])),
+    );
+    recovered.push(recordingId);
+  }
+  return recovered;
 }
 
 /**

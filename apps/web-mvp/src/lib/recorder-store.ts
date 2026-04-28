@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { appendAudioChunk, clearAudioChunks } from './db';
 
 export type RecorderState = 'idle' | 'recording' | 'paused' | 'stopped';
 export type RecordingMode = 'ambient' | 'dictation';
@@ -12,6 +13,8 @@ interface RecorderInternals {
   mediaRecorder: MediaRecorder | null;
   stream: MediaStream | null;
   chunks: Blob[];
+  /** Per-chunk sequence counter so persisted chunks can be reassembled in order. */
+  seq: number;
   startTs: number;
   accumulatedMs: number;
   tickerId: number | null;
@@ -27,6 +30,13 @@ interface RecorderStore {
   level: number;
   error: string | null;
   bookmarks: Bookmark[];
+  /**
+   * The id this active recording session is using. Generated at start() so
+   * persisted chunks can be tagged. Cleared on reset(). Consumers (Record.tsx)
+   * use this id when saving the final RecordingMeta so chunk recovery and the
+   * final recording share the same id.
+   */
+  activeRecordingId: string | null;
   // Internals are stored on the store object but never trigger re-renders.
   _internals: RecorderInternals;
   start: (mode?: RecordingMode) => Promise<void>;
@@ -35,6 +45,11 @@ interface RecorderStore {
   stop: () => Promise<Blob | null>;
   reset: () => void;
   addBookmark: (label?: string) => void;
+}
+
+function generateRecordingId(): string {
+  if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) return crypto.randomUUID();
+  return `r_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 }
 
 const ACTIVITY_TICK_MS = 200;
@@ -51,6 +66,7 @@ export const useRecorderStore = create<RecorderStore>((set, get) => {
     mediaRecorder: null,
     stream: null,
     chunks: [],
+    seq: 0,
     startTs: 0,
     accumulatedMs: 0,
     tickerId: null,
@@ -144,6 +160,7 @@ export const useRecorderStore = create<RecorderStore>((set, get) => {
     level: 0,
     error: null,
     bookmarks: [],
+    activeRecordingId: null,
     _internals: internals,
 
     async start(mode = 'ambient') {
@@ -158,14 +175,32 @@ export const useRecorderStore = create<RecorderStore>((set, get) => {
           mimeType: mime,
           audioBitsPerSecond: 32_000,
         });
+        // Generate the recording id NOW so each chunk gets persisted with a
+        // stable key. Recovery on next app load reassembles chunks by this id.
+        const recordingId = generateRecordingId();
         internals.mediaRecorder = recorder;
         internals.chunks = [];
+        internals.seq = 0;
         recorder.ondataavailable = (e) => {
-          if (e.data.size > 0) internals.chunks.push(e.data);
+          if (e.data.size === 0) return;
+          internals.chunks.push(e.data);
+          // Persist the chunk to IndexedDB so a tab crash mid-visit doesn't
+          // lose audio. Fire-and-forget — the in-memory copy is the primary
+          // path; persistence is a safety net.
+          const seq = internals.seq;
+          internals.seq += 1;
+          appendAudioChunk(recordingId, seq, e.data).catch((err) => {
+            console.warn('brtlb: chunk persistence failed', err);
+          });
         };
         recorder.start(1000);
         internals.accumulatedMs = 0;
-        set({ elapsedMs: 0, state: 'recording', bookmarks: [] });
+        set({
+          elapsedMs: 0,
+          state: 'recording',
+          bookmarks: [],
+          activeRecordingId: recordingId,
+        });
         startTicker();
         startMeter(stream);
       } catch (err) {
@@ -218,14 +253,29 @@ export const useRecorderStore = create<RecorderStore>((set, get) => {
 
     reset() {
       // Clean up any leftovers and return to idle so the next session is fresh.
+      // Also clear any persisted chunks for the active id — they're either
+      // already in the saved blob (handleStop path) or being explicitly
+      // discarded (handleCancel path).
       stopTicker();
       stopMeter();
       internals.stream?.getTracks().forEach((t) => t.stop());
       internals.stream = null;
       internals.mediaRecorder = null;
       internals.chunks = [];
+      internals.seq = 0;
       internals.accumulatedMs = 0;
-      set({ state: 'idle', elapsedMs: 0, level: 0, error: null, bookmarks: [] });
+      const previousId = get().activeRecordingId;
+      if (previousId) {
+        clearAudioChunks(previousId).catch(() => {});
+      }
+      set({
+        state: 'idle',
+        elapsedMs: 0,
+        level: 0,
+        error: null,
+        bookmarks: [],
+        activeRecordingId: null,
+      });
     },
 
     addBookmark(label) {
