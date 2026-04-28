@@ -66,6 +66,8 @@ export interface AnthropicProviderConfig {
   apiKey: string;
   model: string;
   maxTokens?: number;
+  /** Override the SDK's default base URL (e.g., to route through a proxy). */
+  baseUrl?: string;
 }
 
 export interface OpenAiCompatibleProviderConfig {
@@ -101,6 +103,8 @@ export type ProviderConfig =
 
 export interface AssemblyAiConfig {
   apiKey: string;
+  /** Override the AssemblyAI base URL (e.g., to route through a proxy). Default: https://api.assemblyai.com/v2 */
+  baseUrl?: string;
 }
 
 export interface TranscribeInput {

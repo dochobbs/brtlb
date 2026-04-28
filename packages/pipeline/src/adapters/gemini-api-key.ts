@@ -16,6 +16,8 @@ export interface GeminiApiKeyProviderConfig {
   apiKey: string;
   model: string;
   maxOutputTokens?: number;
+  /** Override the upstream base URL (e.g., to route through a proxy). */
+  baseUrl?: string;
 }
 
 export interface GeminiApiKeyAdapterDeps {
@@ -40,8 +42,9 @@ export function createGeminiApiKeyProvider(
     name: 'gemini-api-key',
     async generateNote(input: GenerateNoteInput): Promise<string> {
       const prompt = composeNotePrompt(input);
+      const base = config.baseUrl ?? 'https://generativelanguage.googleapis.com';
       const url =
-        `https://generativelanguage.googleapis.com/v1beta/models/${config.model}:generateContent` +
+        `${base}/v1beta/models/${config.model}:generateContent` +
         `?key=${encodeURIComponent(config.apiKey)}`;
 
       // 10-minute timeout for long visits.

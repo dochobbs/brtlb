@@ -18,6 +18,7 @@ describe('useAppStore', () => {
         audioPurgeDays: 7,
         idleLockMinutes: 5,
         customTemplates: [],
+        betaInvite: '',
       },
       view: 'home',
       currentRecordingId: null,
@@ -46,6 +47,13 @@ describe('useAppStore', () => {
     saveSettings({ provider: 'openai-compatible' });
     expect(useAppStore.getState().hasRequiredKeys()).toBe(false);
     saveSettings({ openaiApiKey: 'sk-oai' });
+    expect(useAppStore.getState().hasRequiredKeys()).toBe(true);
+  });
+
+  it('hasRequiredKeys passes on a beta invite alone', () => {
+    const { saveSettings, hasRequiredKeys } = useAppStore.getState();
+    expect(hasRequiredKeys()).toBe(false);
+    saveSettings({ betaInvite: 'invite-abc' });
     expect(useAppStore.getState().hasRequiredKeys()).toBe(true);
   });
 });
