@@ -53,6 +53,19 @@ export interface RecordingMeta {
   pearlsAt?: string | null;
   /** Physician-tapped moments during recording, fed to the note prompt as context. */
   bookmarks?: RecordingBookmark[];
+  /** When the ambient recording contained multiple patients, the per-patient segments
+   * surfaced by the splitByPatient pass. Length 1 (or undefined) = single-patient. */
+  patientSegments?: StoredPatientSegment[];
+}
+
+export interface StoredPatientSegment {
+  id: string;
+  patientLabel: string;
+  visitType: string;
+  includesPreventiveCare: boolean;
+  acuteConcerns: string[];
+  chiefComplaint: string;
+  relevantUtteranceIndices: number[];
 }
 
 interface BrtlbSchema extends DBSchema {

@@ -35,6 +35,8 @@ export interface RunMvpPipelineOutput {
   providerUsed: ProviderKind;
   /** The template actually used — may differ from the input templateId when auto-detection picked something else. */
   templateId: string;
+  /** Patient segments detected in the recording. Length 1 = single-patient encounter. */
+  patientSegments: PatientSegment[];
 }
 
 function buildProvider(settings: Settings): {
@@ -185,47 +187,117 @@ export async function runMvpPipeline(input: RunMvpPipelineInput): Promise<RunMvp
     throw err;
   }
 
-  // Auto-detect visit type for ambient when the caller used the default
-  // 'soap'. If the user explicitly picked a non-default template (or this
-  // is dictation mode), respect their choice.
+  input.onStage?.('generating');
+  const { provider, kind } = buildProvider(input.settings);
+
+  // Multi-patient split — only runs in ambient mode. Dictation is by
+  // definition single-patient (the physician is narrating).
+  let patientSegments: PatientSegment[];
+  if (input.mode === 'ambient') {
+    patientSegments = await splitByPatient(transcript, input.settings);
+  } else {
+    patientSegments = [allUtterancesSingleSegment(transcript)];
+  }
+  const isMultiPatient = patientSegments.length > 1;
+
+  // Auto-detect visit type only when caller used the default 'soap' AND we
+  // have a single patient. For multi-patient encounters, each segment
+  // already carries its own visit_type from the split prompt and should
+  // override the global template choice.
   let templateId = initialTemplateId;
-  if (input.mode === 'ambient' && initialTemplateId === 'soap') {
+  if (
+    !isMultiPatient &&
+    input.mode === 'ambient' &&
+    initialTemplateId === 'soap'
+  ) {
     templateId = await detectVisitType(transcript, input.settings);
   }
   const template = resolveTemplate(templateId, input.settings.customTemplates);
   if (!template) throw new Error(`Unknown template: ${templateId}`);
 
-  input.onStage?.('generating');
-  const { provider, kind } = buildProvider(input.settings);
-  const noteInput: GenerateNoteInput = {
-    transcript,
-    template: {
-      id: template.id,
-      name: template.name,
-      description: template.description,
-      promptBody: template.promptBody,
-    },
-    pattern: {
-      id: pattern.id,
-      name: pattern.name,
-      description: pattern.description,
-      promptModifier: pattern.promptModifier,
-    },
-    mode: input.mode,
-    speakerRoles: input.speakerRoles ?? [],
-    bookmarks: input.bookmarks ?? [],
-  };
-
   let note: string;
   try {
-    note = await provider.generateNote(noteInput);
+    if (!isMultiPatient) {
+      // Single-patient flow — exactly as before.
+      const noteInput: GenerateNoteInput = {
+        transcript,
+        template: {
+          id: template.id,
+          name: template.name,
+          description: template.description,
+          promptBody: template.promptBody,
+        },
+        pattern: {
+          id: pattern.id,
+          name: pattern.name,
+          description: pattern.description,
+          promptModifier: pattern.promptModifier,
+        },
+        mode: input.mode,
+        speakerRoles: input.speakerRoles ?? [],
+        bookmarks: input.bookmarks ?? [],
+      };
+      note = await provider.generateNote(noteInput);
+    } else {
+      // Multi-patient flow — generate a note per segment with that
+      // segment's transcript slice + a per-segment context preamble that
+      // tells the LLM which patient to scope to. Concatenate with
+      // patient headers.
+      const sections: string[] = [];
+      for (const seg of patientSegments) {
+        const filtered = filterTranscriptByIndices(
+          transcript,
+          seg.relevantUtteranceIndices,
+        );
+        const segTemplateId = templateForVisitType(seg.visitType);
+        const segTemplate = resolveTemplate(
+          segTemplateId,
+          input.settings.customTemplates,
+        );
+        if (!segTemplate) throw new Error(`Unknown template: ${segTemplateId}`);
+        const augmentedPromptBody = `${segTemplate.promptBody}\n\n${segmentContextPreamble(seg)}`;
+        const segNote = await provider.generateNote({
+          transcript: filtered,
+          template: {
+            id: segTemplate.id,
+            name: segTemplate.name,
+            description: segTemplate.description,
+            promptBody: augmentedPromptBody,
+          },
+          pattern: {
+            id: pattern.id,
+            name: pattern.name,
+            description: pattern.description,
+            promptModifier: pattern.promptModifier,
+          },
+          mode: input.mode,
+          speakerRoles: input.speakerRoles ?? [],
+          bookmarks: input.bookmarks ?? [],
+        });
+        sections.push(`${patientHeader(seg)}\n\n${segNote.trim()}`);
+      }
+      note = sections.join('\n\n---\n\n');
+    }
   } catch (err) {
     input.onStage?.('failed');
     throw err;
   }
 
   input.onStage?.('done');
-  return { transcript, note, providerUsed: kind, templateId };
+  return { transcript, note, providerUsed: kind, templateId, patientSegments };
+}
+
+function templateForVisitType(visitType: string): string {
+  switch (visitType) {
+    case 'well_child':
+      return 'well-child';
+    case 'sick':
+      return 'sick-visit';
+    case 'follow_up':
+      return 'follow-up';
+    default:
+      return 'soap';
+  }
 }
 
 export interface RegenerateNoteInput {
@@ -236,6 +308,9 @@ export interface RegenerateNoteInput {
   patternId?: string;
   speakerRoles?: SpeakerRoleAssignment[];
   bookmarks?: NoteBookmark[];
+  /** Existing per-patient segments from the original split. If present and >1,
+   * regenerate produces one note per segment instead of a single note. */
+  patientSegments?: PatientSegment[];
 }
 
 export interface RegenerateNoteOutput {
@@ -251,12 +326,52 @@ export interface RegenerateNoteOutput {
 export async function regenerateNoteFromTranscript(
   input: RegenerateNoteInput,
 ): Promise<RegenerateNoteOutput> {
-  const template = resolveTemplate(input.templateId, input.settings.customTemplates);
   const pattern = getPattern(input.patternId ?? 'narrative');
-  if (!template) throw new Error(`Unknown template: ${input.templateId}`);
   if (!pattern) throw new Error(`Unknown pattern: ${input.patternId}`);
-
   const { provider, kind } = buildProvider(input.settings);
+
+  const segments = input.patientSegments ?? [];
+  if (segments.length > 1) {
+    // Multi-patient regenerate. The dropdown choice is a "global" template
+    // override that we apply to ALL segments (e.g., "regenerate everyone as
+    // SOAP"). When the user picks a non-default template explicitly we
+    // honor it for every segment.
+    const sections: string[] = [];
+    for (const seg of segments) {
+      const filtered = filterTranscriptByIndices(input.transcript, seg.relevantUtteranceIndices);
+      const segTemplateId =
+        input.templateId !== 'soap'
+          ? input.templateId
+          : templateForVisitType(seg.visitType);
+      const segTemplate = resolveTemplate(segTemplateId, input.settings.customTemplates);
+      if (!segTemplate) throw new Error(`Unknown template: ${segTemplateId}`);
+      const augmentedPromptBody = `${segTemplate.promptBody}\n\n${segmentContextPreamble(seg)}`;
+      const segNote = await provider.generateNote({
+        transcript: filtered,
+        template: {
+          id: segTemplate.id,
+          name: segTemplate.name,
+          description: segTemplate.description,
+          promptBody: augmentedPromptBody,
+        },
+        pattern: {
+          id: pattern.id,
+          name: pattern.name,
+          description: pattern.description,
+          promptModifier: pattern.promptModifier,
+        },
+        mode: input.mode,
+        speakerRoles: input.speakerRoles ?? [],
+        bookmarks: input.bookmarks ?? [],
+      });
+      sections.push(`${patientHeader(seg)}\n\n${segNote.trim()}`);
+    }
+    return { note: sections.join('\n\n---\n\n'), providerUsed: kind };
+  }
+
+  // Single-patient regenerate — original flow.
+  const template = resolveTemplate(input.templateId, input.settings.customTemplates);
+  if (!template) throw new Error(`Unknown template: ${input.templateId}`);
   const noteInput: GenerateNoteInput = {
     transcript: input.transcript,
     template: {
@@ -285,6 +400,187 @@ const NEUTRAL_PATTERN = {
   description: 'No additional style modifier.',
   promptModifier: '',
 };
+
+// ---------------------------------------------------------------------------
+// Multi-patient split — lifted and adapted from Roci NoteGenerationService.swift
+// ---------------------------------------------------------------------------
+
+export interface PatientSegment {
+  /** Internal id for UI keying (p0, p1, ...). */
+  id: string;
+  /** Best-effort patient label from transcript (a name, "Patient 1", etc.). */
+  patientLabel: string;
+  /** sick | well_child | follow_up | phone | other */
+  visitType: string;
+  includesPreventiveCare: boolean;
+  acuteConcerns: string[];
+  chiefComplaint: string;
+  /** Utterance indices in the original transcript that belong to this segment. */
+  relevantUtteranceIndices: number[];
+}
+
+interface SplitResponse {
+  patient_segments?: Array<{
+    patient?: string;
+    visit_type?: string;
+    includes_preventive_care?: boolean;
+    acute_concerns?: string[];
+    relevant_utterances?: number[];
+    chief_complaint?: string;
+  }>;
+}
+
+const SPLIT_PROMPT = `You are a medical transcription assistant. Split this pediatric ambient recording transcript into segments BY PATIENT.
+
+For each child clearly addressed in the visit, identify which utterances are relevant to them and determine the visit type.
+
+Watch for combined encounters where a child is here for a routine well visit AND also has an acute complaint — keep visit_type as "well_child", set includes_preventive_care=true, and put acute issues in acute_concerns.
+
+Visit types: sick, well_child, follow_up, phone, other.
+
+PATIENT LABEL:
+- Use the patient's first name if mentioned in the transcript ("Tommy", "Lily").
+- If no name surfaces clearly, use an ordinal fallback ("Patient 1", "Patient 2") in the order they appear in the transcript.
+- Do NOT invent names. Do NOT use parent or sibling names as the patient label.
+
+OUTPUT — JSON ONLY, no prose, no code fences:
+{
+  "patient_segments": [
+    {
+      "patient": "Tommy",
+      "visit_type": "well_child",
+      "includes_preventive_care": true,
+      "acute_concerns": ["left ear pain"],
+      "relevant_utterances": [0, 1, 3, 5, 7],
+      "chief_complaint": "well-child visit with left ear pain"
+    }
+  ]
+}
+
+HARD RULES:
+- ONLY return a segment when there is a clear utterance cluster about that child's history, exam, counseling, or plan.
+- If only ONE patient is discussed, return exactly ONE segment containing all utterance indices.
+- If utterances are ambiguous between two children, OMIT them rather than contaminating the wrong segment.
+- Do not include sibling-only chatter or family anecdotes unless they directly affect the target patient's care.
+- chief_complaint must summarize the combined encounter when mixed (e.g., "well-child visit with left ear pain"), not just one half.
+- Output JSON ONLY — no markdown fences, no explanation.`;
+
+function extractJson(s: string): string {
+  // Strip ```json ... ``` fences if the model added them anyway.
+  const fence = s.match(/```(?:json)?\s*([\s\S]*?)```/);
+  if (fence?.[1]) return fence[1].trim();
+  return s.trim();
+}
+
+async function splitByPatient(
+  transcript: Transcript,
+  settings: Settings,
+): Promise<PatientSegment[]> {
+  if (transcript.utterances.length === 0) return [];
+
+  // Render utterances with leading [idx] so the LLM can refer to them by index.
+  const numbered = transcript.utterances
+    .map((u, idx) => {
+      const speaker = u.speakerId ? `Speaker ${u.speakerId}` : 'Speaker';
+      return `[${idx}] ${speaker}: ${u.text}`;
+    })
+    .join('\n');
+
+  const splitTemplate: NoteTemplate = {
+    id: 'split-by-patient',
+    name: 'Split by Patient',
+    description: 'Internal — splits an ambient transcript into per-patient segments.',
+    promptBody: `${SPLIT_PROMPT}\n\nTRANSCRIPT (utterances numbered for reference):\n${numbered}`,
+  };
+
+  const { provider } = buildProvider(settings);
+  let raw: string;
+  try {
+    raw = await provider.generateNote({
+      transcript: { ...transcript, utterances: [] }, // already embedded above
+      template: splitTemplate,
+      pattern: NEUTRAL_PATTERN,
+      mode: 'ambient',
+      speakerRoles: [],
+    });
+  } catch {
+    // On failure, treat as single-patient so the pipeline still produces a note.
+    return [allUtterancesSingleSegment(transcript)];
+  }
+
+  let parsed: SplitResponse;
+  try {
+    parsed = JSON.parse(extractJson(raw)) as SplitResponse;
+  } catch {
+    return [allUtterancesSingleSegment(transcript)];
+  }
+  const segments = (parsed.patient_segments ?? [])
+    .map((s, idx): PatientSegment => {
+      const indices = (s.relevant_utterances ?? []).filter(
+        (i) => Number.isInteger(i) && i >= 0 && i < transcript.utterances.length,
+      );
+      return {
+        id: `p${idx}`,
+        patientLabel: s.patient?.trim() || `Patient ${idx + 1}`,
+        visitType: s.visit_type ?? 'other',
+        includesPreventiveCare: Boolean(s.includes_preventive_care),
+        acuteConcerns: Array.isArray(s.acute_concerns) ? s.acute_concerns : [],
+        chiefComplaint: s.chief_complaint ?? '',
+        relevantUtteranceIndices: indices,
+      };
+    })
+    .filter((s) => s.relevantUtteranceIndices.length > 0);
+
+  if (segments.length === 0) return [allUtterancesSingleSegment(transcript)];
+  return segments;
+}
+
+function allUtterancesSingleSegment(transcript: Transcript): PatientSegment {
+  return {
+    id: 'p0',
+    patientLabel: 'Patient',
+    visitType: 'other',
+    includesPreventiveCare: false,
+    acuteConcerns: [],
+    chiefComplaint: '',
+    relevantUtteranceIndices: transcript.utterances.map((_, i) => i),
+  };
+}
+
+function filterTranscriptByIndices(
+  transcript: Transcript,
+  indices: number[],
+): Transcript {
+  const sorted = [...indices].sort((a, b) => a - b);
+  const utterances = sorted
+    .map((i) => transcript.utterances[i])
+    .filter((u): u is NonNullable<typeof u> => Boolean(u));
+  return { ...transcript, utterances };
+}
+
+function patientHeader(seg: PatientSegment): string {
+  const visitTypeLabel = seg.visitType
+    .replace(/_/g, ' ')
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+  const tail = seg.acuteConcerns.length > 0 ? ` — ${seg.acuteConcerns.join(', ')}` : '';
+  return `## ${seg.patientLabel} · ${visitTypeLabel}${tail}`;
+}
+
+function segmentContextPreamble(seg: PatientSegment): string {
+  const lines = [
+    `TARGET PATIENT: ${seg.patientLabel}`,
+    `VISIT TYPE: ${seg.visitType}`,
+    `INCLUDES PREVENTIVE CARE: ${seg.includesPreventiveCare ? 'YES' : 'NO'}`,
+  ];
+  if (seg.acuteConcerns.length > 0) {
+    lines.push(`ACUTE CONCERNS: ${seg.acuteConcerns.join(', ')}`);
+  }
+  if (seg.chiefComplaint) lines.push(`CHIEF COMPLAINT: ${seg.chiefComplaint}`);
+  lines.push(
+    'The transcript below has been filtered to utterances about this patient only. Do not import history, exam findings, or plan items from any other patient. If a statement could refer to a sibling, prefer omission.',
+  );
+  return lines.join('\n');
+}
 
 const QA_REVIEW_PROMPT_HEADER = `You are a clinical QA reviewer checking whether a pediatric note accurately reflects the transcript.
 Your job is to flag concrete, clinically meaningful risks of HALLUCINATION (note says something the transcript doesn't support) and OMISSION (note misses something the transcript clearly addresses).

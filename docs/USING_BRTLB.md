@@ -102,6 +102,51 @@ what's off.
 
 ---
 
+## Multiple patients in one recording
+
+brtlb handles back-to-back encounters in a single ambient recording. If
+you record two well-checks in a row, or a sick visit then a sibling's
+quick check, brtlb does the work to keep them separate.
+
+After transcription, brtlb runs a **split-by-patient** pass that reads
+the diarized transcript and identifies which utterances belong to which
+child. Patient labels come from names actually mentioned in the visit
+("Tommy", "Lily") with an ordinal fallback ("Patient 1", "Patient 2")
+if names don't surface.
+
+For each patient, brtlb generates a **separate** note with the visit
+type the splitter detected (well-child, sick, follow-up, etc.) and only
+that patient's relevant utterances. The notes are concatenated in the
+output, separated by a horizontal rule, with a header like:
+
+```
+## Tommy · Well Child — left ear pain
+
+[Tommy's full SOAP note]
+
+---
+
+## Lily · Well Child
+
+[Lily's full SOAP note]
+```
+
+A banner near the top of the Review screen shows you which patients
+were detected and what each one's visit type + acute concerns were —
+quick sanity check before copying anything.
+
+The split is purely transcript-based — brtlb has no schedule access, no
+EHR connection, no list of who's coming today. It just listens to who's
+being talked to and about. If only one child is discussed, you get one
+note as before.
+
+**Mixed visits** (well-child + acute complaint on the same kid) are
+preserved correctly — the splitter keeps it as a single segment with
+`visit_type: well_child`, `includes_preventive_care: true`, and the
+acute concern in the segment metadata.
+
+---
+
 ## Auto template detection
 
 brtlb watches the transcript and picks the best template without you

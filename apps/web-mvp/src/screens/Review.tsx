@@ -160,6 +160,15 @@ export function Review() {
         noteMarkdown: out.note,
         providerUsed: out.providerUsed,
         templateId: out.templateId,
+        patientSegments: out.patientSegments.map((s) => ({
+          id: s.id,
+          patientLabel: s.patientLabel,
+          visitType: s.visitType,
+          includesPreventiveCare: s.includesPreventiveCare,
+          acuteConcerns: s.acuteConcerns,
+          chiefComplaint: s.chiefComplaint,
+          relevantUtteranceIndices: s.relevantUtteranceIndices,
+        })),
       };
       await putRecording(updated);
       setMeta(updated);
@@ -296,6 +305,15 @@ export function Review() {
         templateId: selectedTemplateId,
         speakerRoles,
         bookmarks: meta.bookmarks ?? [],
+        patientSegments: meta.patientSegments?.map((s) => ({
+          id: s.id,
+          patientLabel: s.patientLabel,
+          visitType: s.visitType,
+          includesPreventiveCare: s.includesPreventiveCare,
+          acuteConcerns: s.acuteConcerns,
+          chiefComplaint: s.chiefComplaint,
+          relevantUtteranceIndices: s.relevantUtteranceIndices,
+        })),
       });
       await persistMeta({
         templateId: selectedTemplateId,
@@ -441,6 +459,33 @@ export function Review() {
       {isProcessing ? (
         <div className="mb-4 rounded-md border border-graphite-soft/20 bg-seafoam-pale p-3 text-sm text-graphite sm:mb-6 sm:p-4">
           {stage ? STAGE_LABEL[stage] : 'Working…'}
+        </div>
+      ) : null}
+
+      {meta.patientSegments && meta.patientSegments.length > 1 ? (
+        <div className="mb-4 rounded-md border border-seafoam/40 bg-seafoam-pale/40 p-3 text-sm text-graphite sm:mb-6 sm:p-4">
+          <p className="font-medium">
+            {meta.patientSegments.length} patients detected in this recording:
+          </p>
+          <ul className="mt-1 ml-4 list-disc space-y-0.5 text-xs text-graphite-soft">
+            {meta.patientSegments.map((s) => {
+              const visitTypeLabel = s.visitType
+                .replace(/_/g, ' ')
+                .replace(/\b\w/g, (c) => c.toUpperCase());
+              const concerns =
+                s.acuteConcerns.length > 0 ? ` — ${s.acuteConcerns.join(', ')}` : '';
+              return (
+                <li key={s.id}>
+                  <span className="font-medium text-graphite">{s.patientLabel}</span>
+                  <span> · {visitTypeLabel}{concerns}</span>
+                </li>
+              );
+            })}
+          </ul>
+          <p className="mt-2 text-xs text-graphite-soft">
+            One section per patient appears in the note below, separated by a horizontal rule.
+            Copy the section you need into the matching chart.
+          </p>
         </div>
       ) : null}
 
