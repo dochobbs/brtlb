@@ -56,6 +56,22 @@ export interface RecordingMeta {
   /** When the ambient recording contained multiple patients, the per-patient segments
    * surfaced by the splitByPatient pass. Length 1 (or undefined) = single-patient. */
   patientSegments?: StoredPatientSegment[];
+  /** Long-visit chapter markers — populated only for recordings >30 min ambient.
+   * A short list of named segments to make a long transcript navigable. */
+  transcriptChapters?: TranscriptChapter[];
+  /** Verbatim quotes from the visit worth preserving — generated on demand. */
+  quotesMarkdown?: string | null;
+  /** When quotes were last generated. */
+  quotesAt?: string | null;
+}
+
+export interface TranscriptChapter {
+  /** Short label like "Parent interview", "Child observation", "Discussion of findings". */
+  label: string;
+  /** Starting timestamp in milliseconds (from start of recording). */
+  startMs: number;
+  /** One-line summary of what's in this chapter, for at-a-glance scanning. */
+  summary: string;
 }
 
 export interface StoredPatientSegment {

@@ -37,7 +37,11 @@ export interface RunMvpPipelineOutput {
   templateId: string;
   /** Patient segments detected in the recording. Length 1 = single-patient encounter. */
   patientSegments: PatientSegment[];
+  /** Long-visit chapter markers for navigation. Empty for short visits. */
+  transcriptChapters: TranscriptChapter[];
 }
+
+const LONG_VISIT_CHAPTER_THRESHOLD_MS = 30 * 60_000; // 30 min
 
 function buildProvider(settings: Settings): {
   provider: LlmProvider;
@@ -289,8 +293,131 @@ export async function runMvpPipeline(input: RunMvpPipelineInput): Promise<RunMvp
     throw err;
   }
 
+  // For long ambient visits, surface chapter markers so the transcript is
+  // navigable. Don't block the pipeline on this — if it fails, ship the
+  // note without chapters.
+  let transcriptChapters: TranscriptChapter[] = [];
+  if (input.mode === 'ambient' && transcript.utterances.length > 0) {
+    const lastUtterance = transcript.utterances[transcript.utterances.length - 1];
+    const visitDurationMs = lastUtterance?.endMs ?? 0;
+    if (visitDurationMs >= LONG_VISIT_CHAPTER_THRESHOLD_MS) {
+      try {
+        transcriptChapters = await detectChapters(transcript, input.settings);
+      } catch {
+        // best effort — continue without chapters
+      }
+    }
+  }
+
   input.onStage?.('done');
-  return { transcript, note, providerUsed: kind, templateId, patientSegments };
+  return {
+    transcript,
+    note,
+    providerUsed: kind,
+    templateId,
+    patientSegments,
+    transcriptChapters,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Long-visit chapter markers
+// ---------------------------------------------------------------------------
+
+export interface TranscriptChapter {
+  label: string;
+  startMs: number;
+  summary: string;
+}
+
+const CHAPTER_DETECTOR_PROMPT = `You are organizing a long pediatric clinical visit transcript into chapter markers so a physician can navigate it quickly.
+
+Read the numbered transcript and emit 3-7 short chapters that capture how the visit unfolded. Common chapter labels for pediatric visits:
+- "Greeting & rapport"
+- "Parent interview / history"
+- "Developmental history"
+- "Child observation"
+- "Examination"
+- "Structured assessment / screening"
+- "Medication discussion"
+- "Discussion of findings"
+- "Plan & follow-up"
+
+But pick whatever ACTUALLY fits this visit — don't force these labels. Use the physician's own framing when something distinctive happened ("ADOS observation", "Suicide risk assessment", "Family meeting").
+
+OUTPUT — JSON ONLY, no prose, no fences:
+{
+  "chapters": [
+    {
+      "label": "Parent interview",
+      "start_utterance_index": 0,
+      "summary": "Mother described 6-month history of social withdrawal and language regression"
+    },
+    {
+      "label": "Child observation",
+      "start_utterance_index": 47,
+      "summary": "Direct observation of play, communication, and response to name"
+    }
+  ]
+}
+
+RULES:
+- 3 chapters minimum, 7 maximum.
+- start_utterance_index is the index of the FIRST utterance in that chapter (0-indexed).
+- Chapters must be in ORDER. The first chapter starts at 0.
+- summary is ONE short sentence (under 15 words) — what happened in this stretch.
+- label is 2-5 words. Title Case.
+- Do not invent content. If the transcript is too short or too uniform to chapter, return an empty array.
+- Output JSON only — no markdown fences, no explanation.`;
+
+async function detectChapters(
+  transcript: Transcript,
+  settings: Settings,
+): Promise<TranscriptChapter[]> {
+  if (transcript.utterances.length < 20) return []; // not enough to chapter
+  const numbered = transcript.utterances
+    .map((u, idx) => `[${idx}] ${u.text}`)
+    .join('\n');
+
+  const detectorTemplate: NoteTemplate = {
+    id: 'chapter-detector',
+    name: 'Chapter Detector',
+    description: 'Internal — finds chapter markers in a long-visit transcript.',
+    promptBody: `${CHAPTER_DETECTOR_PROMPT}\n\nTRANSCRIPT:\n${numbered}`,
+  };
+
+  const { provider } = buildProvider(settings);
+  let raw: string;
+  try {
+    raw = await provider.generateNote({
+      transcript: { ...transcript, utterances: [] },
+      template: detectorTemplate,
+      pattern: NEUTRAL_PATTERN,
+      mode: 'ambient',
+      speakerRoles: [],
+    });
+  } catch {
+    return [];
+  }
+  let parsed: { chapters?: Array<{ label?: string; start_utterance_index?: number; summary?: string }> };
+  try {
+    parsed = JSON.parse(extractJson(raw));
+  } catch {
+    return [];
+  }
+  return (parsed.chapters ?? [])
+    .map((c): TranscriptChapter | null => {
+      const idx = c.start_utterance_index;
+      if (typeof idx !== 'number' || idx < 0 || idx >= transcript.utterances.length) return null;
+      const u = transcript.utterances[idx];
+      if (!u) return null;
+      return {
+        label: (c.label ?? '').trim() || 'Chapter',
+        startMs: u.startMs,
+        summary: (c.summary ?? '').trim(),
+      };
+    })
+    .filter((c): c is TranscriptChapter => c !== null);
 }
 
 function templateForVisitType(visitType: string): string {
@@ -692,6 +819,62 @@ export async function reviewNoteQuality(input: ReviewNoteInput): Promise<string>
   const out = await provider.generateNote({
     transcript: input.transcript,
     template: reviewTemplate,
+    pattern: NEUTRAL_PATTERN,
+    mode: input.mode,
+    speakerRoles: input.speakerRoles ?? [],
+  });
+  return out.trim();
+}
+
+// ---------------------------------------------------------------------------
+// Quote capture — verbatim parent / child quotes worth preserving
+// ---------------------------------------------------------------------------
+
+const QUOTE_CAPTURE_PROMPT = `You are reviewing a pediatric visit transcript and extracting VERBATIM quotes worth preserving in clinical documentation.
+
+What qualifies as a quote worth capturing:
+- A patient or parent statement that captures concern in their own words ("I just don't feel like myself anymore")
+- A self-disclosure of safety-relevant content (suicidality, abuse, substance use) — verbatim language is medicolegally important
+- A description of symptoms in concrete, specific phrasing the physician will want preserved verbatim
+- A child's statement that's clinically meaningful (developmental observation, behavioral disclosure, refusal)
+- A caregiver dynamic statement worth preserving exactly ("She tells me what to say")
+
+What does NOT qualify:
+- Routine review-of-systems answers
+- Generic reassurance from physician or parent
+- Filler talk
+- Anything paraphrased — only verbatim quotes
+- The physician's own statements (this is for patient/parent voice)
+
+HARD RULES:
+- Output verbatim ONLY. No paraphrase, no summary.
+- Maximum 5 quotes. Better 1-2 sharp quotes than 5 mediocre ones.
+- Each quote attributed to who said it: Parent / Patient / Sibling / Other.
+- The transcript may have STT errors — if a quote is garbled in a clinically important way, OMIT it rather than guess.
+- If nothing qualifies, return exactly: "No quotes captured."
+
+OUTPUT — markdown bullet list, one quote per bullet:
+- **Parent:** "exact quoted text here"
+- **Patient:** "exact quoted text"`;
+
+export interface QuoteCaptureInput {
+  transcript: Transcript;
+  mode: RecordingMode;
+  settings: Settings;
+  speakerRoles?: SpeakerRoleAssignment[];
+}
+
+export async function captureQuotes(input: QuoteCaptureInput): Promise<string> {
+  const quoteTemplate: NoteTemplate = {
+    id: 'quote-capture',
+    name: 'Quote Capture',
+    description: 'Internal — verbatim quote extraction.',
+    promptBody: QUOTE_CAPTURE_PROMPT,
+  };
+  const { provider } = buildProvider(input.settings);
+  const out = await provider.generateNote({
+    transcript: input.transcript,
+    template: quoteTemplate,
     pattern: NEUTRAL_PATTERN,
     mode: input.mode,
     speakerRoles: input.speakerRoles ?? [],

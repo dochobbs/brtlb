@@ -12,6 +12,7 @@ import {
   type SpeakerRoleAssignment,
 } from '../lib/db';
 import {
+  captureQuotes,
   generateClinicalPearls,
   regenerateNoteFromTranscript,
   reviewNoteQuality,
@@ -72,6 +73,9 @@ export function Review() {
   const [pearls, setPearls] = useState<string | null>(null);
   const [pearlsRunning, setPearlsRunning] = useState(false);
   const [pearlsError, setPearlsError] = useState<string | null>(null);
+  const [quotes, setQuotes] = useState<string | null>(null);
+  const [quotesRunning, setQuotesRunning] = useState(false);
+  const [quotesError, setQuotesError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!currentRecordingId) {
@@ -93,6 +97,7 @@ export function Review() {
       setSpeakerRoles(m.speakerRoles ?? []);
       setQaReview(m.qaReviewMarkdown ?? null);
       setPearls(m.pearlsMarkdown ?? null);
+      setQuotes(m.quotesMarkdown ?? null);
       if (m.stage === 'recorded') {
         await runPipelineForRecording(m);
       }
@@ -169,6 +174,7 @@ export function Review() {
           chiefComplaint: s.chiefComplaint,
           relevantUtteranceIndices: s.relevantUtteranceIndices,
         })),
+        transcriptChapters: out.transcriptChapters,
       };
       await putRecording(updated);
       setMeta(updated);
@@ -393,6 +399,27 @@ export function Review() {
     }
   }
 
+  async function handleQuotes(): Promise<void> {
+    if (!meta || !transcript) return;
+    setQuotesRunning(true);
+    setQuotesError(null);
+    try {
+      const out = await captureQuotes({
+        transcript,
+        mode: meta.mode,
+        settings,
+        speakerRoles,
+      });
+      setQuotes(out);
+      const stamp = new Date().toISOString();
+      await persistMeta({ quotesMarkdown: out, quotesAt: stamp });
+    } catch (err) {
+      setQuotesError(redactKeysInText(err instanceof Error ? err.message : 'quotes failed'));
+    } finally {
+      setQuotesRunning(false);
+    }
+  }
+
   async function handlePearls(): Promise<void> {
     if (!meta || !transcript || !editedNote) return;
     setPearlsRunning(true);
@@ -542,6 +569,33 @@ export function Review() {
                   );
                 })}
               </ul>
+            </div>
+          ) : null}
+          {meta.transcriptChapters && meta.transcriptChapters.length > 0 ? (
+            <div className="mb-3 rounded-md border border-graphite-soft/20 bg-mist/40 p-2">
+              <p className="text-xs font-medium uppercase tracking-wide text-graphite-soft">
+                Visit chapters
+              </p>
+              <ol className="mt-1 space-y-1 text-xs text-graphite">
+                {meta.transcriptChapters.map((c, i) => {
+                  const totalSec = Math.floor(c.startMs / 1000);
+                  const h = Math.floor(totalSec / 3600);
+                  const m = Math.floor((totalSec % 3600) / 60);
+                  const stamp =
+                    h > 0
+                      ? `${h}:${m.toString().padStart(2, '0')}`
+                      : `${m}:${(totalSec % 60).toString().padStart(2, '0')}`;
+                  return (
+                    <li key={i}>
+                      <span className="font-mono text-graphite-soft">{stamp}</span>
+                      <span className="ml-2 font-medium">{c.label}</span>
+                      {c.summary ? (
+                        <span className="ml-1 text-graphite-soft"> — {c.summary}</span>
+                      ) : null}
+                    </li>
+                  );
+                })}
+              </ol>
             </div>
           ) : null}
           {renderedTranscript ? (
@@ -736,6 +790,39 @@ export function Review() {
               ) : qaReview ? (
                 <div className="prose mt-3 max-w-none rounded-md border border-graphite-soft/20 bg-white p-3 text-sm leading-relaxed text-graphite">
                   <Markdown remarkPlugins={[remarkGfm]}>{qaReview}</Markdown>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+
+          {/* Quote capture — verbatim parent / child quotes worth preserving */}
+          {transcript ? (
+            <div className="mt-4 rounded-md border border-graphite-soft/20 bg-mist p-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <label className="block text-xs font-medium uppercase tracking-wide text-graphite-soft">
+                    Quotes captured
+                  </label>
+                  <p className="text-xs text-graphite-soft">
+                    {meta.quotesAt
+                      ? `Generated ${new Date(meta.quotesAt).toLocaleString()}.`
+                      : 'Verbatim parent / patient quotes worth preserving — useful for HPI, safety screens, and the medicolegal record.'}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleQuotes}
+                  disabled={quotesRunning}
+                  className="rounded-md border border-graphite-soft/30 bg-white px-3 py-1.5 text-xs font-medium text-graphite hover:bg-mist disabled:opacity-50"
+                >
+                  {quotesRunning ? 'Capturing…' : meta.quotesMarkdown ? 'Re-run' : 'Capture quotes'}
+                </button>
+              </div>
+              {quotesError ? (
+                <p className="mt-2 text-xs text-red-700">{quotesError}</p>
+              ) : quotes ? (
+                <div className="prose mt-3 max-w-none rounded-md border border-graphite-soft/20 bg-white p-3 text-sm leading-relaxed text-graphite">
+                  <Markdown remarkPlugins={[remarkGfm]}>{quotes}</Markdown>
                 </div>
               ) : null}
             </div>
