@@ -18,8 +18,6 @@ export interface Settings {
   idleLockMinutes: number;
   /** User-authored note templates / instructions (saved across sessions). */
   customTemplates: CustomTemplate[];
-  /** Beta access — when set, the app routes API calls through the brtlb proxy and uses brtlb's keys. Mutually exclusive with BYO keys above. */
-  betaInvite: string;
 }
 
 export interface CustomTemplate {
@@ -42,7 +40,6 @@ const DEFAULT_SETTINGS: Settings = {
   audioPurgeDays: 7,
   idleLockMinutes: 5,
   customTemplates: [],
-  betaInvite: '',
 };
 
 const SETTINGS_KEY = 'brtlb.settings.v1';
@@ -110,9 +107,6 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
   hasRequiredKeys() {
     const s = get().settings;
-    // Beta mode: a single invite token covers transcription + LLM via the
-    // brtlb proxy, no per-vendor keys needed on this device.
-    if (s.betaInvite.trim().length > 0) return true;
     if (!s.assemblyAiKey) return false;
     if (s.provider === 'anthropic') return Boolean(s.anthropicApiKey);
     if (s.provider === 'gemini-api-key') return Boolean(s.geminiApiKey);

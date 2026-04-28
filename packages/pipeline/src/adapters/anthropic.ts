@@ -21,7 +21,6 @@ export function createAnthropicProvider(
       // Long ambient visits + Opus can take 5+ min to draft; explicit
       // 10-minute timeout so the SDK waits long enough.
       timeout: 600_000,
-      ...(config.baseUrl ? { baseURL: config.baseUrl } : {}),
     });
     return client;
   }

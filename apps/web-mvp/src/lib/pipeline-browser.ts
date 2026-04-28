@@ -37,31 +37,16 @@ export interface RunMvpPipelineOutput {
   templateId: string;
 }
 
-/**
- * When the beta invite is set, all LLM calls go through brtlb's proxy at
- * the same origin (relative URLs work because the SPA is served from the
- * same Vercel project). The invite token is sent as the SDK auth header
- * and the server swaps in the real upstream key.
- */
-function proxyBaseUrl(suffix: string): string {
-  const base = typeof window !== 'undefined' ? window.location.origin : '';
-  return `${base}/api/${suffix}`;
-}
-
 function buildProvider(settings: Settings): {
   provider: LlmProvider;
   kind: ProviderKind;
 } {
-  const beta = settings.betaInvite.trim();
-  const useProxy = beta.length > 0;
-
   if (settings.provider === 'anthropic') {
     return {
       provider: createAnthropicProvider({
         kind: 'anthropic',
-        apiKey: useProxy ? beta : settings.anthropicApiKey,
+        apiKey: settings.anthropicApiKey,
         model: settings.anthropicModel,
-        ...(useProxy ? { baseUrl: proxyBaseUrl('anthropic') } : {}),
       }),
       kind: 'anthropic',
     };
@@ -70,25 +55,18 @@ function buildProvider(settings: Settings): {
     return {
       provider: createGeminiApiKeyProvider({
         kind: 'gemini-api-key',
-        apiKey: useProxy ? beta : settings.geminiApiKey,
+        apiKey: settings.geminiApiKey,
         model: settings.geminiModel,
-        ...(useProxy ? { baseUrl: proxyBaseUrl('gemini') } : {}),
       }),
       kind: 'gemini-api-key',
     };
   }
-  // OpenAI: SDK's baseURL is e.g. https://api.openai.com/v1; mirror that
-  // path on the proxy so SDK routes resolve cleanly.
   return {
     provider: createOpenAiCompatibleProvider({
       kind: 'openai-compatible',
-      apiKey: useProxy ? beta : settings.openaiApiKey,
+      apiKey: settings.openaiApiKey,
       model: settings.openaiModel,
-      ...(useProxy
-        ? { baseUrl: proxyBaseUrl('openai/v1') }
-        : settings.openaiBaseUrl
-          ? { baseUrl: settings.openaiBaseUrl }
-          : {}),
+      ...(settings.openaiBaseUrl ? { baseUrl: settings.openaiBaseUrl } : {}),
     }),
     kind: 'openai-compatible',
   };
@@ -193,19 +171,12 @@ export async function runMvpPipeline(input: RunMvpPipelineInput): Promise<RunMvp
   if (!pattern) throw new Error(`Unknown pattern: ${patternId}`);
 
   input.onStage?.('uploading');
-  const beta = input.settings.betaInvite.trim();
-  const useProxy = beta.length > 0;
   let transcript: Transcript;
   try {
     transcript = await transcribeBlobWithAssemblyAi({
       audio: input.audio,
       mode: input.mode,
-      config: {
-        apiKey: useProxy ? beta : input.settings.assemblyAiKey,
-        ...(useProxy && typeof window !== 'undefined'
-          ? { baseUrl: `${window.location.origin}/api/assemblyai` }
-          : {}),
-      },
+      config: { apiKey: input.settings.assemblyAiKey },
       wordBoost: [...PEDIATRIC_WORD_BOOST],
     });
     input.onStage?.('transcribing');

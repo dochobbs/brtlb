@@ -22,7 +22,7 @@ interface AssemblyAiTranscriptResponse {
   utterances?: AssemblyAiUtterance[];
 }
 
-const DEFAULT_BASE = 'https://api.assemblyai.com/v2';
+const BASE = 'https://api.assemblyai.com/v2';
 
 // Per-request timeouts. Upload + transcript-create are short calls; the
 // long-running work happens in the polling loop, which has its own
@@ -59,12 +59,11 @@ async function uploadAudioBody(
   http: typeof fetch,
   apiKey: string,
   body: UploadBody,
-  base: string,
 ): Promise<string> {
   const t = withTimeout(REQUEST_TIMEOUT_MS);
   let res: Response;
   try {
-    res = await http(`${base}/upload`, {
+    res = await http(`${BASE}/upload`, {
       method: 'POST',
       headers: {
         Authorization: apiKey,
@@ -85,7 +84,6 @@ async function uploadAudioFromPath(
   http: typeof fetch,
   apiKey: string,
   audioPath: string,
-  base: string,
 ): Promise<string> {
   // The dynamic specifier hides node:fs/promises from bundler import analyzers
   // (Vite, esbuild) so this file stays browser-safe. Real Node callers still
@@ -95,7 +93,7 @@ async function uploadAudioFromPath(
     /* @vite-ignore */ moduleId
   )) as typeof import('node:fs/promises');
   const data = await readFile(audioPath);
-  return uploadAudioBody(http, apiKey, data, base);
+  return uploadAudioBody(http, apiKey, data);
 }
 
 async function requestTranscript(
@@ -103,7 +101,6 @@ async function requestTranscript(
   apiKey: string,
   audioUrl: string,
   speakerLabels: boolean,
-  base: string,
   wordBoost?: string[],
 ): Promise<string> {
   const body: Record<string, unknown> = {
@@ -115,7 +112,7 @@ async function requestTranscript(
   const t = withTimeout(REQUEST_TIMEOUT_MS);
   let res: Response;
   try {
-    res = await http(`${base}/transcript`, {
+    res = await http(`${BASE}/transcript`, {
       method: 'POST',
       headers: {
         Authorization: apiKey,
@@ -138,7 +135,6 @@ async function pollTranscript(
   id: string,
   intervalMs: number,
   sleep: (ms: number) => Promise<void>,
-  base: string,
 ): Promise<AssemblyAiTranscriptResponse> {
   // Hard upper bound on total time spent waiting for a transcript so a
   // stuck job doesn't leave the UI on "Transcribing…" forever.
@@ -150,7 +146,7 @@ async function pollTranscript(
     const t = withTimeout(REQUEST_TIMEOUT_MS);
     let res: Response;
     try {
-      res = await http(`${base}/transcript/${id}`, {
+      res = await http(`${BASE}/transcript/${id}`, {
         headers: { Authorization: apiKey },
         signal: t.signal,
       });
@@ -187,7 +183,6 @@ async function runTranscription(
     wordBoost?: string[];
     intervalMs: number;
     sleep: (ms: number) => Promise<void>;
-    base: string;
   },
 ): Promise<Transcript> {
   const speakerLabels = options.mode === 'ambient';
@@ -196,7 +191,6 @@ async function runTranscription(
     options.apiKey,
     audioUrl,
     speakerLabels,
-    options.base,
     options.wordBoost,
   );
   const final = await pollTranscript(
@@ -205,7 +199,6 @@ async function runTranscription(
     id,
     options.intervalMs,
     options.sleep,
-    options.base,
   );
 
   return {
@@ -220,9 +213,8 @@ export async function transcribeWithAssemblyAi(input: TranscribeOptions): Promis
   const http = input.httpClient ?? globalThis.fetch;
   const sleep = input.sleep ?? defaultSleep;
   const intervalMs = input.pollIntervalMs ?? 3000;
-  const base = input.config.baseUrl ?? DEFAULT_BASE;
 
-  const audioUrl = await uploadAudioFromPath(http, input.config.apiKey, input.audioPath, base);
+  const audioUrl = await uploadAudioFromPath(http, input.config.apiKey, input.audioPath);
   return runTranscription(audioUrl, {
     http,
     apiKey: input.config.apiKey,
@@ -230,7 +222,6 @@ export async function transcribeWithAssemblyAi(input: TranscribeOptions): Promis
     wordBoost: input.wordBoost,
     intervalMs,
     sleep,
-    base,
   });
 }
 
@@ -250,9 +241,8 @@ export async function transcribeBlobWithAssemblyAi(
   const http = input.httpClient ?? globalThis.fetch;
   const sleep = input.sleep ?? defaultSleep;
   const intervalMs = input.pollIntervalMs ?? 3000;
-  const base = input.config.baseUrl ?? DEFAULT_BASE;
 
-  const audioUrl = await uploadAudioBody(http, input.config.apiKey, input.audio, base);
+  const audioUrl = await uploadAudioBody(http, input.config.apiKey, input.audio);
   return runTranscription(audioUrl, {
     http,
     apiKey: input.config.apiKey,
@@ -260,6 +250,5 @@ export async function transcribeBlobWithAssemblyAi(
     wordBoost: input.wordBoost,
     intervalMs,
     sleep,
-    base,
   });
 }

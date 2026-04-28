@@ -188,37 +188,12 @@ export function Settings() {
         </button>
       </header>
 
-      <section className="mb-6 space-y-3 rounded-xl border border-seafoam/40 bg-seafoam-pale/40 p-6 shadow-sm">
-        <div>
-          <h2 className="text-sm font-semibold text-graphite">Beta access</h2>
-          <p className="mt-1 text-xs text-graphite-soft">
-            Have an invite token from brtlb? Paste it here and brtlb's keys handle everything —
-            transcription, note generation, and tweaks. Your audio still flows directly from your
-            device to the brtlb proxy and out to the upstream APIs; nothing else is logged.
-          </p>
-        </div>
-        <KeyField
-          label="brtlb invite token"
-          value={draft.betaInvite}
-          savedValue={settings.betaInvite}
-          onChange={(v) => update('betaInvite', v)}
-          placeholder="paste your invite token"
-        />
-        {draft.betaInvite.trim() ? (
-          <p className="text-xs text-graphite-soft">
-            Beta mode active. The "Bring your own keys" section below is ignored. Pick which
-            provider to use under "Foundation model" (brtlb has all three).
-          </p>
-        ) : null}
-      </section>
-
       <section className="space-y-6 rounded-xl bg-white p-6 shadow-sm">
         <div>
           <h2 className="text-sm font-semibold text-graphite">Foundation model</h2>
           <p className="mt-1 text-xs text-graphite-soft">
-            {draft.betaInvite.trim()
-              ? 'Pick which provider brtlb uses to draft notes for you. Keys are on the brtlb server.'
-              : "Pick a provider you have a Business Associate Agreement with. Keys are stored in your browser's localStorage and never leave this device."}
+            Pick a provider you have a Business Associate Agreement with. Keys are stored in your
+            browser's localStorage and never leave this device.
           </p>
           <div className="mt-3 inline-flex flex-wrap rounded-md border border-graphite-soft/30 p-0.5">
             {(['anthropic', 'gemini-api-key', 'openai-compatible'] as ProviderKind[]).map((p) => (
