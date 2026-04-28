@@ -36,12 +36,15 @@ describe('createGeminiApiKeyProvider', () => {
     expect(p.name).toBe('gemini-api-key');
   });
 
-  it('POSTs to v1beta generateContent with the api key as a query param', async () => {
+  it('POSTs to v1beta generateContent with the api key in x-goog-api-key header (NOT in URL)', async () => {
     let receivedUrl = '';
     let receivedBody: Record<string, unknown> = {};
+    let receivedHeaders: Record<string, string> = {};
     const httpClient = vi.fn(async (url: string | URL | Request, init?: RequestInit) => {
       receivedUrl = url.toString();
       receivedBody = JSON.parse(init?.body as string);
+      const h = init?.headers as Record<string, string> | undefined;
+      receivedHeaders = h ?? {};
       return new Response(
         JSON.stringify({ candidates: [{ content: { parts: [{ text: 'OK' }] } }] }),
         { status: 200, headers: { 'Content-Type': 'application/json' } },
@@ -54,9 +57,15 @@ describe('createGeminiApiKeyProvider', () => {
     );
     const note = await p.generateNote(input());
     expect(note).toBe('OK');
+    // URL must NOT contain the api key — that was a leak vector via browser
+    // history / referrer headers / CDN logs.
     expect(receivedUrl).toBe(
-      'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=AIza-fake',
+      'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent',
     );
+    expect(receivedUrl).not.toContain('AIza-fake');
+    expect(receivedUrl).not.toContain('?key=');
+    // Key travels in the x-goog-api-key header instead.
+    expect(receivedHeaders['x-goog-api-key']).toBe('AIza-fake');
     expect(receivedBody).toEqual({
       contents: [{ role: 'user', parts: [{ text: expect.stringContaining('rash') }] }],
       generationConfig: { maxOutputTokens: 4096 },
