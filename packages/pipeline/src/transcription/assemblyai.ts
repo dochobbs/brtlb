@@ -27,8 +27,13 @@ const BASE = 'https://api.assemblyai.com/v2';
 // Per-request timeouts. Upload + transcript-create are short calls; the
 // long-running work happens in the polling loop, which has its own
 // overall budget.
+//
+// AssemblyAI processes audio at roughly 3-5× real-time on its default tier.
+// A 90-min autism eval can take 18-30 min to transcribe, a 60-min mental
+// health visit ~12-20 min. The 90-min cap below covers visits up to ~3 hours
+// at default processing speed, with margin for retries.
 const REQUEST_TIMEOUT_MS = 300_000; // 5 min per HTTP request
-const TOTAL_POLL_BUDGET_MS = 30 * 60_000; // 30 min cap for transcription end-to-end
+const TOTAL_POLL_BUDGET_MS = 90 * 60_000; // 90 min cap for transcription end-to-end
 
 function withTimeout(ms: number): { signal: AbortSignal; cancel: () => void } {
   const controller = new AbortController();
@@ -141,7 +146,7 @@ async function pollTranscript(
   const deadline = Date.now() + TOTAL_POLL_BUDGET_MS;
   for (;;) {
     if (Date.now() > deadline) {
-      throw new Error('AssemblyAI transcription timed out after 30 minutes');
+      throw new Error('AssemblyAI transcription timed out after 90 minutes');
     }
     const t = withTimeout(REQUEST_TIMEOUT_MS);
     let res: Response;
