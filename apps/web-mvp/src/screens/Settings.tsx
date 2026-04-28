@@ -14,14 +14,15 @@ import {
 const ANTHROPIC_MODELS = ['claude-sonnet-4-6', 'claude-opus-4-7', 'claude-haiku-4-5'];
 const OPENAI_MODELS = ['gpt-4o', 'gpt-4o-mini', 'gpt-4-turbo'];
 // Starter list of recent Gemini models. The "List my models" button replaces
-// this with whatever the user's key actually has access to. Older keys may
-// not have 2.5 / 3.x availability — typing a model name into the field
-// directly works even when List my models doesn't surface it.
+// this with whatever the user's key actually has access to. Newer keys may
+// not have 3.x in their listing — typing a model name into the field directly
+// works even when List my models doesn't surface it.
 const GEMINI_MODELS_DEFAULT = [
+  'gemini-3-flash-preview',
+  'gemini-3.1-pro-preview',
   'gemini-2.5-flash',
   'gemini-2.5-pro',
   'gemini-2.0-flash-001',
-  'gemini-2.0-flash-lite',
 ];
 
 const PROVIDER_LABEL: Record<ProviderKind, string> = {
