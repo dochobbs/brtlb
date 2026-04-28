@@ -39,9 +39,13 @@ their current pricing page for exact numbers.
 
 ## 2. Get your Google Gemini key (note generation)
 
-Gemini is a fast, capable model from Google. Note: AI Studio keys are
-NOT BAA-eligible — for real PHI workloads use Vertex AI (separate path).
-For testing or non-PHI use, AI Studio is fine.
+Gemini is a fast, capable model from Google. **BAA coverage depends on
+where the key was created:**
+- Key created in a **Google Cloud project with billing enabled** —
+  covered under Google Cloud's HIPAA BAA. OK for PHI.
+- Key created from a **personal Gmail at aistudio.google.com** with no
+  Cloud project — free tier, NOT BAA-eligible. Use only for synthetic
+  data / testing.
 
 ### Easiest path: AI Studio
 
@@ -71,9 +75,10 @@ Google Cloud organization policy needs adjusting. As an admin:
    Create Credentials → API key**. Restrict to "Generative Language
    API". Copy the `AIzaSy...` key.
 
-For BAA-covered Gemini, see `docs/BAAs.md` — Google's BAA covers
-**Vertex AI**, not AI Studio. Vertex requires a service account JSON
-instead of an API key (separate adapter, not in v1 of brtlb).
+For BAA-covered Gemini use, ensure the project has billing enabled and
+that your organization has signed the Google Cloud HIPAA BAA — see
+`docs/BAAs.md`. Vertex AI is also covered (service-account auth instead
+of API key; separate adapter, not in v1).
 
 ### Cost
 

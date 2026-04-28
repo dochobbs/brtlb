@@ -2,13 +2,15 @@ import type { GenerateNoteInput, LlmProvider } from '../types';
 import { composeNotePrompt } from '../prompts/compose';
 
 /**
- * Gemini AI Studio adapter — uses a simple API key (AIzaSy...) and the
+ * Gemini API adapter — uses a simple API key (AIzaSy...) and the
  * Generative Language REST endpoint. Browser-safe, no SDK, no service
  * account JSON.
  *
- * NOTE: AI Studio keys are NOT BAA-eligible. For PHI workloads, use the
- * Vertex AI adapter (createGeminiVertexProvider) which goes through Google
- * Cloud's HIPAA-compliant offering.
+ * BAA NOTE: Gemini API keys created in a Google Cloud project with
+ * billing enabled are covered under Google Cloud's HIPAA BAA. Free-tier
+ * keys created at aistudio.google.com from a personal Gmail (no Cloud
+ * project) are NOT covered. The Vertex AI adapter is also BAA-eligible
+ * but uses service-account auth instead of an API key.
  */
 
 export interface GeminiApiKeyProviderConfig {
