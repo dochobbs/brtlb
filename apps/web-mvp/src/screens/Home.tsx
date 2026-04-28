@@ -150,13 +150,23 @@ export function Home() {
     <main className="mx-auto max-w-3xl px-3 py-6 sm:px-6 sm:py-10">
       <header className="mb-6 flex items-center justify-between sm:mb-8">
         <Lockup size="md" />
-        <button
-          type="button"
-          onClick={() => setView('settings')}
-          className="rounded-md px-3 py-2 text-sm text-graphite-soft hover:text-graphite"
-        >
-          Settings
-        </button>
+        <div className="flex items-center gap-1">
+          <a
+            href="https://github.com/dochobbs/brtlb/blob/main/docs/USING_BRTLB.md"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="rounded-md px-3 py-2 text-sm text-graphite-soft hover:text-graphite"
+          >
+            Guide
+          </a>
+          <button
+            type="button"
+            onClick={() => setView('settings')}
+            className="rounded-md px-3 py-2 text-sm text-graphite-soft hover:text-graphite"
+          >
+            Settings
+          </button>
+        </div>
       </header>
 
       <section className="mb-6 sm:mb-8">

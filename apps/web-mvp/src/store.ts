@@ -28,7 +28,7 @@ export interface CustomTemplate {
 }
 
 const DEFAULT_SETTINGS: Settings = {
-  provider: 'anthropic',
+  provider: 'gemini-api-key',
   anthropicApiKey: '',
   anthropicModel: 'claude-sonnet-4-6',
   openaiApiKey: '',
@@ -62,7 +62,11 @@ function loadSettings(): Settings {
   if (!raw) return DEFAULT_SETTINGS;
   try {
     const parsed = JSON.parse(raw) as Partial<Settings>;
-    return { ...DEFAULT_SETTINGS, ...parsed };
+    const merged = { ...DEFAULT_SETTINGS, ...parsed };
+    // Anthropic is removed from the picker for now (BAA orgs hit CORS).
+    // Migrate anyone with that selection to Gemini so they don't get stuck.
+    if (merged.provider === 'anthropic') merged.provider = 'gemini-api-key';
+    return merged;
   } catch {
     return DEFAULT_SETTINGS;
   }

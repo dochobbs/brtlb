@@ -204,6 +204,18 @@ export function Settings() {
         </button>
       </header>
 
+      <p className="mb-6 text-sm text-graphite-soft">
+        Need keys?{' '}
+        <a
+          href="https://github.com/dochobbs/brtlb/blob/main/docs/SETUP.md"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-graphite underline underline-offset-2 hover:text-graphite-soft"
+        >
+          Setup guide →
+        </a>
+      </p>
+
       <section className="space-y-6 rounded-xl bg-white p-6 shadow-sm">
         <div>
           <h2 className="text-sm font-semibold text-graphite">Foundation model</h2>
@@ -212,7 +224,7 @@ export function Settings() {
             browser's localStorage and never leave this device.
           </p>
           <div className="mt-3 inline-flex flex-wrap rounded-md border border-graphite-soft/30 p-0.5">
-            {(['anthropic', 'gemini-api-key', 'openai-compatible'] as ProviderKind[]).map((p) => (
+            {(['gemini-api-key', 'openai-compatible'] as ProviderKind[]).map((p) => (
               <button
                 key={p}
                 type="button"
