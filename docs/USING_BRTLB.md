@@ -208,6 +208,67 @@ share the note into wherever your charts live.
 
 ---
 
+## Split-screen workflow (recommended on a desktop)
+
+The fastest desktop workflow: brtlb on the left, your EHR on the right.
+Record while you chart, copy/paste the finished note into the visit
+when it's ready.
+
+### macOS
+
+- **Native:** click and hold the green window button on a Chrome window
+  → "Tile Window to Left of Screen" → pick the EHR window for the right
+  half. Done.
+- **Even faster** (with [Rectangle](https://rectangleapp.com), free):
+  open brtlb in Chrome → press `⌃⌥←` → opens EHR in another Chrome
+  window → press `⌃⌥→`.
+
+### Windows
+
+- Snap brtlb to the left: `Win + ←`. Snap the EHR to the right:
+  `Win + →`.
+
+### Two-tab pattern (single window)
+
+If you don't want split panes, two tabs in the same Chrome window works
+fine. brtlb keeps recording state across tabs — switch to the EHR tab
+to look up vitals or last visit, tab back, and your timer/waveform are
+still going.
+
+### Install brtlb as a desktop app
+
+Chrome / Edge / Arc all support installing brtlb as a standalone window
+(no tabs, no address bar — looks native):
+
+1. Open `brtlb.vercel.app`
+2. Click the **install** icon in the address bar (looks like a small
+   monitor with a down arrow), or **⋮ → Install brtlb…**
+3. brtlb opens in its own window with the dot-mark icon. You can
+   command-tab to it just like any app.
+
+This makes split-screen nicer because brtlb doesn't share window real
+estate with other Chrome tabs.
+
+### The workflow itself
+
+1. Patient walks in. Click **Record visit** in the brtlb window.
+2. Examine, talk, do your normal thing. Mark moments as you go if
+   anything's noteworthy.
+3. When done, click **Stop**. Don't move the window — brtlb runs the
+   pipeline (~30s for a 15-min visit).
+4. Note appears. Skim it, **Tell brtlb what to change** if anything's
+   off, click **Check for warnings** for safety.
+5. Click **Copy text**. Tab to the EHR. Click into the note field.
+   `⌘V` / `Ctrl+V`. Done.
+6. Optional: **Generate pearls** to surface anything you might want
+   to add to the assessment / plan before pasting.
+
+For a full clinic, a typical loop is record-stop-edit-copy-paste in
+under 90 seconds per patient — most of which is the LLM work running
+in the background while you're already moving on to the next chart task.
+
+---
+
 ## Visit labels
 
 Top of the Review screen there's a free-form **label** field. Type
