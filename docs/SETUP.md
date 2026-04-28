@@ -22,9 +22,11 @@ labels. Without a BAA, do not record real patient encounters with it.
 1. Go to **https://www.assemblyai.com** → **Sign Up** (free)
 2. After you sign in, your dashboard shows an **API Key** at the top
    right. Click the copy icon. Format: a 32-character hex string.
-3. **If you'll record real patient visits**, sign the BAA before recording
-   anything: see `docs/BAAs.md` for the DocuSign link. The BAA is
-   associated with whichever AssemblyAI account email you provide.
+3. **If you'll record real patient visits**, sign the BAA before
+   recording anything. AssemblyAI's BAA DocuSign PowerForm:
+   **https://na4.docusign.net/Member/PowerFormSigning.aspx?PowerFormId=12d882a8-2414-419a-9d61-5b15a3d20c19&env=na4&acct=327087e3-0eb7-4ce0-b492-10daade58b39&v=2**
+   The BAA is associated with whichever AssemblyAI account email you
+   provide on the form.
 4. Hold onto the key — you'll paste it into brtlb in a moment.
 
 ### Cost
@@ -41,29 +43,37 @@ Gemini is a fast, capable model from Google. Note: AI Studio keys are
 NOT BAA-eligible — for real PHI workloads use Vertex AI (separate path).
 For testing or non-PHI use, AI Studio is fine.
 
-### Easiest path: personal Google account at AI Studio
+### Easiest path: AI Studio
 
 1. Go to **https://aistudio.google.com**
-2. Sign in with a **personal** Google account (Gmail). If you sign in
-   with a Workspace account (e.g., your @yourpractice.com) and the
-   organization has restricted AI Studio, you'll get an error — use a
-   personal account or follow the Google Workspace path below.
+2. Sign in with either a **personal Gmail** OR your **Workspace** account
+   — both work for most users. If your Workspace org has restricted AI
+   Studio specifically, you'll get an error and need to either use a
+   personal account or follow the Workspace admin path below.
 3. Click **Get API Key** in the top-left, then **Create API Key**.
 4. Pick or create a project. Copy the `AIzaSy...` key.
 
-### Google Workspace path (if your org allows it)
+### Workspace admin path (if AI Studio is blocked for your account)
 
-If you want to use your work account or your organization is GCP-managed:
+If your work account hits an "API Keys are Disallowed" message, your
+Google Cloud organization policy needs adjusting. As an admin:
 
-1. Make sure your Workspace org allows API key creation. As an admin,
-   check **GCP Console → IAM & Admin → Organization Policies** for any
-   active policy named **"Block service account API key bindings"** or
-   similar — you may need to override it. (See `docs/BAAs.md` for the
-   broader Vertex AI path which IS BAA-eligible.)
-2. Visit **https://console.cloud.google.com/apis/credentials**
-3. **Create Credentials** → **API key**
-4. Restrict to **Generative Language API** for safety
-5. Copy the `AIzaSy...` key
+1. **Grant yourself the role.** GCP Console → **IAM & Admin → IAM**.
+   At the top of the page, switch the project picker to your
+   **organization** (the building icon). Find your account → pencil →
+   **+ ADD ANOTHER ROLE** → search "Organization Policy Administrator"
+   → Save. Wait ~30 seconds for IAM to propagate.
+2. **Override the policy.** GCP Console → **IAM & Admin → Organization
+   Policies**. Filter by "api". Look for any active policy like
+   `iam.managed.disableServiceAccountApiKeyCreation`. Click ⋮ → **Edit
+   policy** → set **Override parent's policy** → **Off** → Save.
+3. **Create the key.** GCP Console → **APIs & Services → Credentials →
+   Create Credentials → API key**. Restrict to "Generative Language
+   API". Copy the `AIzaSy...` key.
+
+For BAA-covered Gemini, see `docs/BAAs.md` — Google's BAA covers
+**Vertex AI**, not AI Studio. Vertex requires a service account JSON
+instead of an API key (separate adapter, not in v1 of brtlb).
 
 ### Cost
 
