@@ -150,7 +150,7 @@ acute concern in the segment metadata.
 ## Auto template detection
 
 brtlb watches the transcript and picks the best template without you
-having to. The seven templates are:
+having to. The nine templates are:
 
 - **soap** — generic, default fallback, handles mixed visits
 - **well-child** — preventive visit (vaccines, milestones, anticipatory
@@ -161,6 +161,15 @@ having to. The seven templates are:
 - **adhd-med-check** — ADHD medication visit (response, side effects,
   vitals on stimulant)
 - **procedure** — in-office procedure (laceration, I&D, ear curettage)
+- **behavioral-health** — pediatric mental-health visit (mood, anxiety,
+  suicidality screen, trauma, ADHD diagnostic intake, family conflict,
+  substance use, eating disorders). Captures verbatim quotes for the
+  medicolegal record and structures around safety planning when
+  appropriate.
+- **developmental-eval** — long-form autism / developmental evaluation
+  (M-CHAT, ADOS-style observation, parent interview about milestones +
+  social communication + repetitive behaviors, diagnostic feedback).
+  Long visits accept 1-2 page notes.
 - **dictation** — physician-narrated, mode-specific
 
 If you record in ambient mode, brtlb auto-routes after transcription.
@@ -182,6 +191,48 @@ to use on any visit.
 The custom prompt body is sent to the LLM verbatim, so you can be as
 specific as you want about section order, abbreviations, what to bold,
 how to phrase the plan, etc.
+
+---
+
+## Adaptive note length
+
+brtlb sizes the note to the visit. A 5-minute URI gets a focused note;
+a 60-minute mental-health follow-up or 90-minute autism eval gets a
+longer, richer one. No template "default length" override — length is
+a function of clinical content density.
+
+You can always steer it manually with **Tell brtlb what to change**:
+"shorten the assessment", "expand the plan with return precautions",
+etc.
+
+---
+
+## Visit chapters (long visits)
+
+For ambient recordings ≥30 min, brtlb generates a small chapter map
+above the transcript: 3-7 named segments with timestamps and a
+one-sentence summary. Examples:
+
+- `0:00 Parent interview — 6-month history of social withdrawal`
+- `12:35 Child observation — play, communication, response to name`
+- `32:10 Discussion of findings`
+
+Lets you scan a 90-minute autism eval transcript at a glance instead of
+scrolling. The chapter detector runs automatically when the recording
+qualifies; short visits skip it.
+
+---
+
+## Sensitive-content flag
+
+The Review warnings panel runs an extra check: if the transcript
+touches suicidality, self-harm, abuse, substance use, sexual activity,
+eating-disorder behaviors, custody conflicts, or intimate partner
+violence — brtlb adds a 🟡 *(sensitive content)* line naming the topic.
+
+Doesn't redact, doesn't block sharing. Just a heads-up to **review
+before pasting to a shared chart** so adolescent or sensitive
+disclosures don't accidentally end up in a parent-visible note.
 
 ---
 
@@ -209,6 +260,26 @@ Output is a small markdown bullet list with:
 
 Click **Check for warnings** when you want a second look. Re-run after
 edits to see if you've cleaned up the issues.
+
+---
+
+## Quotes captured
+
+Below the note, the **Quotes captured** panel pulls up to 5 verbatim
+parent / patient quotes from the transcript on demand. Useful for:
+
+- HPI ("My son has been saying 'I don't want to be alive' for two
+  weeks")
+- Safety screens — verbatim language matters medicolegally
+- Pediatric phrasing that's clinically meaningful in its specificity
+- Cases where what was said exactly is the documentation
+
+Strict guardrails: no paraphrase, attribution required (Parent /
+Patient / Sibling), STT-garbled quotes are dropped rather than guessed.
+Returns "No quotes captured." when nothing qualifies.
+
+Click **Capture quotes** when you want them. Stored on the recording
+and re-runnable if you tweak the note.
 
 ---
 
@@ -379,14 +450,22 @@ brtlb is paranoid by default.
 
 ## Recovery & resilience
 
-- **Tab closed mid-pipeline?** Next time you open brtlb, any recording
-  stuck in transcribing/generating for >5 min auto-marks as failed
-  with a Retry button. The audio is still there — tap Retry to resume.
+- **Tab crashed *during* recording?** brtlb persists every audio chunk
+  to local storage as it captures. On next app load, any audio chunks
+  that don't have a matching recording entry get reassembled
+  automatically and surface as a "Recovered N min recording" on Home —
+  ready to process. **You don't lose audio from a crash mid-visit.**
+- **Tab closed *during* the pipeline?** Any recording stuck in
+  transcribing/generating for >5 min auto-marks as failed with a Retry
+  button. The audio is still there — tap Retry to resume.
 - **AssemblyAI flaked?** A Retry button on the Review screen re-runs
   the full pipeline from the saved audio. No need to start over.
 - **Generation produced something weird?** Click Regenerate (with the
   same template or a different one) — re-runs the LLM only, no
   re-transcription. Cheap and fast.
+- **Long visits.** brtlb waits up to 90 min for AssemblyAI to finish
+  transcribing — covers any realistic visit length (most 60-min
+  recordings finish in 3-5 min of processing).
 
 ---
 
@@ -403,7 +482,8 @@ brtlb is paranoid by default.
 | Edit raw markdown | Toggle **Edit** on the Note panel |
 | See the transcript | "Show transcript" toggle on the Transcript panel |
 | Try a different template | Change dropdown → **Regenerate** |
-| Check for hallucinations / omissions | **Check for warnings** |
+| Check for hallucinations / omissions / sensitive content | **Check for warnings** |
+| Pull verbatim parent/patient quotes | **Capture quotes** |
 | Get clinical pearls | **Generate pearls** |
 | Share to EHR / Messages / Mail | **Share** (mobile) or **Copy text** (desktop) |
 | Save a file | **Download** (`.txt`, plain text) |
