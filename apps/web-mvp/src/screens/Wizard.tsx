@@ -380,6 +380,26 @@ function AssemblyStep(props: {
         <p className="mt-2 text-xs text-graphite-soft">
           Sign up free, copy your API key from the dashboard, paste it below.
         </p>
+        <details className="mt-2 text-xs text-graphite-soft">
+          <summary className="cursor-pointer text-graphite underline-offset-2 hover:underline">
+            Where exactly is the key?
+          </summary>
+          <ol className="mt-2 list-decimal space-y-1 pl-5 leading-relaxed">
+            <li>Sign up with your work email and verify it.</li>
+            <li>
+              You'll land on the dashboard. Look at the top-right card labeled{' '}
+              <span className="font-medium text-graphite">"API Key"</span> (or "Your API key").
+            </li>
+            <li>Tap the copy icon next to the masked string. It's 32 hex characters.</li>
+            <li>
+              Paste it below. The key stays valid until you regenerate it from{' '}
+              <span className="font-medium text-graphite">Account → API keys</span>.
+            </li>
+          </ol>
+          <p className="mt-2">
+            New accounts get $50 of free credit — about 75 hours of audio. Plenty for testing.
+          </p>
+        </details>
       </div>
 
       <VerifyRow
@@ -437,6 +457,38 @@ function GeminiStep(props: {
         <p className="mt-2 text-xs text-graphite-soft">
           Click "Create API key" → pick or create a Cloud project → copy the AIzaSy… string.
         </p>
+        <details className="mt-2 text-xs text-graphite-soft">
+          <summary className="cursor-pointer text-graphite underline-offset-2 hover:underline">
+            Walk me through it
+          </summary>
+          <ol className="mt-2 list-decimal space-y-1 pl-5 leading-relaxed">
+            <li>
+              Sign in with your{' '}
+              <span className="font-medium text-graphite">work Google account</span> (the one with
+              your practice's HIPAA BAA). Personal Gmail works too for testing without PHI.
+            </li>
+            <li>
+              Tap the blue <span className="font-medium text-graphite">"Create API key"</span>{' '}
+              button at the top of the page.
+            </li>
+            <li>
+              When asked, pick a <span className="font-medium text-graphite">Google Cloud project</span>{' '}
+              — any project tied to your billing account works. If you don't have one yet, choose
+              "Create API key in new project."
+            </li>
+            <li>
+              A modal pops up showing your key, starting with{' '}
+              <span className="font-mono text-graphite">AIzaSy…</span>. Tap the copy icon. The key
+              stays accessible from the same page if you need it again.
+            </li>
+            <li>Paste it below.</li>
+          </ol>
+          <p className="mt-2">
+            <span className="font-medium text-graphite">Hit a wall?</span> If AI Studio shows "API
+            keys are disallowed," your Workspace org policy blocks API key creation. The wizard
+            detects this on Verify and shows the admin override path.
+          </p>
+        </details>
       </div>
 
       <VerifyRow
