@@ -13,16 +13,24 @@ interface VerifyResult {
 }
 
 /**
- * Hits AssemblyAI's account endpoint with the key. Returns 200 if the key is
- * valid, 401/403 otherwise. Cheap, no PHI, no cost.
+ * Verifies the AssemblyAI key by listing the user's transcripts (limit=1).
+ * Returns 200 if auth works, 401 if not. AssemblyAI doesn't expose a billing
+ * or BAA-status endpoint, and a real transcription round-trip would cost money
+ * and take 10+ seconds — so auth is the practical ceiling here.
  */
 async function verifyAssemblyAi(key: string): Promise<VerifyResult> {
   if (!key.trim()) return { ok: false, message: 'Paste a key first.' };
   try {
-    const res = await fetch('https://api.assemblyai.com/v2/account', {
+    const res = await fetch('https://api.assemblyai.com/v2/transcript?limit=1', {
       headers: { Authorization: key.trim() },
     });
-    if (res.ok) return { ok: true, message: 'Key works. Practice covered by your AssemblyAI BAA.' };
+    if (res.ok) {
+      return {
+        ok: true,
+        message:
+          'Key authenticated. Transcription will only be tested once you record your first visit.',
+      };
+    }
     if (res.status === 401)
       return { ok: false, message: 'Key rejected (401). Double-check you copied the full key.' };
     const body = await res.text().catch(() => '');
@@ -41,27 +49,80 @@ async function verifyAssemblyAi(key: string): Promise<VerifyResult> {
 }
 
 /**
- * Hits Gemini's models list. 200 = key works. The "API Keys are Disallowed"
- * org-policy error is surfaced separately so we can show the inline admin fix.
+ * True end-to-end Gemini probe: sends a tiny generateContent request against
+ * the model the user will actually use. Costs a fraction of a cent. This is
+ * the only way to confirm key + API enabled + billing + chosen model all work
+ * together — listing /models doesn't catch a stale model name or a billing
+ * gap. The "API Keys are Disallowed" org-policy error is surfaced separately.
  */
-async function verifyGemini(key: string): Promise<VerifyResult> {
+async function verifyGemini(key: string, model: string): Promise<VerifyResult> {
   if (!key.trim()) return { ok: false, message: 'Paste a key first.' };
   try {
-    const res = await fetch('https://generativelanguage.googleapis.com/v1beta/models', {
-      headers: { 'x-goog-api-key': key.trim() },
-    });
-    if (res.ok) return { ok: true, message: 'Key works.' };
+    const res = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-goog-api-key': key.trim(),
+        },
+        body: JSON.stringify({
+          contents: [{ role: 'user', parts: [{ text: 'Reply with the single word OK.' }] }],
+          generationConfig: { maxOutputTokens: 8 },
+        }),
+      },
+    );
+
+    if (res.ok) {
+      const json = (await res.json().catch(() => null)) as
+        | { candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }> }
+        | null;
+      const reply =
+        json?.candidates?.[0]?.content?.parts?.map((p) => p.text ?? '').join('') ?? '';
+      if (/ok/i.test(reply)) {
+        return {
+          ok: true,
+          message: `Generation works (${model} replied "${reply.trim().slice(0, 40)}").`,
+        };
+      }
+      return {
+        ok: false,
+        message: `Reached ${model} but got an unexpected reply: ${reply.slice(0, 80) || '(empty)'}`,
+      };
+    }
+
     const body = await res.text().catch(() => '');
     const adminBlocked =
       /API[_ ]Keys?[_ ](are[_ ])?Disallowed/i.test(body) ||
       /iam\.managed\.disableServiceAccountApiKeyCreation/i.test(body) ||
       /policy.*disable.*api.?key/i.test(body);
+    if (adminBlocked) {
+      return {
+        ok: false,
+        adminBlock: true,
+        message:
+          'Your Google Workspace blocks API key creation by org policy. As an admin you can override it — see the steps below.',
+      };
+    }
+    const billingMissing =
+      /billing/i.test(body) || /CONSUMER_INVALID/i.test(body) || res.status === 403;
+    if (billingMissing) {
+      return {
+        ok: false,
+        message:
+          'Key auth ok, but the project may not have billing linked or the Generative Language API enabled. ' +
+          redactKeysInText(`${res.status}: ${body.slice(0, 200)}`),
+      };
+    }
+    if (res.status === 404) {
+      return {
+        ok: false,
+        message: `Model "${model}" wasn't found for this key. Try "List my models" in Settings to pick one your project has access to.`,
+      };
+    }
     return {
       ok: false,
-      adminBlock: adminBlocked,
-      message: adminBlocked
-        ? "Your Google Workspace blocks API key creation by org policy. As an admin you can override it — see the steps below."
-        : redactKeysInText(`${res.status}: ${body.slice(0, 300) || 'unexpected response'}`),
+      message: redactKeysInText(`${res.status}: ${body.slice(0, 300) || 'unexpected response'}`),
     };
   } catch (err) {
     return {
@@ -114,7 +175,7 @@ export function Wizard() {
   async function handleVerifyGemini(): Promise<void> {
     setGeminiChecking(true);
     try {
-      const result = await verifyGemini(geminiKey);
+      const result = await verifyGemini(geminiKey, settings.geminiModel);
       setGeminiVerify(result);
       if (result.ok) persist({ geminiApiKey: geminiKey.trim(), provider: 'gemini-api-key' });
     } finally {
