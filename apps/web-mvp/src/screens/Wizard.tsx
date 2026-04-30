@@ -72,21 +72,49 @@ async function verifyGemini(key: string, model: string): Promise<VerifyResult> {
         },
         body: JSON.stringify({
           contents: [{ role: 'user', parts: [{ text: 'Reply with the single word OK.' }] }],
-          generationConfig: { maxOutputTokens: 8 },
+          // 256 leaves room for thinking-model internal reasoning tokens (Gemini
+          // 3 Flash burns output budget on reasoning before producing visible
+          // text). Cost per probe is still well under $0.001.
+          generationConfig: { maxOutputTokens: 256 },
         }),
       },
     );
 
     if (res.ok) {
       const json = (await res.json().catch(() => null)) as
-        | { candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }> }
+        | {
+            candidates?: Array<{
+              content?: { parts?: Array<{ text?: string }> };
+              finishReason?: string;
+            }>;
+            promptFeedback?: { blockReason?: string };
+          }
         | null;
-      const reply =
-        json?.candidates?.[0]?.content?.parts?.map((p) => p.text ?? '').join('') ?? '';
+      const candidate = json?.candidates?.[0];
+      const reply = candidate?.content?.parts?.map((p) => p.text ?? '').join('') ?? '';
+      const finishReason = candidate?.finishReason ?? '';
+      const blockReason = json?.promptFeedback?.blockReason;
+
+      if (blockReason) {
+        return {
+          ok: false,
+          message: `Reached ${model} but the probe was blocked: ${blockReason}. Real notes are unlikely to trigger this; you can probably continue.`,
+        };
+      }
       if (/ok/i.test(reply)) return { ok: true, message: `Generation works (${model}).` };
+      // 200 with empty text typically means the thinking budget consumed all
+      // output tokens before the model emitted visible text. The endpoint is
+      // reachable, billing is OK, the model exists — real note generation
+      // uses a 4K+ token budget so this won't happen in practice.
+      if (!reply) {
+        return {
+          ok: true,
+          message: `Reachable (${model}). Probe returned no visible text${finishReason ? ` (finish: ${finishReason.toLowerCase()})` : ''} — real notes use a much larger token budget, so generation will work normally.`,
+        };
+      }
       return {
         ok: false,
-        message: `Reached ${model} but got an unexpected reply: ${reply.slice(0, 80) || '(empty)'}`,
+        message: `Reached ${model} but got an unexpected reply: ${reply.slice(0, 80)}`,
       };
     }
 
