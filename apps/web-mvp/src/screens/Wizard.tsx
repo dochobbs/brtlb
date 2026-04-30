@@ -5,6 +5,17 @@ import { redactKeysInText } from '../lib/redact';
 
 type Step = 'welcome' | 'assembly' | 'gemini' | 'done';
 
+/**
+ * Walkthrough videos by Dr. Hobbs. Set the URL when the video is recorded;
+ * leave empty string to render a "video coming soon" pill instead. Keeping
+ * these as a single dictionary so swapping URLs later is one edit.
+ */
+const ASK_HOBBS_VIDEOS = {
+  assemblyAi: '', // TODO: AssemblyAI signup + key + BAA walkthrough
+  gemini: '', // TODO: AI Studio key creation + billing setup walkthrough
+  adminPolicy: '', // TODO: Workspace org policy override walkthrough
+} as const;
+
 interface VerifyResult {
   ok: boolean;
   message: string;
@@ -337,6 +348,32 @@ function VerifyStatus({ result }: { result: VerifyResult | null }) {
   );
 }
 
+function AskHobbs({ url, topic }: { url: string; topic: string }) {
+  if (!url) {
+    return (
+      <span
+        className="inline-flex items-center gap-1.5 rounded-full border border-dashed border-graphite-soft/40 bg-mist px-3 py-1 text-[11px] font-medium text-graphite-soft"
+        title={`Walkthrough video coming soon: ${topic}`}
+      >
+        <span aria-hidden>🎬</span>
+        Ask Hobbs <span className="text-graphite-soft/70">(video coming soon)</span>
+      </span>
+    );
+  }
+  return (
+    <a
+      href={url}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="inline-flex items-center gap-1.5 rounded-full border border-seafoam bg-seafoam-pale px-3 py-1 text-[11px] font-medium text-graphite hover:bg-seafoam"
+    >
+      <span aria-hidden>🎬</span>
+      Ask Hobbs · {topic}
+      <span aria-hidden>↗</span>
+    </a>
+  );
+}
+
 function StepNav(props: { onBack: () => void; onNext: () => void; nextDisabled: boolean }) {
   return (
     <div className="mt-8 flex items-center justify-between">
@@ -369,14 +406,17 @@ function AssemblyStep(props: {
       subtitle="Transcribes the visit audio with speaker labels."
     >
       <div>
-        <a
-          href="https://www.assemblyai.com/dashboard/signup"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex items-center gap-1.5 rounded-md bg-graphite px-4 py-2 text-sm font-medium text-white hover:bg-graphite-soft"
-        >
-          Open AssemblyAI <span aria-hidden>↗</span>
-        </a>
+        <div className="flex flex-wrap items-center gap-2">
+          <a
+            href="https://www.assemblyai.com/dashboard/signup"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1.5 rounded-md bg-graphite px-4 py-2 text-sm font-medium text-white hover:bg-graphite-soft"
+          >
+            Open AssemblyAI <span aria-hidden>↗</span>
+          </a>
+          <AskHobbs url={ASK_HOBBS_VIDEOS.assemblyAi} topic="AssemblyAI walkthrough" />
+        </div>
         <p className="mt-2 text-xs text-graphite-soft">
           Sign up free, copy your API key from the dashboard, paste it below.
         </p>
@@ -446,17 +486,39 @@ function GeminiStep(props: {
       subtitle="Writes the SOAP note. If your practice is on Google Workspace, your existing HIPAA BAA covers Gemini when the key comes from a billing-enabled Cloud project."
     >
       <div>
-        <a
-          href="https://aistudio.google.com/apikey"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex items-center gap-1.5 rounded-md bg-graphite px-4 py-2 text-sm font-medium text-white hover:bg-graphite-soft"
-        >
-          Open AI Studio <span aria-hidden>↗</span>
-        </a>
+        <div className="flex flex-wrap items-center gap-2">
+          <a
+            href="https://aistudio.google.com/apikey"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1.5 rounded-md bg-graphite px-4 py-2 text-sm font-medium text-white hover:bg-graphite-soft"
+          >
+            Open AI Studio <span aria-hidden>↗</span>
+          </a>
+          <AskHobbs url={ASK_HOBBS_VIDEOS.gemini} topic="Gemini key + billing walkthrough" />
+        </div>
         <p className="mt-2 text-xs text-graphite-soft">
-          Click "Create API key" → pick or create a Cloud project → copy the AIzaSy… string.
+          Click "Create API key" → pick or create a Cloud project → enable billing on that
+          project → copy the AIzaSy… string.
         </p>
+        <div className="mt-3 rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
+          <p className="font-medium">⚠ Don't skip the billing step.</p>
+          <p className="mt-1">
+            The key is generated against a Google Cloud project. If that project doesn't have a
+            billing account linked, generation will fail on your first real visit even though the
+            key looks valid.{' '}
+            <a
+              href="https://console.cloud.google.com/billing/linkedaccount"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline underline-offset-2"
+            >
+              Link billing here ↗
+            </a>{' '}
+            (free tier still applies, you're just attaching a card so Google can charge if you
+            exceed the free quota).
+          </p>
+        </div>
         <details className="mt-2 text-xs text-graphite-soft">
           <summary className="cursor-pointer text-graphite underline-offset-2 hover:underline">
             Walk me through it
@@ -477,11 +539,26 @@ function GeminiStep(props: {
               "Create API key in new project."
             </li>
             <li>
+              <span className="font-medium text-graphite">Link billing to the project.</span> Open{' '}
+              <a
+                href="https://console.cloud.google.com/billing/linkedaccount"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="underline underline-offset-2"
+              >
+                Cloud Console → Billing
+              </a>
+              , pick the project you just used, and link a billing account. Without this, your key
+              authenticates but generation calls 403. (Google's free tier still applies — you just
+              need the card on file.)
+            </li>
+            <li>
               A modal pops up showing your key, starting with{' '}
               <span className="font-mono text-graphite">AIzaSy…</span>. Tap the copy icon. The key
               stays accessible from the same page if you need it again.
             </li>
-            <li>Paste it below.</li>
+            <li>Paste it below and Verify. The wizard sends a real generation probe — if billing
+              isn't linked yet, you'll see the specific error and can fix it before recording.</li>
           </ol>
           <p className="mt-2">
             <span className="font-medium text-graphite">Hit a wall?</span> If AI Studio shows "API
@@ -516,6 +593,9 @@ function AdminPolicyHelp() {
       <summary className="cursor-pointer font-semibold">
         Workspace org policy is blocking API key creation
       </summary>
+      <div className="mt-3">
+        <AskHobbs url={ASK_HOBBS_VIDEOS.adminPolicy} topic="Workspace org policy fix" />
+      </div>
       <p className="mt-3">
         New GCP projects under a Workspace org may enforce{' '}
         <code className="rounded bg-white/70 px-1 py-0.5 text-[11px]">
