@@ -3,9 +3,10 @@ import { Button } from '@brtlb/ui';
 import { useAppStore, type ProviderKind } from '../store';
 import { KeyField } from '../components/KeyField';
 import { redactKeysInText } from '../lib/redact';
-import { clearAll } from '../lib/db';
+import { clearAll, listAuditLog, logAudit, type AuditLogEntry } from '../lib/db';
 import { CustomTemplateEditor } from '../components/CustomTemplateEditor';
 import { CHANGELOG } from '../lib/changelog';
+import { clearClipboard } from '../lib/clipboard';
 import {
   createAnthropicProvider,
   createGeminiApiKeyProvider,
@@ -109,6 +110,7 @@ export function Settings() {
       return; // stay on the page so the user sees the failure
     }
     setSaveError(null);
+    void logAudit('settings_saved');
     setView('home');
   }
 
@@ -194,6 +196,7 @@ export function Settings() {
         'There is no undo. Continue?',
     );
     if (!confirmed) return;
+    void logAudit('wipe_all');
     await clearAll();
     if (typeof localStorage !== 'undefined') localStorage.clear();
     if (typeof sessionStorage !== 'undefined') sessionStorage.clear();
@@ -490,6 +493,8 @@ export function Settings() {
         </label>
       </section>
 
+      <PrivacySecuritySection />
+
       <section className="mt-10 rounded-xl border border-red-200 bg-red-50 p-6">
         <h2 className="text-sm font-semibold text-red-800">Danger zone</h2>
         <p className="mt-1 text-xs text-red-700">
@@ -517,6 +522,242 @@ export function Settings() {
 function formatChangelogDate(iso: string): string {
   const d = new Date(iso + 'T00:00:00');
   return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+const AUDIT_LABEL: Record<AuditLogEntry['action'], string> = {
+  record_started: 'Recording started',
+  record_completed: 'Recording saved',
+  transcribe_started: 'Transcription started',
+  transcribe_completed: 'Transcription complete',
+  transcribe_failed: 'Transcription failed',
+  generate_completed: 'Note generated',
+  generate_failed: 'Note generation failed',
+  note_copied: 'Note copied',
+  note_shared: 'Note shared',
+  note_downloaded: 'Note downloaded',
+  note_deleted: 'Recording deleted',
+  audio_purged: 'Audio auto-purged',
+  wipe_all: 'All local data wiped',
+  clipboard_cleared: 'Clipboard cleared',
+  settings_saved: 'Settings saved',
+};
+
+function formatAuditTime(ts: number): string {
+  return new Date(ts).toLocaleString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  });
+}
+
+function PrivacySecuritySection() {
+  const [auditEntries, setAuditEntries] = useState<AuditLogEntry[] | null>(null);
+  const [auditOpen, setAuditOpen] = useState(false);
+  const [clipboardStatus, setClipboardStatus] = useState<string | null>(null);
+
+  async function loadAuditOnExpand(): Promise<void> {
+    if (auditEntries !== null) return;
+    const entries = await listAuditLog(100);
+    setAuditEntries(entries);
+  }
+
+  async function handleClearClipboard(): Promise<void> {
+    const ok = await clearClipboard();
+    setClipboardStatus(
+      ok
+        ? 'Clipboard cleared.'
+        : "Couldn't clear clipboard automatically — copy something else (a single space) to overwrite it.",
+    );
+    setTimeout(() => setClipboardStatus(null), 4000);
+  }
+
+  return (
+    <section className="mt-6 rounded-xl bg-white p-6 shadow-sm">
+      <h2 className="text-sm font-semibold text-graphite">Privacy &amp; security</h2>
+      <p className="mt-1 text-xs text-graphite-soft">
+        What stays on your device, what leaves it, and what to do if something goes wrong.
+      </p>
+
+      <details className="mt-4 rounded-md border border-graphite-soft/20 p-3">
+        <summary className="cursor-pointer text-sm font-medium text-graphite">
+          What stays on this device
+        </summary>
+        <ul className="mt-3 space-y-1.5 pl-1 text-xs leading-relaxed text-graphite-soft">
+          <li>· Audio recordings (until you delete them or auto-purge runs).</li>
+          <li>· Transcripts and generated notes.</li>
+          <li>· Your API keys and settings.</li>
+          <li>· Custom templates you've authored.</li>
+          <li>· This device's audit log (last 200 actions).</li>
+        </ul>
+        <p className="mt-2 pl-1 text-xs text-graphite-soft">
+          Wipe all of it via the Danger zone below. Audio also auto-purges on the schedule above.
+        </p>
+      </details>
+
+      <details className="mt-3 rounded-md border border-graphite-soft/20 p-3">
+        <summary className="cursor-pointer text-sm font-medium text-graphite">
+          What leaves this device
+        </summary>
+        <ul className="mt-3 space-y-2.5 pl-1 text-xs leading-relaxed text-graphite-soft">
+          <li>
+            <span className="font-medium text-graphite">Audio → AssemblyAI</span> (US) for
+            transcription. Transcript text comes back. BAA-covered when you've signed their BAA.
+            Retention is governed by your AssemblyAI account; check their dashboard.
+          </li>
+          <li>
+            <span className="font-medium text-graphite">Transcript text → Google Gemini</span>{' '}
+            (US) for note generation. The note comes back. BAA-covered if your Google Workspace
+            HIPAA BAA is accepted and the key is from a billing-enabled Cloud project. Google
+            retains prompts/responses for ~24h for abuse review under their BAA.
+          </li>
+          <li>
+            <span className="font-medium text-graphite">Nothing else.</span> brtlb has no backend.
+            We don't see or log your data. Vercel hosts the static app code only.
+          </li>
+        </ul>
+      </details>
+
+      <details className="mt-3 rounded-md border border-graphite-soft/20 p-3">
+        <summary className="cursor-pointer text-sm font-medium text-graphite">
+          Your responsibilities
+        </summary>
+        <ul className="mt-3 space-y-2 pl-1 text-xs leading-relaxed text-graphite-soft">
+          <li>
+            ·{' '}
+            <a
+              href="https://na4.docusign.net/Member/PowerFormSigning.aspx?PowerFormId=12d882a8-2414-419a-9d61-5b15a3d20c19&env=na4&acct=327087e3-0eb7-4ce0-b492-10daade58b39&v=2"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-graphite underline underline-offset-2"
+            >
+              Sign AssemblyAI's BAA
+            </a>{' '}
+            before recording real visits.
+          </li>
+          <li>
+            · Confirm your{' '}
+            <a
+              href="https://admin.google.com/ac/legalandcompliance"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-graphite underline underline-offset-2"
+            >
+              Google Workspace HIPAA BAA
+            </a>{' '}
+            is accepted for your domain.
+          </li>
+          <li>
+            · Lock this device. Set a passcode or biometric. Don't leave brtlb open in front of
+            others — the idle auto-lock above is a fallback, not a substitute.
+          </li>
+          <li>
+            · On iOS: install brtlb as a PWA (Share → Add to Home Screen). PWA storage is isolated
+            from the regular Safari container.
+          </li>
+          <li>· Keep your browser updated. Security patches matter.</li>
+        </ul>
+      </details>
+
+      <details className="mt-3 rounded-md border border-graphite-soft/20 p-3">
+        <summary className="cursor-pointer text-sm font-medium text-graphite">
+          If you lose this device
+        </summary>
+        <ol className="mt-3 list-decimal space-y-2 pl-5 text-xs leading-relaxed text-graphite-soft">
+          <li>
+            <span className="font-medium text-graphite">Revoke your AssemblyAI key</span>{' '}
+            immediately —{' '}
+            <a
+              href="https://www.assemblyai.com/dashboard/api-keys"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-graphite underline underline-offset-2"
+            >
+              dashboard
+            </a>
+            . Generate a new one.
+          </li>
+          <li>
+            <span className="font-medium text-graphite">Revoke your Gemini key</span> —{' '}
+            <a
+              href="https://console.cloud.google.com/apis/credentials"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-graphite underline underline-offset-2"
+            >
+              GCP Credentials
+            </a>
+            . Delete the lost-device key, generate a fresh one for your replacement device.
+          </li>
+          <li>
+            Trigger an OS-level remote wipe if you can (Find My iPhone, Android Find My Device).
+            brtlb itself can't reach across to wipe data on a device that's no longer in your
+            hands.
+          </li>
+          <li>
+            On your replacement device, sign in to brtlb and run the wizard with your new keys.
+          </li>
+        </ol>
+      </details>
+
+      <div className="mt-4 rounded-md border border-graphite-soft/20 p-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <p className="text-sm font-medium text-graphite">Clipboard hygiene</p>
+            <p className="mt-0.5 text-xs text-graphite-soft">
+              When you copy a note to paste into your EHR, the clipboard holds the PHI until you
+              copy something else. Tap to clear it now.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={handleClearClipboard}
+            className="rounded-md border border-graphite-soft/30 bg-white px-3 py-1.5 text-xs font-medium text-graphite hover:bg-mist"
+          >
+            Clear clipboard
+          </button>
+        </div>
+        {clipboardStatus ? (
+          <p className="mt-2 text-xs text-emerald-700">{clipboardStatus}</p>
+        ) : null}
+      </div>
+
+      <details
+        className="mt-3 rounded-md border border-graphite-soft/20 p-3"
+        onToggle={(e) => {
+          const open = (e.currentTarget as HTMLDetailsElement).open;
+          setAuditOpen(open);
+          if (open) void loadAuditOnExpand();
+        }}
+      >
+        <summary className="cursor-pointer text-sm font-medium text-graphite">
+          Activity log <span className="text-graphite-soft">(this device only)</span>
+        </summary>
+        <p className="mt-3 pl-1 text-xs text-graphite-soft">
+          Last 100 actions — timestamps and action types only. No patient identifiers, transcript
+          text, or note content. Wipe All clears this log too.
+        </p>
+        {auditOpen && auditEntries === null ? (
+          <p className="mt-3 pl-1 text-xs text-graphite-soft">Loading…</p>
+        ) : null}
+        {auditEntries && auditEntries.length === 0 ? (
+          <p className="mt-3 pl-1 text-xs text-graphite-soft">
+            No activity recorded yet. Use brtlb and check back.
+          </p>
+        ) : null}
+        {auditEntries && auditEntries.length > 0 ? (
+          <ul className="mt-3 max-h-72 space-y-1 overflow-y-auto pr-2 font-mono text-[11px] text-graphite-soft">
+            {auditEntries.map((e, i) => (
+              <li key={e.id ?? i} className="flex gap-3">
+                <span className="shrink-0 text-graphite-soft/70">{formatAuditTime(e.ts)}</span>
+                <span className="text-graphite">{AUDIT_LABEL[e.action] ?? e.action}</span>
+              </li>
+            ))}
+          </ul>
+        ) : null}
+      </details>
+    </section>
+  );
 }
 
 function ChangelogPanel() {

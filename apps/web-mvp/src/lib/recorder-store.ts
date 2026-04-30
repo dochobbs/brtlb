@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { appendAudioChunk, clearAudioChunks } from './db';
+import { appendAudioChunk, clearAudioChunks, logAudit } from './db';
 
 export type RecorderState = 'idle' | 'recording' | 'paused' | 'stopped';
 export type RecordingMode = 'ambient' | 'dictation';
@@ -203,6 +203,7 @@ export const useRecorderStore = create<RecorderStore>((set, get) => {
         });
         startTicker();
         startMeter(stream);
+        void logAudit('record_started', { recordingId });
       } catch (err) {
         const msg = err instanceof Error ? err.message : 'microphone access failed';
         set({ error: msg, state: 'idle' });
@@ -245,6 +246,13 @@ export const useRecorderStore = create<RecorderStore>((set, get) => {
             internals.accumulatedMs += Date.now() - internals.startTs;
           }
           set({ elapsedMs: internals.accumulatedMs, state: 'stopped' });
+          const recId = get().activeRecordingId;
+          if (recId) {
+            void logAudit('record_completed', {
+              recordingId: recId,
+              n: Math.round(internals.accumulatedMs / 1000),
+            });
+          }
           resolve(blob);
         };
         recorder.stop();

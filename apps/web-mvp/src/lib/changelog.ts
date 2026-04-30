@@ -13,6 +13,17 @@ export interface ChangelogEntry {
 export const CHANGELOG: ReadonlyArray<ChangelogEntry> = [
   {
     date: '2026-04-30',
+    title: 'Privacy & security panel + audit log',
+    items: [
+      'New "Privacy & security" section in Settings: what stays on this device, what leaves and to where, your responsibilities, and a runbook for if you lose this device.',
+      'Local audit log (last 200 actions) — timestamps and action types only, no PHI. Hidden inside the privacy panel; cleared by Wipe All.',
+      'Clear-clipboard button so PHI isn\'t left in the clipboard after pasting into the EHR.',
+      'Granular retry: "Retry note only" reuses the existing transcript when generation fails, so you don\'t re-pay transcription cost.',
+      'Fixed: AssemblyAI now requires speech_models on every request — was breaking transcription post-deploy.',
+    ],
+  },
+  {
+    date: '2026-04-30',
     title: 'Easier onboarding',
     items: [
       'Guided setup wizard for AssemblyAI + Gemini keys with live verification.',

@@ -7,6 +7,7 @@ import {
   deleteRecording,
   getAudio,
   getRecording,
+  logAudit,
   putRecording,
   type RecordingMeta,
   type SpeakerRoleAssignment,
@@ -147,11 +148,15 @@ export function Review() {
       return;
     }
     try {
+      void logAudit('transcribe_started', { recordingId: m.id });
       const out = await runMvpPipeline({
         audio,
         mode: m.mode,
         settings,
-        onStage: setStage,
+        onStage: (s) => {
+          setStage(s);
+          if (s === 'generating') void logAudit('transcribe_completed', { recordingId: m.id });
+        },
         templateId: m.templateId || (m.mode === 'dictation' ? 'dictation' : 'soap'),
         patternId: m.patternId || 'narrative',
         speakerRoles: m.speakerRoles ?? [],
@@ -188,6 +193,7 @@ export function Review() {
         transcriptChapters: out.transcriptChapters,
       };
       await putRecording(updated);
+      void logAudit('generate_completed', { recordingId: m.id });
       setMeta(updated);
       setSelectedTemplateId(out.templateId);
       setEditedNote(out.note);
@@ -204,6 +210,12 @@ export function Review() {
       const failed: RecordingMeta = { ...m, stage: 'failed', errorMessage: msg };
       await putRecording(failed);
       setMeta(failed);
+      // Distinguish transcription vs generation failure by which event happened
+      // last. The error message itself is the source of truth for the user;
+      // these are coarse-grained tags for the audit log only.
+      void logAudit(/AssemblyAI|transcript/i.test(msg) ? 'transcribe_failed' : 'generate_failed', {
+        recordingId: m.id,
+      });
     }
   }
 
@@ -240,6 +252,7 @@ export function Review() {
     await navigator.clipboard.writeText(editedNote);
     setCopied(true);
     setTimeout(() => setCopied(false), 1500);
+    if (meta) void logAudit('note_copied', { recordingId: meta.id });
   }
 
   async function handleShare(): Promise<void> {
@@ -252,6 +265,7 @@ export function Review() {
     if (typeof navigator !== 'undefined' && typeof navigator.share === 'function') {
       try {
         await navigator.share({ title, text: editedNote });
+        if (meta) void logAudit('note_shared', { recordingId: meta.id });
         return;
       } catch {
         // user cancelled or share failed — fall through to copy
@@ -295,6 +309,7 @@ export function Review() {
     a.download = `brtlb-${stem}.txt`;
     a.click();
     URL.revokeObjectURL(url);
+    void logAudit('note_downloaded', { recordingId: meta.id });
   }
 
   async function handleDelete(): Promise<void> {
@@ -302,6 +317,7 @@ export function Review() {
     const ok = window.confirm('Delete this recording, transcript, and note?');
     if (!ok) return;
     await deleteRecording(meta.id);
+    void logAudit('note_deleted', { recordingId: meta.id });
     setView('home');
   }
 
@@ -538,13 +554,32 @@ export function Review() {
         <div className="mb-4 space-y-3 rounded-md border border-red-300 bg-red-50 p-3 text-sm text-red-800 sm:mb-6 sm:p-4">
           <p className="font-medium">Something went wrong</p>
           <p className="font-mono text-xs break-all">{error}</p>
-          <button
-            type="button"
-            onClick={handleRetry}
-            className="rounded-md border border-red-300 bg-white px-3 py-1.5 text-xs font-medium text-red-800 hover:bg-red-100"
-          >
-            Retry from audio
-          </button>
+          <div className="flex flex-wrap gap-2">
+            {transcript ? (
+              <button
+                type="button"
+                onClick={handleRegenerate}
+                disabled={regenerating}
+                className="rounded-md border border-red-300 bg-white px-3 py-1.5 text-xs font-medium text-red-800 hover:bg-red-100 disabled:opacity-50"
+                title="Re-runs note generation only — uses the existing transcript, no new transcription cost."
+              >
+                {regenerating ? 'Retrying note…' : 'Retry note only'}
+              </button>
+            ) : null}
+            <button
+              type="button"
+              onClick={handleRetry}
+              className="rounded-md border border-red-300 bg-white px-3 py-1.5 text-xs font-medium text-red-800 hover:bg-red-100"
+              title="Re-uploads the audio and re-transcribes from scratch."
+            >
+              Retry from audio
+            </button>
+          </div>
+          {transcript ? (
+            <p className="text-xs text-red-700/80">
+              Transcript already exists — try note-only first to avoid re-paying transcription.
+            </p>
+          ) : null}
         </div>
       ) : null}
 

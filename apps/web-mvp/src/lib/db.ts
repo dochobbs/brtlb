@@ -107,10 +107,52 @@ interface BrtlbSchema extends DBSchema {
     value: { recordingId: string; seq: number; blob: Blob; mimeType: string };
     indexes: { 'by-recordingId': string };
   };
+  /**
+   * Compact local audit log for HIPAA technical-safeguard hygiene
+   * (45 CFR 164.312(b)). Contains only timestamps + action types — never
+   * patient identifiers, transcript snippets, or note content. Capped at
+   * AUDIT_LOG_CAP entries with FIFO trimming so the log stays small.
+   */
+  audit_log: {
+    key: number; // auto-increment
+    value: AuditLogEntry;
+    indexes: { 'by-ts': number };
+  };
+}
+
+export type AuditAction =
+  | 'record_started'
+  | 'record_completed'
+  | 'transcribe_started'
+  | 'transcribe_completed'
+  | 'transcribe_failed'
+  | 'generate_completed'
+  | 'generate_failed'
+  | 'note_copied'
+  | 'note_shared'
+  | 'note_downloaded'
+  | 'note_deleted'
+  | 'audio_purged'
+  | 'wipe_all'
+  | 'clipboard_cleared'
+  | 'settings_saved';
+
+export interface AuditLogEntry {
+  /** Auto-assigned at write time. */
+  id?: number;
+  /** Epoch ms. Indexed for chronological scan. */
+  ts: number;
+  action: AuditAction;
+  /** Internal recording UUID — not a patient identifier. Only set when
+   * the action concerns a specific recording. */
+  recordingId?: string;
+  /** Optional non-PHI numeric tag (e.g., duration ms, count of items). */
+  n?: number;
 }
 
 const DB_NAME = 'brtlb-mvp';
-const DB_VERSION = 2;
+const DB_VERSION = 3;
+const AUDIT_LOG_CAP = 200;
 
 let dbPromise: Promise<IDBPDatabase<BrtlbSchema>> | null = null;
 
@@ -133,6 +175,15 @@ export function getDb(): Promise<IDBPDatabase<BrtlbSchema>> {
               keyPath: ['recordingId', 'seq'],
             });
             chunks.createIndex('by-recordingId', 'recordingId');
+          }
+        }
+        if (oldVersion < 3) {
+          if (!db.objectStoreNames.contains('audit_log')) {
+            const log = db.createObjectStore('audit_log', {
+              keyPath: 'id',
+              autoIncrement: true,
+            });
+            log.createIndex('by-ts', 'ts');
           }
         }
       },
@@ -179,7 +230,54 @@ export async function clearAll(): Promise<void> {
     db.clear('recordings'),
     db.clear('audio'),
     db.clear('audio_chunks'),
+    db.clear('audit_log'),
   ]);
+}
+
+/**
+ * Append a single entry to the local audit log. Best-effort: failures are
+ * swallowed (a logging failure should never break the action). Trims to
+ * AUDIT_LOG_CAP via FIFO when the log grows past cap.
+ */
+export async function logAudit(
+  action: AuditAction,
+  extra?: { recordingId?: string; n?: number },
+): Promise<void> {
+  try {
+    const db = await getDb();
+    const entry: AuditLogEntry = { ts: Date.now(), action, ...extra };
+    const tx = db.transaction('audit_log', 'readwrite');
+    await tx.store.add(entry);
+    // Cheap cap-and-trim: only inspect count, only delete if over.
+    const count = await tx.store.count();
+    if (count > AUDIT_LOG_CAP) {
+      const cursor = await tx.store.index('by-ts').openCursor();
+      let toDelete = count - AUDIT_LOG_CAP;
+      let c = cursor;
+      while (c && toDelete > 0) {
+        await c.delete();
+        toDelete -= 1;
+        c = await c.continue();
+      }
+    }
+    await tx.done;
+  } catch {
+    // ignore — never break the user-visible action because the log failed
+  }
+}
+
+/**
+ * Returns audit log entries newest-first. `limit` defaults to 100; pass
+ * Infinity (or a large number) for the full log.
+ */
+export async function listAuditLog(limit = 100): Promise<AuditLogEntry[]> {
+  try {
+    const db = await getDb();
+    const all = await db.getAllFromIndex('audit_log', 'by-ts');
+    return all.slice(-limit).reverse();
+  } catch {
+    return [];
+  }
 }
 
 export async function appendAudioChunk(
@@ -293,6 +391,7 @@ export async function purgeStaleAudio(cutoffIso: string): Promise<string[]> {
     };
     await db.put('recordings', updated);
     purged.push(rec.id);
+    void logAudit('audio_purged', { recordingId: rec.id });
   }
   return purged;
 }
