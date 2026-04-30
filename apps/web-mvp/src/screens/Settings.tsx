@@ -230,17 +230,26 @@ export function Settings() {
         </button>
       </header>
 
-      <p className="mb-6 text-sm text-graphite-soft">
-        Need keys?{' '}
-        <a
-          href="https://github.com/dochobbs/brtlb/blob/main/docs/SETUP.md"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="text-graphite underline underline-offset-2 hover:text-graphite-soft"
+      <div className="mb-6 flex flex-wrap items-center gap-3 text-sm text-graphite-soft">
+        <button
+          type="button"
+          onClick={() => setView('wizard')}
+          className="rounded-md border border-graphite-soft/30 bg-white px-3 py-1.5 text-xs font-medium text-graphite hover:bg-mist"
         >
-          Setup guide →
-        </a>
-      </p>
+          Run setup wizard
+        </button>
+        <span>
+          Need keys?{' '}
+          <a
+            href="https://github.com/dochobbs/brtlb/blob/main/docs/SETUP.md"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-graphite underline underline-offset-2 hover:text-graphite-soft"
+          >
+            Setup guide →
+          </a>
+        </span>
+      </div>
 
       <section className="space-y-6 rounded-xl bg-white p-6 shadow-sm">
         <div>

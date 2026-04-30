@@ -18,6 +18,7 @@ describe('useAppStore', () => {
         audioPurgeDays: 7,
         idleLockMinutes: 5,
         customTemplates: [],
+        wizardCompletedV1: false,
       },
       view: 'home',
       currentRecordingId: null,

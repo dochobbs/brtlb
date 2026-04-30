@@ -11,13 +11,29 @@ import { Settings } from './screens/Settings';
 import { Record } from './screens/Record';
 import { Review } from './screens/Review';
 import { LockScreen } from './screens/LockScreen';
+import { Wizard } from './screens/Wizard';
 
 export function App() {
   const view = useAppStore((s) => s.view);
+  const setView = useAppStore((s) => s.setView);
   const locked = useAppStore((s) => s.locked);
   const audioPurgeDays = useAppStore((s) => s.settings.audioPurgeDays);
+  const wizardCompletedV1 = useAppStore((s) => s.settings.wizardCompletedV1);
+  const hasRequiredKeys = useAppStore((s) => s.hasRequiredKeys);
 
   useIdleLock();
+
+  // First-run auto-launch: if the user has never finished the wizard AND has
+  // no keys yet, drop them into the wizard. Returning users with keys see
+  // their normal home screen.
+  useEffect(() => {
+    if (!wizardCompletedV1 && !hasRequiredKeys() && view === 'home') {
+      setView('wizard');
+    }
+    // Only run on initial mount — re-running on every view change would
+    // trap the user in the wizard when they "skip for now".
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Run audio auto-purge once on app load. The DB pass is cheap; we don't
   // need to schedule it more aggressively for a session-length use.
@@ -75,6 +91,8 @@ export function App() {
       return <Record />;
     case 'review':
       return <Review />;
+    case 'wizard':
+      return <Wizard />;
     default:
       return <Home />;
   }

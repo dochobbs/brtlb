@@ -18,6 +18,8 @@ export interface Settings {
   idleLockMinutes: number;
   /** User-authored note templates / instructions (saved across sessions). */
   customTemplates: CustomTemplate[];
+  /** Set true once the user has finished (or explicitly skipped) the onboarding wizard. */
+  wizardCompletedV1: boolean;
 }
 
 export interface CustomTemplate {
@@ -40,6 +42,7 @@ const DEFAULT_SETTINGS: Settings = {
   audioPurgeDays: 7,
   idleLockMinutes: 5,
   customTemplates: [],
+  wizardCompletedV1: false,
 };
 
 const SETTINGS_KEY = 'brtlb.settings.v1';
@@ -99,7 +102,7 @@ function persistSettings(settings: Settings): string | null {
   }
 }
 
-export type View = 'home' | 'settings' | 'record' | 'review';
+export type View = 'home' | 'settings' | 'record' | 'review' | 'wizard';
 
 interface AppState {
   settings: Settings;
