@@ -72,6 +72,9 @@ describe('transcribeWithAssemblyAi', () => {
     const body = JSON.parse(transcribePost!.init!.body as string);
     expect(body.speaker_labels).toBe(true);
     expect(body.audio_url).toBe('https://cdn.assemblyai.com/uploads/abc');
+    // AssemblyAI requires speech_models on every request; we send the
+    // current flagship + the prior-gen as a fallback list.
+    expect(body.speech_models).toEqual(['universal-3-pro', 'universal-2']);
   });
 
   it('sends speaker_labels=false for dictation mode', async () => {

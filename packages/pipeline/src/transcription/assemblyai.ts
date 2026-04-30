@@ -112,6 +112,11 @@ async function requestTranscript(
   const body: Record<string, unknown> = {
     audio_url: audioUrl,
     speaker_labels: speakerLabels,
+    // AssemblyAI's 2026 API rev requires speech_models explicitly.
+    // universal-3-pro is the current flagship; universal-2 is the
+    // prior-gen fallback. Listing both lets AssemblyAI fall back if
+    // pro is unavailable for some reason.
+    speech_models: ['universal-3-pro', 'universal-2'],
   };
   if (wordBoost && wordBoost.length > 0) body.word_boost = wordBoost;
 
