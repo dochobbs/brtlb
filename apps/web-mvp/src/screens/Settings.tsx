@@ -5,6 +5,7 @@ import { KeyField } from '../components/KeyField';
 import { redactKeysInText } from '../lib/redact';
 import { clearAll } from '../lib/db';
 import { CustomTemplateEditor } from '../components/CustomTemplateEditor';
+import { CHANGELOG } from '../lib/changelog';
 import {
   createAnthropicProvider,
   createGeminiApiKeyProvider,
@@ -250,6 +251,8 @@ export function Settings() {
           </a>
         </span>
       </div>
+
+      <ChangelogPanel />
 
       <section className="space-y-6 rounded-xl bg-white p-6 shadow-sm">
         <div>
@@ -508,5 +511,44 @@ export function Settings() {
         </p>
       ) : null}
     </main>
+  );
+}
+
+function formatChangelogDate(iso: string): string {
+  const d = new Date(iso + 'T00:00:00');
+  return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+function ChangelogPanel() {
+  if (CHANGELOG.length === 0) return null;
+  return (
+    <details className="mb-6 rounded-xl bg-white p-4 shadow-sm">
+      <summary className="flex cursor-pointer items-center justify-between gap-3 text-sm">
+        <span className="font-semibold text-graphite">What's new</span>
+        <span className="text-xs text-graphite-soft">
+          Last update: {formatChangelogDate(CHANGELOG[0]?.date ?? '')}
+        </span>
+      </summary>
+      <ol className="mt-4 space-y-5">
+        {CHANGELOG.map((entry) => (
+          <li key={entry.date} className="border-l-2 border-graphite-soft/20 pl-4">
+            <div className="flex flex-wrap items-baseline gap-2">
+              <h3 className="text-sm font-semibold text-graphite">{entry.title}</h3>
+              <span className="text-xs text-graphite-soft">{formatChangelogDate(entry.date)}</span>
+            </div>
+            <ul className="mt-2 space-y-1.5 text-xs leading-relaxed text-graphite-soft">
+              {entry.items.map((item, i) => (
+                <li key={i} className="flex gap-2">
+                  <span className="shrink-0 text-graphite-soft/60" aria-hidden>
+                    ·
+                  </span>
+                  <span>{item}</span>
+                </li>
+              ))}
+            </ul>
+          </li>
+        ))}
+      </ol>
+    </details>
   );
 }
