@@ -355,7 +355,6 @@ function AskHobbs({ url, topic }: { url: string; topic: string }) {
         className="inline-flex items-center gap-1.5 rounded-full border border-dashed border-graphite-soft/40 bg-mist px-3 py-1 text-[11px] font-medium text-graphite-soft"
         title={`Walkthrough video coming soon: ${topic}`}
       >
-        <span aria-hidden>🎬</span>
         Ask Hobbs <span className="text-graphite-soft/70">(video coming soon)</span>
       </span>
     );
@@ -367,7 +366,6 @@ function AskHobbs({ url, topic }: { url: string; topic: string }) {
       rel="noopener noreferrer"
       className="inline-flex items-center gap-1.5 rounded-full border border-seafoam bg-seafoam-pale px-3 py-1 text-[11px] font-medium text-graphite hover:bg-seafoam"
     >
-      <span aria-hidden>🎬</span>
       Ask Hobbs · {topic}
       <span aria-hidden>↗</span>
     </a>
