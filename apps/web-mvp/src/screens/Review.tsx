@@ -24,6 +24,7 @@ import {
 import { redactKeysInText } from '../lib/redact';
 import { Markdown, remarkGfm } from '../lib/markdown';
 import { SpeakerChips } from '../components/SpeakerChips';
+import { ConfirmDialog } from '../components/ConfirmDialog';
 import {
   copyNoteRich,
   mailtoForNote,
@@ -223,6 +224,7 @@ export function Review() {
   /** Index of the section the guided-paste flow is currently on. */
   const [guidedIdx, setGuidedIdx] = useState<number>(0);
   const [pasteMode, setPasteMode] = useState<'chips' | 'guided' | 'combined'>('combined');
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [regenerating, setRegenerating] = useState(false);
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>('soap');
   const [speakerRoles, setSpeakerRoles] = useState<SpeakerRoleAssignment[]>([]);
@@ -538,10 +540,13 @@ export function Review() {
     void logAudit('note_downloaded', { recordingId: meta.id });
   }
 
-  async function handleDelete(): Promise<void> {
+  function handleDelete(): void {
+    setShowDeleteDialog(true);
+  }
+
+  async function confirmDelete(): Promise<void> {
     if (!meta) return;
-    const ok = window.confirm('Delete this recording, transcript, and note?');
-    if (!ok) return;
+    setShowDeleteDialog(false);
     await deleteRecording(meta.id);
     void logAudit('note_deleted', { recordingId: meta.id });
     setView('home');
@@ -1300,6 +1305,16 @@ export function Review() {
           ) : null}
         </section>
       </div>
+
+      <ConfirmDialog
+        open={showDeleteDialog}
+        title="Delete this recording?"
+        message="The audio, transcript, and note will be permanently removed from this device. There is no undo."
+        tone="danger"
+        confirmLabel="Delete"
+        onConfirm={confirmDelete}
+        onCancel={() => setShowDeleteDialog(false)}
+      />
     </main>
   );
 }

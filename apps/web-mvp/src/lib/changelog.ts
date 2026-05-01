@@ -13,6 +13,16 @@ export interface ChangelogEntry {
 export const CHANGELOG: ReadonlyArray<ChangelogEntry> = [
   {
     date: '2026-04-30',
+    title: 'Subtle recording UI + faster delete',
+    items: [
+      'Recording screen no longer dominates with a giant timer and bouncy 24-bar VU meter. Ambient mode (patient watching) defaults to a small status dot, modest timer, and a calm single-line breathing indicator. The full meter shows briefly at the start so you can confirm mic levels, then collapses.',
+      'Tap "Mic check" any time to bring the full meter back. Dictation mode (no patient) keeps the meter on by default since there is no audience.',
+      'Per-recording delete on the home screen — small × button on each row, tap to confirm. No need to dive into Review just to delete.',
+      'Replaced the stock browser confirm dialog with a polished modal — Escape to cancel, focus on Cancel by default so dangerous actions are not one-tap-Enter mistakes.',
+    ],
+  },
+  {
+    date: '2026-04-30',
     title: 'Friction-free note export',
     items: [
       'Per-section copy chips: tap "HPI" or "Plan" or "Assessment" to copy just that section into the matching EHR field, instead of copying the whole note and highlighting by hand.',

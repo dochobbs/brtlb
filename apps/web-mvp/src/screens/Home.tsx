@@ -2,7 +2,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { DotsMark, Lockup } from '@brtlb/ui';
 import { useAppStore } from '../store';
 import { useRecorderStore } from '../lib/recorder-store';
-import { listRecordings, type RecordingMeta } from '../lib/db';
+import { deleteRecording, listRecordings, logAudit, type RecordingMeta } from '../lib/db';
+import { ConfirmDialog } from '../components/ConfirmDialog';
 
 const TAGLINES = [
   'Less noise. Same meaning.',
@@ -99,6 +100,16 @@ export function Home() {
   const startRecording = useRecorderStore((s) => s.start);
   const [recordings, setRecordings] = useState<RecordingMeta[] | null>(null);
   const [starting, setStarting] = useState(false);
+  const [pendingDelete, setPendingDelete] = useState<RecordingMeta | null>(null);
+
+  async function confirmDelete(): Promise<void> {
+    if (!pendingDelete) return;
+    const id = pendingDelete.id;
+    setPendingDelete(null);
+    await deleteRecording(id);
+    void logAudit('note_deleted', { recordingId: id });
+    setRecordings((prev) => (prev ? prev.filter((r) => r.id !== id) : prev));
+  }
   const now = useMemo(() => new Date(), []);
   const tagline = useMemo(() => {
     // Stable across the day so the page doesn't feel chatty mid-session.
@@ -235,11 +246,14 @@ export function Home() {
                 </h3>
                 <ul className="space-y-2">
                   {group.items.map((r) => (
-                    <li key={r.id}>
+                    <li
+                      key={r.id}
+                      className="group flex items-stretch gap-1 rounded-xl bg-white shadow-sm transition hover:bg-mist focus-within:bg-mist"
+                    >
                       <button
                         type="button"
                         onClick={() => openRecording(r.id)}
-                        className="flex w-full items-center justify-between gap-3 rounded-xl bg-white px-4 py-3 text-left shadow-sm transition hover:bg-mist active:scale-[0.99] sm:px-5 sm:py-4"
+                        className="flex flex-1 items-center justify-between gap-3 rounded-l-xl px-4 py-3 text-left transition active:scale-[0.99] sm:px-5 sm:py-4"
                       >
                         <div className="min-w-0 flex-1">
                           <div className="truncate text-sm font-medium text-graphite sm:text-base">
@@ -274,6 +288,20 @@ export function Home() {
                         </div>
                         <span className="shrink-0 text-graphite-soft">›</span>
                       </button>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setPendingDelete(r);
+                        }}
+                        aria-label={`Delete ${r.label || 'recording'}`}
+                        title="Delete this recording"
+                        className="flex w-10 shrink-0 items-center justify-center rounded-r-xl text-graphite-soft transition hover:bg-red-50 hover:text-red-700 sm:w-12"
+                      >
+                        <span aria-hidden className="text-base">
+                          ×
+                        </span>
+                      </button>
                     </li>
                   ))}
                 </ul>
@@ -288,6 +316,20 @@ export function Home() {
         <p className="mt-2 italic">the Scrivener</p>
         <p className="italic">&ldquo;I would prefer not to&hellip; chart after hours.&rdquo;</p>
       </footer>
+
+      <ConfirmDialog
+        open={pendingDelete !== null}
+        title="Delete this recording?"
+        message={
+          pendingDelete?.label
+            ? `"${pendingDelete.label}" — audio, transcript, and note will be permanently removed from this device. There is no undo.`
+            : 'Audio, transcript, and note will be permanently removed from this device. There is no undo.'
+        }
+        tone="danger"
+        confirmLabel="Delete"
+        onConfirm={confirmDelete}
+        onCancel={() => setPendingDelete(null)}
+      />
     </main>
   );
 }
