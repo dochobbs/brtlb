@@ -203,6 +203,53 @@ export const useRecorderStore = create<RecorderStore>((set, get) => {
       try {
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
         internals.stream = stream;
+        // Listen on each audio track for mute/unmute events. The OS fires
+        // these when something else takes the mic — most commonly an incoming
+        // phone call (CallKit on iOS, telephony on Android), but also other
+        // apps grabbing the input. Some platforms (Android in particular)
+        // take the mic without firing document.visibilitychange, so this is
+        // a complementary signal we MUST listen for to catch interruptions.
+        // We feed the mute window into the same hasBeenInterrupted state as
+        // the visibility handler so the user gets one consolidated warning.
+        let muteStartMs: number | null = null;
+        for (const track of stream.getAudioTracks()) {
+          track.addEventListener('mute', () => {
+            // Only record the mute as an interruption if we're actively
+            // recording. (Permission denial fires mute on stream open, which
+            // we don't want to flag.)
+            if (get().state !== 'recording') return;
+            muteStartMs = Date.now();
+          });
+          track.addEventListener('unmute', () => {
+            if (muteStartMs === null) return;
+            const gap = Date.now() - muteStartMs;
+            muteStartMs = null;
+            internals.totalHiddenMs += gap;
+            internals.hiddenIntervals.push({
+              startMs: muteStartMs ?? Date.now() - gap,
+              endMs: Date.now(),
+            });
+            // Same threshold as visibility — a sub-1.5s blip isn't worth
+            // surfacing.
+            if (gap > 1500) {
+              set({
+                hasBeenInterrupted: true,
+                totalInterruptedMs: internals.totalHiddenMs,
+              });
+            }
+          });
+          track.addEventListener('ended', () => {
+            // Mic permanently lost (revoked permission, hardware unplugged).
+            // Setting error here surfaces the failure UI — user can retry
+            // or cancel.
+            if (get().state === 'recording' || get().state === 'paused') {
+              set({
+                error:
+                  'The microphone became unavailable. Another app may have taken it, the device was unplugged, or permission was revoked. Stop and re-record when the mic is available again.',
+              });
+            }
+          });
+        }
         const mime = pickMimeType();
         const recorder = new MediaRecorder(stream, {
           mimeType: mime,
