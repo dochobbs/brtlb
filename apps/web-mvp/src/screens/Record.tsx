@@ -22,6 +22,8 @@ export function Record() {
   const mode = useRecorderStore((s) => s.mode);
   const bookmarks = useRecorderStore((s) => s.bookmarks);
   const activeRecordingId = useRecorderStore((s) => s.activeRecordingId);
+  const hasBeenInterrupted = useRecorderStore((s) => s.hasBeenInterrupted);
+  const totalInterruptedMs = useRecorderStore((s) => s.totalInterruptedMs);
   const start = useRecorderStore((s) => s.start);
   const pause = useRecorderStore((s) => s.pause);
   const resume = useRecorderStore((s) => s.resume);
@@ -199,6 +201,8 @@ export function Record() {
           level={level}
           bookmarks={bookmarks}
           saving={saving}
+          hasBeenInterrupted={hasBeenInterrupted}
+          totalInterruptedMs={totalInterruptedMs}
           onPause={pause}
           onResume={resume}
           onMark={addBookmark}
@@ -241,6 +245,8 @@ interface LiveRecordingViewProps {
   level: number;
   bookmarks: RecordingBookmark[];
   saving: boolean;
+  hasBeenInterrupted: boolean;
+  totalInterruptedMs: number;
   onPause: () => void;
   onResume: () => void;
   onMark: () => void;
@@ -262,6 +268,29 @@ function LiveRecordingView(props: LiveRecordingViewProps) {
 
   return (
     <div className="w-full max-w-md space-y-6">
+      {props.hasBeenInterrupted ? (
+        <div className="rounded-md border border-red-300 bg-red-50 p-3 text-left text-sm text-red-800">
+          <p className="font-semibold">
+            ⚠️ Recording was interrupted ({Math.round(props.totalInterruptedMs / 1000)}s of audio
+            lost)
+          </p>
+          <p className="mt-1 text-xs leading-relaxed">
+            iOS pauses browser-based recording when the screen locks or you switch apps. The
+            audio captured before/after each interruption is fine, but anything during the lock is
+            gone. Keep the screen on for the rest of the visit, or stop now and re-record.
+          </p>
+        </div>
+      ) : isAmbient ? (
+        <div className="rounded-md border border-amber-200 bg-amber-50 p-2.5 text-left text-xs text-amber-900">
+          <p>
+            <span className="font-medium">Heads up:</span> brtlb in the browser stops recording
+            when you lock the phone or switch apps. Keep the screen on for the whole visit.
+            (Roci's native iOS app handles screen-lock recording — use that for unattended-phone
+            workflows.)
+          </p>
+        </div>
+      ) : null}
+
       <div className="text-center">
         <p className="inline-flex items-center gap-2 text-xs uppercase tracking-wide text-graphite-soft">
           <span

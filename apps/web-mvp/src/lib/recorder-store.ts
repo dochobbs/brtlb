@@ -21,6 +21,21 @@ interface RecorderInternals {
   audioCtx: AudioContext | null;
   analyser: AnalyserNode | null;
   rafId: number | null;
+  /** WakeLockSentinel from navigator.wakeLock.request — keeps screen on while recording. */
+  wakeLock: WakeLockSentinel | null;
+  /** Listener for document.visibilitychange — used to detect screen lock / app backgrounding mid-record. */
+  visibilityHandler: ((this: Document, ev: Event) => void) | null;
+  /** Wall-clock ms when the tab last went hidden during a recording. */
+  lastHiddenAt: number | null;
+  /** Total ms accumulated across all hidden periods during this recording. */
+  totalHiddenMs: number;
+  /** Hidden-event timestamps for post-stop reporting (start, end, ms each). */
+  hiddenIntervals: { startMs: number; endMs: number }[];
+}
+
+interface WakeLockSentinel extends EventTarget {
+  released: boolean;
+  release: () => Promise<void>;
 }
 
 interface RecorderStore {
@@ -37,6 +52,17 @@ interface RecorderStore {
    * final recording share the same id.
    */
   activeRecordingId: string | null;
+  /**
+   * Whether the tab has been backgrounded (screen lock, app switch) during
+   * the current recording. Components can show a warning if true. Cleared
+   * on reset().
+   */
+  hasBeenInterrupted: boolean;
+  /**
+   * Total ms the tab spent hidden during this recording. Components use
+   * this to surface a "lost X seconds of audio" warning post-stop.
+   */
+  totalInterruptedMs: number;
   // Internals are stored on the store object but never trigger re-renders.
   _internals: RecorderInternals;
   start: (mode?: RecordingMode) => Promise<void>;
@@ -73,6 +99,11 @@ export const useRecorderStore = create<RecorderStore>((set, get) => {
     audioCtx: null,
     analyser: null,
     rafId: null,
+    wakeLock: null,
+    visibilityHandler: null,
+    lastHiddenAt: null,
+    totalHiddenMs: 0,
+    hiddenIntervals: [],
   };
 
   function stopMeter() {
@@ -161,6 +192,8 @@ export const useRecorderStore = create<RecorderStore>((set, get) => {
     error: null,
     bookmarks: [],
     activeRecordingId: null,
+    hasBeenInterrupted: false,
+    totalInterruptedMs: 0,
     _internals: internals,
 
     async start(mode = 'ambient') {
@@ -195,15 +228,72 @@ export const useRecorderStore = create<RecorderStore>((set, get) => {
         };
         recorder.start(1000);
         internals.accumulatedMs = 0;
+        internals.lastHiddenAt = null;
+        internals.totalHiddenMs = 0;
+        internals.hiddenIntervals = [];
         set({
           elapsedMs: 0,
           state: 'recording',
           bookmarks: [],
           activeRecordingId: recordingId,
+          hasBeenInterrupted: false,
+          totalInterruptedMs: 0,
         });
         startTicker();
         startMeter(stream);
         void logAudit('record_started', { recordingId });
+
+        // Best-effort screen wake lock so accidental auto-lock doesn't kill
+        // the recording. Granted when supported (iOS 16.4+, Android Chrome
+        // 84+); silently no-ops elsewhere.
+        if (typeof navigator !== 'undefined' && 'wakeLock' in navigator) {
+          (navigator as Navigator & { wakeLock: { request: (type: string) => Promise<WakeLockSentinel> } }).wakeLock
+            .request('screen')
+            .then((sentinel) => {
+              internals.wakeLock = sentinel;
+            })
+            .catch((err: unknown) => {
+              console.warn('brtlb: wake lock denied', err);
+            });
+        }
+
+        // Detect screen lock / app backgrounding mid-recording. The user
+        // can't see a visual warning when the screen is off, but we can:
+        //  1. Try to vibrate (Android only, no-op on iOS)
+        //  2. Track wall-clock time spent hidden so we can report the
+        //     gap when the user returns
+        //  3. Set a flag the UI can read on resume to show a clear warning
+        const handler = () => {
+          if (document.hidden) {
+            internals.lastHiddenAt = Date.now();
+            // Best-effort vibration alert. Android responds; iOS ignores.
+            if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+              try {
+                navigator.vibrate([400, 100, 400]);
+              } catch {
+                // some browsers throw on policy violation; not load-bearing
+              }
+            }
+          } else if (internals.lastHiddenAt !== null) {
+            const gap = Date.now() - internals.lastHiddenAt;
+            internals.totalHiddenMs += gap;
+            internals.hiddenIntervals.push({
+              startMs: internals.lastHiddenAt,
+              endMs: Date.now(),
+            });
+            internals.lastHiddenAt = null;
+            // Only flag interruptions over 1.5s to avoid noise from quick
+            // app-switch peeks that didn't actually disrupt audio.
+            if (gap > 1500) {
+              set({
+                hasBeenInterrupted: true,
+                totalInterruptedMs: internals.totalHiddenMs,
+              });
+            }
+          }
+        };
+        document.addEventListener('visibilitychange', handler);
+        internals.visibilityHandler = handler;
       } catch (err) {
         const msg = err instanceof Error ? err.message : 'microphone access failed';
         set({ error: msg, state: 'idle' });
@@ -272,6 +362,18 @@ export const useRecorderStore = create<RecorderStore>((set, get) => {
       internals.chunks = [];
       internals.seq = 0;
       internals.accumulatedMs = 0;
+      // Release wake lock + visibility listener.
+      if (internals.wakeLock && !internals.wakeLock.released) {
+        internals.wakeLock.release().catch(() => {});
+      }
+      internals.wakeLock = null;
+      if (internals.visibilityHandler) {
+        document.removeEventListener('visibilitychange', internals.visibilityHandler);
+        internals.visibilityHandler = null;
+      }
+      internals.lastHiddenAt = null;
+      internals.totalHiddenMs = 0;
+      internals.hiddenIntervals = [];
       const previousId = get().activeRecordingId;
       if (previousId) {
         clearAudioChunks(previousId).catch(() => {});
@@ -283,6 +385,8 @@ export const useRecorderStore = create<RecorderStore>((set, get) => {
         error: null,
         bookmarks: [],
         activeRecordingId: null,
+        hasBeenInterrupted: false,
+        totalInterruptedMs: 0,
       });
     },
 
