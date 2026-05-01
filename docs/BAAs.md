@@ -30,6 +30,14 @@ The BAA is associated with whichever AssemblyAI account email you put
 on the form. That account's API key becomes PHI-eligible after the BAA
 is countersigned.
 
+**Vendor retention.** AssemblyAI's default retention policy keeps
+transcripts and uploaded audio on their side for several days unless
+deleted via API. brtlb defaults to **auto-delete on completion** —
+right after pulling the transcript result, it fires `DELETE /v2/transcript/{id}`
+which removes both records from AssemblyAI's side. This cuts retention
+from days to seconds. Toggle in Settings → Privacy & Security if your
+practice's policy requires longer vendor-side retention for any reason.
+
 ### 2. Confirm your Google HIPAA BAA is in place
 
 Most healthcare practices already have this through Google Workspace.

@@ -1,36 +1,47 @@
 # brtlb
 
-A pediatric-focused, BYO-keys AI scribe for desktop and mobile.
+A pediatric-focused, BYO-keys AI scribe that runs entirely in your browser.
 
-- **Diarization-first** ambient documentation
-- **Bring your own** AssemblyAI key + foundation model (Gemini / Anthropic / OpenAI-compatible)
-- **Local-only**, encrypted at rest — PHI never leaves the device
-- **Cross-platform** via Capacitor (iOS, Android) + Electron (Mac, Windows, Linux)
+**Live at:** https://brtlb.vercel.app
 
-Status: **Phase 1 + Brand v0.1 + Phase 2 (pipeline) + Phase 3 (data layer) complete.**
+- **Diarization-first** ambient documentation with multi-patient splitting
+- **BYO keys** — AssemblyAI for transcription, Gemini / OpenAI / Azure for note generation
+- **No backend** — PHI never leaves your device. brtlb itself has no server, database, or analytics
+- **Pediatric-tuned** — 9 visit-type templates including behavioral health and developmental evaluations
+- **Long-visit ready** — chunk-save resilience, 90-min transcription budget, chapter markers for ≥30 min visits
+- **PWA** — installable on iOS, Android, desktop. Same code path everywhere
+
+## Quick start (users)
+
+1. Open https://brtlb.vercel.app
+2. Run the **onboarding wizard** when prompted — it walks you through getting an AssemblyAI key, a Google Gemini key, and verifies both live before you record. ~5 minutes.
+3. Tap **Record visit**.
+
+For the legal/BAA path, see `docs/BAAs.md`. For the slower manual key setup, see `docs/SETUP.md`. For the feature tour, see `docs/USING_BRTLB.md`.
 
 ## Repo layout
 
-| Path                     | Purpose                                                            |
-| ------------------------ | ------------------------------------------------------------------ |
-| `apps/web`               | React + Vite app — the product                                     |
-| `apps/electron`          | Desktop shell                                                      |
-| `apps/mobile`            | Capacitor config (native shells generated locally, see its README) |
-| `packages/pipeline`      | LLM adapter interface + future AssemblyAI client                   |
-| `packages/db`            | Schema strings + future SQLCipher wrapper                          |
-| `packages/ui`            | Shared React components                                            |
-| `packages/prompts`       | Versioned templates and patterns                                   |
-| `docs/superpowers/specs` | Design specs                                                       |
-| `docs/superpowers/plans` | Phased implementation plans                                        |
-| `docs/user-guides`       | API key setup walkthroughs (filled in Phase 8)                     |
+| Path | Purpose |
+|---|---|
+| `apps/web-mvp` | The product. React 19 + Vite 6 + Tailwind v3 PWA. |
+| `apps/electron` | Desktop shell (paused) |
+| `apps/mobile` | Capacitor config (paused) |
+| `packages/pipeline` | LLM adapters, AssemblyAI client, prompt composer |
+| `packages/db` | Schema interface + SQLite impl (used by future native shells) |
+| `packages/ui` | Shared React components (Lockup, Button, marks) |
+| `packages/prompts` | Versioned visit-type templates and patterns |
+| `docs/SETUP.md` | Manual key setup walkthrough |
+| `docs/BAAs.md` | HIPAA/BAA decision tree |
+| `docs/USING_BRTLB.md` | Feature tour |
+| `CHECKPOINT.md` | Development log — read first if picking up work |
 
-## Quick start
+## Local dev
 
 ```bash
-nvm use                       # picks up .nvmrc
-corepack enable               # enables pnpm if needed
+nvm use                              # picks up .nvmrc
+corepack enable                      # pnpm
 pnpm install
-pnpm --filter @brtlb/web dev  # http://localhost:5180
+pnpm --filter @brtlb/web-mvp dev     # http://localhost:5180
 ```
 
 Run all checks:
@@ -39,8 +50,10 @@ Run all checks:
 pnpm format:check && pnpm lint && pnpm typecheck && pnpm test
 ```
 
-## Plans
+The app deploys automatically to brtlb.vercel.app on every push to `main`.
 
-See `docs/superpowers/plans/` for the phased roadmap. Phase 1 stands the repo up; Phases 2–10 build the product.
+## Architecture in one paragraph
 
-License: TBD.
+brtlb is a static SPA. Audio captured by `MediaRecorder` is persisted in chunks to IndexedDB (`audio_chunks`) so a tab crash mid-visit doesn't lose data. On stop, the audio uploads to AssemblyAI directly from the browser, the transcript polls back, then the LLM generates a SOAP-style note. Notes, transcripts, settings, and a 200-entry audit log all live in IndexedDB + localStorage. Vercel hosts the app code only — never sees PHI. Each device + browser context is its own data island; no cross-device sync.
+
+License: AGPL-3.0.

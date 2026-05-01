@@ -27,12 +27,26 @@ the Record button. Same flow, simpler pipeline (no speaker labels).
 
 ### While you're recording
 
-- **Big timer** counts elapsed seconds — easy to glance at.
-- **Live waveform** — 24 vertical bars that pulse with the room's audio
-  level. Great for confirming the mic is hot.
-- **Pause / Resume** — the visit hits a pause (parent steps out, you go
-  examine an ear), tap Pause. Tap Resume to keep going. Pauses don't
-  count against transcription time.
+The recording UI is **deliberately subtle in ambient mode** — designed for
+the patient sitting across from you to barely notice it. What you see:
+
+- A small **pulsing red dot** with the status text ("Ambient · Recording")
+  — the universal "recording" indicator at calm size.
+- A **modest timer** in the center, counting elapsed time. Big enough
+  to glance at, small enough not to dominate.
+- A **breathing line** below the timer that gently widens with audio
+  level. Conveys "mic is alive" without an animated VU-meter feel.
+- For the first **4 seconds** after you start, the full bouncy meter
+  (24 bars) appears so you can confirm the mic is picking up audio,
+  then it auto-collapses. Tap **Mic check** any time to bring the full
+  meter back.
+- **Dictation mode** (no patient watching) keeps the full meter on by
+  default — there's no audience.
+
+Buttons:
+
+- **Pause / Resume** — when the visit hits a pause (parent steps out,
+  you go examine an ear). Pauses don't count against transcription time.
 - **Mark moment** — tap any time you want brtlb to pay extra attention
   to what's happening *right now*. The button flashes seafoam, and
   later, when the note is generated, brtlb is told "the physician
@@ -53,8 +67,9 @@ uploading → transcribing → generating → ready
 
 A small status banner at the top tells you which stage you're in. Total
 time is usually under 30 seconds for a 15-minute visit. Long visits take
-proportionally longer; the longest brtlb will wait for transcription is
-30 minutes (the cap exists so a stuck job doesn't trap the UI forever).
+proportionally longer; brtlb waits up to **90 minutes** for AssemblyAI
+to finish transcribing — covers any realistic visit (most 60-min
+recordings finish in 3–5 min of processing, 90-min autism evals in 5–8 min).
 
 ---
 
@@ -184,13 +199,27 @@ panel. Don't like the pick? Change the dropdown and click **Regenerate**
 ## Custom templates
 
 If you have a personal note format ("Dr. Smith's well-child layout"),
-go to **Settings → Custom Templates** and write it in plain English.
-Save. It appears in the Template dropdown alongside the built-ins, ready
-to use on any visit.
+go to **Settings → Custom Templates**. Two ways to author one:
 
-The custom prompt body is sent to the LLM verbatim, so you can be as
-specific as you want about section order, abbreviations, what to bold,
-how to phrase the plan, etc.
+1. **Clone a built-in.** Pick any built-in template (Well-Child, Sick
+   Visit, etc.) from the dropdown and start editing — you inherit all
+   the fabrication rules, anatomic-laterality discipline, diagnostic
+   specificity guardrails, and consistency check from the built-in by
+   construction. Just rename and tweak the parts that are specific to
+   your use case.
+
+2. **✨ Polish with AI.** Type a rough description in plain English
+   ("ortho follow-up note, focused PE on the joint, concise A/P with
+   numbered items, always include 'patient ambulating without limp'").
+   Click **Polish with AI** — brtlb uses your existing key to rewrite
+   the rough text into a structured brtlb-style template with the
+   full safety scaffolding (5 documentation principles, fabrication
+   rules, format rules, consistency check, attribution). Costs about
+   a tenth of a cent. Edit the polished result before saving if you
+   want to adjust anything.
+
+Saved templates appear in the Template dropdown alongside the built-ins,
+ready to use on any visit.
 
 ---
 
@@ -310,17 +339,49 @@ can re-run on the new draft.
 
 ## Sharing the note
 
-Three buttons below the note:
+Above the export buttons, a **section paste** panel with three modes:
 
-- **Share** — opens your phone's native share sheet (AirDrop, Messages,
-  Mail, Slack, Spruce, your EHR). On desktop falls back to copying the
-  text. Cleanest mobile workflow.
-- **Copy text** — copies the note to clipboard as plain text.
+- **All-in-one** (default) — single button copies the whole note. Bold
+  section headings keep the structure visible when pasted into a single
+  notes field. Best for EHRs with one big "visit note" textarea.
+- **Pick** — one chip per section (HPI, Exam, Plan, etc.). Tap any to
+  copy just that section into the matching field on your EHR. Sections
+  you've copied this session stay marked with ✓ so you can see your
+  progress at a glance.
+- **Walk through** — guided one-at-a-time mode. Big primary button:
+  "Copy HPI →". Tap, paste, come back, button advances to "Copy ROS →".
+  Linear, low cognitive load, ends when all sections are done. Includes
+  word counts so you know how big each section is.
+
+Below the section paste panel, four buttons:
+
+- **Share** — native share sheet (AirDrop on Apple, Android Share, etc.).
+  Falls back to copy on desktop.
+- **Copy** — copies the whole note with **bold formatting preserved**
+  when the destination accepts rich text (Elation, Word, most rich-text
+  fields). Plain-text fallback for everything else.
+- **Email…** — opens your mail app with the subject (visit label) and
+  body (note) pre-filled. Useful for moving the note to another device.
+  Only safe if your email provider is HIPAA-BAA-covered.
 - **Download** — saves a `.txt` file with the visit label as the
-  filename. Plain text, no markdown formatting.
+  filename.
 
-Note: there's no "post to EHR" button. brtlb is BYO-EHR — you copy or
+There's no "post to EHR" button. brtlb is BYO-EHR — you copy or
 share the note into wherever your charts live.
+
+### Move this note to another device
+
+Below the export buttons, a small disclosure: **Move this note to
+another device** with the specific recipes ranked by HIPAA risk:
+
+- **AirDrop** (lowest risk) — peer-to-peer, never traverses cloud
+- **Universal Clipboard** (Apple to Apple) — convenient but transits
+  Apple, who doesn't sign BAAs for iCloud
+- **Email yourself** — safe only with Workspace Gmail / Office 365 BAA;
+  personal Gmail and iCloud Mail are NOT covered
+- **iOS Save to Files** — pick "On My iPhone" (local, safe) over
+  "iCloud Drive" (not BAA-covered)
+- **iOS Notes** — same iCloud caveat; prefer "On My iPhone" Notes
 
 ---
 
@@ -330,16 +391,21 @@ The fastest desktop workflow: brtlb on the left, your EHR on the right.
 Record while you chart, copy/paste the finished note into the visit
 when it's ready.
 
-### macOS
+### Chrome split tab (cleanest, single window)
 
-- **Native:** click and hold the green window button on a Chrome window
-  → "Tile Window to Left of Screen" → pick the EHR window for the right
-  half. Done.
-- **Even faster** (with [Rectangle](https://rectangleapp.com), free):
-  open brtlb in Chrome → press `⌃⌥←` → opens EHR in another Chrome
-  window → press `⌃⌥→`.
+Chrome desktop now supports splitting one window between two tabs
+natively. Right-click brtlb's tab → **Split tab with…** → pick your
+EHR tab. Both panels live in one Chrome window, no taskbar dance.
 
-### Windows
+### macOS window snap (fallback)
+
+- Click and hold the green window button on Chrome → "Tile Window to
+  Left of Screen" → pick the EHR window for the right half.
+- macOS Sequoia: drag a window to the screen edge or use the **Tile**
+  shortcuts.
+- With [Rectangle](https://rectangleapp.com) (free): `⌃⌥←` and `⌃⌥→`.
+
+### Windows snap
 
 - Snap brtlb to the left: `Win + ←`. Snap the EHR to the right:
   `Win + →`.
@@ -348,8 +414,7 @@ when it's ready.
 
 If you don't want split panes, two tabs in the same Chrome window works
 fine. brtlb keeps recording state across tabs — switch to the EHR tab
-to look up vitals or last visit, tab back, and your timer/waveform are
-still going.
+to look up vitals or last visit, tab back, and your timer is still going.
 
 ### Install brtlb as a desktop app
 
@@ -414,7 +479,17 @@ Recordings are grouped by recency:
 
 Each card shows the label, the stage (Recording / Transcribing /
 Generating / Ready / Failed), how long the visit was, and which mode.
-Tap any card to jump back into Review.
+Tap any card to jump back into Review. Tap the small **×** on the
+right of a card to delete it directly — confirmation modal opens, no
+need to enter Review just to clean up.
+
+### Search + filter
+
+Once you have 4 or more recordings, a **search bar** appears above
+the list. Search matches against the visit label, transcript text,
+and note content — all local, never leaves the device. Below the
+search, **filter chips** with live counts: All / Ready / In progress
+/ Failed. Hit "Clear filters" if you over-filter into nothing.
 
 If a recording's audio has been auto-purged (see Privacy below), it
 shows an "Audio purged" badge — you can still read the transcript and
@@ -424,7 +499,8 @@ note, but you can't re-run the pipeline from audio.
 
 ## Privacy & safety
 
-brtlb is paranoid by default.
+brtlb is paranoid by default. Settings → **Privacy & Security** has
+the full panel; the headline pieces:
 
 - **Keys masked.** Once saved, your AssemblyAI / Gemini / OpenAI keys
   show as `sk-•••••last4` with a Replace button. Never sit visible in
@@ -435,16 +511,35 @@ brtlb is paranoid by default.
   (default 7 days) are dropped automatically on app load. Metadata,
   transcript, and note are kept — only the heavy PHI (raw audio) is
   removed. Bump retention to 30 days or 0 (never) in Settings.
+- **AssemblyAI auto-delete after pulling** *(default ON)*. After we
+  pull the transcript, brtlb tells AssemblyAI to delete the transcript
+  and audio from their side. Cuts vendor retention from days to
+  seconds. Toggle in Privacy & Security if you ever need to keep them.
 - **Idle auto-lock.** brtlb locks the UI after N minutes of inactivity
   (default 5). Tap to unlock. Set 0 to disable.
+- **Clear clipboard** button. After you copy a note and paste it into
+  your EHR, the clipboard still holds the PHI until you copy something
+  else. The button overwrites it on demand.
+- **Local audit log** (last 200 actions). Timestamps + action types
+  only — never patient identifiers, transcript text, or note content.
+  Visible inside the Privacy & Security section. Cleared by Wipe All.
+- **No cross-device sync.** brtlb has no backend. Recordings on your
+  iPhone PWA aren't on your laptop or even in Safari-tab on the same
+  iPhone (different storage containers). Use Copy / AirDrop / Email
+  to move a note manually.
 - **Wipe all data.** Settings → Danger Zone → big red button. Drops
-  every recording, transcript, note, key, and setting. No undo.
+  every recording, transcript, note, key, audit log entry, and setting.
+  No undo.
 - **CSP allowlist.** Outbound network is restricted to AssemblyAI,
   OpenAI, Google, Anthropic. brtlb literally can't send your data
   anywhere else.
 - **No analytics, no tracking.** brtlb has zero third-party scripts.
   The Vercel host serves static files and never sees your audio,
   transcript, or note.
+
+For the lost-device runbook (which key to revoke first, in what order),
+see the **"If you lose this device"** subsection inside Settings →
+Privacy & Security.
 
 ---
 
@@ -456,10 +551,17 @@ brtlb is paranoid by default.
   automatically and surface as a "Recovered N min recording" on Home —
   ready to process. **You don't lose audio from a crash mid-visit.**
 - **Tab closed *during* the pipeline?** Any recording stuck in
-  transcribing/generating for >5 min auto-marks as failed with a Retry
-  button. The audio is still there — tap Retry to resume.
-- **AssemblyAI flaked?** A Retry button on the Review screen re-runs
-  the full pipeline from the saved audio. No need to start over.
+  transcribing/generating for >5 min auto-marks as failed with retry
+  options visible.
+- **Pipeline failed?** Two retry options on the Review screen:
+  - **Retry note only** — uses the existing transcript, re-runs just
+    the LLM. No re-transcription cost. Use this when only generation
+    failed.
+  - **Retry from audio** — re-uploads the audio and re-runs the whole
+    pipeline. Use when transcription itself failed.
+  brtlb suggests the cheaper path when a transcript already exists.
+  Failed recordings remember their state — if you navigate away and
+  come back, the retry options are still there.
 - **Generation produced something weird?** Click Regenerate (with the
   same template or a different one) — re-runs the LLM only, no
   re-transcription. Cheap and fast.
@@ -473,8 +575,10 @@ brtlb is paranoid by default.
 
 | What you want | How |
 |---|---|
+| First-time setup | Run the **wizard** on first launch (auto-opens) or Settings → **Run setup wizard** |
 | Start a visit | Tap **Record visit** on Home |
 | Switch to dictation | Tap **"or dictate instead"** below the record button |
+| Confirm the mic is hot | **Mic check** link below the recording controls (also auto-shows for 4s at start) |
 | Pause for a moment | **Pause** during recording |
 | Mark something important | **Mark moment** — single tap, no pop-up |
 | Stop and process | **Stop** — Review screen runs the pipeline |
@@ -485,10 +589,20 @@ brtlb is paranoid by default.
 | Check for hallucinations / omissions / sensitive content | **Check for warnings** |
 | Pull verbatim parent/patient quotes | **Capture quotes** |
 | Get clinical pearls | **Generate pearls** |
-| Share to EHR / Messages / Mail | **Share** (mobile) or **Copy text** (desktop) |
+| Retry just the note (keep transcript) | **Retry note only** in the error panel |
+| Retry from audio | **Retry from audio** in the error panel |
+| Copy whole note | **Copy** (rich text + plain) |
+| Copy section by section | Switch section paste mode to **Pick** or **Walk through** |
+| Email this note to yourself | **Email…** (warning: only safe with BAA-covered mail) |
 | Save a file | **Download** (`.txt`, plain text) |
-| Add a custom note format | Settings → Custom Templates |
+| Add a custom note format | Settings → Custom Templates → "+ New template" or "Clone a built-in" → edit and **Polish with AI** |
 | See past visits | Home screen — grouped by recency |
+| Search past visits | Search bar on Home (appears at 4+ recordings) |
+| Delete a recording | × button on Home row, or Delete in Review |
+| See activity log | Settings → Privacy & Security → Activity log |
+| Clear the clipboard | Settings → Privacy & Security → Clear clipboard |
+| Tighten vendor retention | Settings → Privacy & Security → Delete AssemblyAI transcripts after pulling (default ON) |
+| What changed recently | Settings → What's new |
 | Wipe everything | Settings → Danger Zone |
 
 ---

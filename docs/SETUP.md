@@ -5,6 +5,30 @@ brtlb runs entirely in your browser. You bring two keys: one for
 Gemini is the default; OpenAI also supported). Keys live only in your
 browser's localStorage — they never leave your device.
 
+## Easy path: the in-app wizard
+
+Open https://brtlb.vercel.app — if you don't have keys saved yet, the
+**onboarding wizard** opens automatically. It walks you through:
+
+1. AssemblyAI signup → key paste → **live verify** (real auth check)
+2. AI Studio → key paste → **live generate-content probe** with the
+   model you'll actually use (catches billing-not-linked + stale-model
+   issues before your first visit)
+
+Each step has a "Where exactly is the key?" / "Walk me through it"
+collapsible with specific UI directions. If your Workspace blocks API
+key creation by org policy, the wizard auto-detects it and shows the
+admin override path inline. Most users complete the wizard in ~5
+minutes.
+
+Re-run any time: Settings → **Run setup wizard**.
+
+The rest of this doc is the manual walkthrough for users who'd rather
+read along, or for the small percentage who hit something the wizard
+doesn't cover.
+
+## Manual walkthrough
+
 **The default stack** for most pediatric practices, who already run on
 Google Workspace and have a Google HIPAA BAA:
 
@@ -18,8 +42,9 @@ are equally good — see step 3.
 
 You'll need:
 - A computer or phone with a modern browser
-- About **15 minutes** for first-time setup
-- Billing on your Google Cloud project (or OpenAI account)
+- About **15 minutes** for first-time setup (or ~5 min via the wizard)
+- Billing on your Google Cloud project (or OpenAI account) — required;
+  generation will fail if the project doesn't have billing linked
 - brtlb costs ~$0.20 per 30-minute visit end-to-end
 
 ---
@@ -101,11 +126,12 @@ Google Cloud organization policy needs adjusting. As an admin:
    Create Credentials → API key**. Restrict to "Generative Language
    API". Copy the `AIzaSy...` key.
 
-For BAA-covered Gemini use, see `docs/BAAs.md` — Vertex AI is the only
-unambiguously BAA-covered path. The standalone Gemini API on
-`generativelanguage.googleapis.com` is ambiguous in Google's public
-docs; confirm directly with Google for your specific Cloud account
-before using it with PHI.
+For the BAA decision tree, see `docs/BAAs.md`. Short version: if your
+Workspace HIPAA BAA is accepted and the key comes from a billing-enabled
+Cloud project, the practical industry consensus is that the Gemini API
+is covered. Vertex AI is the unambiguously-named alternative if you
+want zero ambiguity (adapter scaffold exists but isn't yet wired into
+the browser pipeline).
 
 ### Cost
 
@@ -195,5 +221,19 @@ one (or type `gemini-3-flash-preview` directly).
 only) — BAA-org Anthropic keys block browser calls. We removed Anthropic
 from the brtlb picker for now; use Gemini or OpenAI.
 
-**Test connection hangs** — your visit was likely too long (over 30
-minutes). Try a shorter recording first to confirm the keys work.
+**Test connection hangs** — your visit was likely too long. brtlb's
+total transcription budget is 90 minutes, so an unusually long recording
+might appear to hang while AssemblyAI processes. For initial smoke
+testing, try a 30-second test recording.
+
+**"Reached gemini-3-flash-preview but got an unexpected reply: (empty)"** —
+older symptom of Gemini 3 thinking-model behavior consuming the entire
+output budget on internal reasoning. The current build raises the probe
+budget to 256 tokens and treats 200-with-empty-text as success. If you
+hit this on an older deployment, refresh to pull the latest.
+
+**Generation works but actual recordings fail with billing errors** —
+your Cloud project doesn't have billing linked. Open
+console.cloud.google.com/billing/linkedaccount, pick the project, and
+attach a billing account. The free tier still applies; you just need
+the card on file.
