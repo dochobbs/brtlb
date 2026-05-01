@@ -141,7 +141,7 @@ describe('transcribeWithAssemblyAi', () => {
         config: { apiKey: 'k' },
         httpClient: httpClient as unknown as typeof fetch,
       }),
-    ).rejects.toThrow(/AssemblyAI upload: 403/);
+    ).rejects.toThrow(/AssemblyAI upload: authentication failed.*HTTP 403/);
   });
 
   it('passes word_boost when provided', async () => {
@@ -238,6 +238,6 @@ describe('transcribeBlobWithAssemblyAi', () => {
         config: { apiKey: 'k' },
         httpClient: httpClient as unknown as typeof fetch,
       }),
-    ).rejects.toThrow(/AssemblyAI upload: 402/);
+    ).rejects.toThrow(/AssemblyAI upload: account out of credit.*HTTP 402/);
   });
 });

@@ -92,7 +92,61 @@ const defaultSleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms))
 async function expectOk(res: Response, step: string): Promise<void> {
   if (res.ok) return;
   const body = await res.text().catch(() => '');
-  throw new Error(`AssemblyAI ${step}: ${res.status} ${body}`);
+  throw classifyAssemblyAiError(step, res.status, body);
+}
+
+/**
+ * Turn an AssemblyAI HTTP error into an Error with an actionable message.
+ * Distinguishes billing/quota issues, rate limits, auth failures, and
+ * generic errors so the user gets a useful next step instead of a raw
+ * status code dump.
+ *
+ * Error subclassing isn't worth it; we put the actionable text directly
+ * in the message and rely on substring detection for retry classification.
+ */
+function classifyAssemblyAiError(step: string, status: number, body: string): Error {
+  const lc = body.toLowerCase();
+
+  // 402 Payment Required: out of credit, billing detached, etc.
+  if (status === 402 || /credit|payment|balance|insufficient funds/i.test(body)) {
+    return new Error(
+      `AssemblyAI ${step}: account out of credit or payment failed. Top up at https://www.assemblyai.com/dashboard/account to continue. (HTTP ${status})`,
+    );
+  }
+
+  // 429 Too Many Requests: rate limit hit
+  if (status === 429 || lc.includes('rate limit') || lc.includes('too many requests')) {
+    return new Error(
+      `AssemblyAI ${step}: rate limit hit. Wait a minute and try again. (HTTP ${status})`,
+    );
+  }
+
+  // 401 / 403: auth issues — bad key, account suspended, BAA scope mismatch
+  if (status === 401 || status === 403) {
+    if (/baa|business associate/i.test(body)) {
+      return new Error(
+        `AssemblyAI ${step}: account flagged for BAA scope mismatch. Verify your AssemblyAI BAA covers this account at the AssemblyAI dashboard. (HTTP ${status})`,
+      );
+    }
+    return new Error(
+      `AssemblyAI ${step}: authentication failed. Check that your API key in Settings is correct and active. (HTTP ${status})`,
+    );
+  }
+
+  // Audio-too-long / unsupported format / file rejected
+  if (
+    status === 400 ||
+    lc.includes('unsupported') ||
+    lc.includes('too long') ||
+    lc.includes('invalid audio')
+  ) {
+    return new Error(
+      `AssemblyAI ${step}: audio rejected. ${body.slice(0, 200)} (HTTP ${status})`,
+    );
+  }
+
+  // Generic fallback
+  return new Error(`AssemblyAI ${step}: ${status} ${body.slice(0, 300)}`);
 }
 
 type UploadBody = Blob | ArrayBuffer | Uint8Array | Buffer;

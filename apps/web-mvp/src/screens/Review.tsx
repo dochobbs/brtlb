@@ -225,6 +225,7 @@ export function Review() {
   const [guidedIdx, setGuidedIdx] = useState<number>(0);
   const [pasteMode, setPasteMode] = useState<'chips' | 'guided' | 'combined'>('combined');
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [showRegenConfirm, setShowRegenConfirm] = useState(false);
   const [regenerating, setRegenerating] = useState(false);
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>('soap');
   const [speakerRoles, setSpeakerRoles] = useState<SpeakerRoleAssignment[]>([]);
@@ -558,7 +559,13 @@ export function Review() {
     await runPipelineForRecording({ ...meta, stage: 'recorded' });
   }
 
-  async function handleRegenerate(): Promise<void> {
+  /** True if the user has manually edited the note since it was generated. */
+  function noteHasManualEdits(): boolean {
+    if (!meta) return false;
+    return (meta.noteMarkdown ?? '') !== editedNote;
+  }
+
+  function handleRegenerate(): void {
     if (!meta) return;
     if (!transcript) {
       setError(
@@ -566,6 +573,16 @@ export function Review() {
       );
       return;
     }
+    if (noteHasManualEdits()) {
+      setShowRegenConfirm(true);
+      return;
+    }
+    void runRegenerate();
+  }
+
+  async function runRegenerate(): Promise<void> {
+    if (!meta || !transcript) return;
+    setShowRegenConfirm(false);
     setRegenerating(true);
     setError(null);
     try {
@@ -1314,6 +1331,16 @@ export function Review() {
         confirmLabel="Delete"
         onConfirm={confirmDelete}
         onCancel={() => setShowDeleteDialog(false)}
+      />
+
+      <ConfirmDialog
+        open={showRegenConfirm}
+        title="Discard your manual edits?"
+        message="The note has manual edits since it was generated. Regenerating will replace the note with a fresh LLM output and lose your edits. There's no undo."
+        tone="danger"
+        confirmLabel="Regenerate anyway"
+        onConfirm={runRegenerate}
+        onCancel={() => setShowRegenConfirm(false)}
       />
     </main>
   );

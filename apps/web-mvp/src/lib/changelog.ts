@@ -13,6 +13,18 @@ export interface ChangelogEntry {
 export const CHANGELOG: ReadonlyArray<ChangelogEntry> = [
   {
     date: '2026-05-01',
+    title: 'Failure-mode hardening',
+    items: [
+      'Regenerate now confirms before discarding manual edits. If you tweaked the note in Edit mode and hit Regenerate, you get a "discard your edits?" dialog instead of silently losing them.',
+      'AssemblyAI errors are now classified with actionable next steps instead of a raw status code dump:',
+      '— 402/credit: "account out of credit, top up at [link]"',
+      '— 429: "rate limit hit, wait a minute"',
+      '— 401/403: "authentication failed, check your key" (or BAA scope mismatch when relevant)',
+      '— 400/audio rejected: surfaces the specific reason',
+    ],
+  },
+  {
+    date: '2026-05-01',
     title: 'Long-visit upload hardening',
     items: [
       'Upload timeout now scales with file size (~30 sec/MB) so a 90-minute autism eval on a slow connection has up to ~11 minutes to upload instead of getting cut at 5 min.',
