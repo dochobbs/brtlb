@@ -41,9 +41,11 @@ Each item is rated:
 
 ### 🟡 Network drops during transcription poll
 
-**Status:** 🟨 partial. Upload now has retry+adaptive timeout. Poll loop still has per-request timeouts but no retry on transient errors.
-**Real risk:** clinic WiFi flakes for 10 seconds during a long visit's poll, transcription marked failed even though AssemblyAI completed it on their side.
-**Action:** add retry with exponential backoff on poll requests (already retry on upload). 3 attempts before giving up. Bundle 2.
+**Status:** ✅ **handled** (as of 2026-05-01). Poll-loop now classifies fetch rejections via `isRetriableNetworkError`; on a transient blip it sleeps the poll interval and continues instead of failing the whole transcription. AssemblyAI keeps the job; we just couldn't reach them this tick. Sustained outages still surface after the 90-min poll budget. The narrower exponential-backoff retry plan from Bundle 2 is no longer needed.
+
+### 🟡 iOS Safari fetch rejection surfaces as opaque "Load failed"
+
+**Status:** ✅ **handled** (as of 2026-05-01). When fetch() rejects at the network layer (iOS suspends the page mid-upload, Wi-Fi drops, vendor briefly unavailable), iOS Safari throws TypeError "Load failed" — useless to the user. Now classified by `packages/pipeline/src/errors.ts::classifyFetchError` at every fetch call site in both AssemblyAI and Gemini adapters. User sees: "connection was interrupted. This usually means your Wi-Fi/cellular dropped, the brtlb tab was suspended (common on iOS when you switch apps mid-upload), or [vendor] is briefly unavailable. Reopen brtlb on a stable connection and tap Retry from audio." Same for Chrome ("Failed to fetch") and Firefox ("NetworkError").
 
 ### 🟢 Phone overheats / throttles
 

@@ -1,3 +1,4 @@
+import { classifyFetchError, isRetriableNetworkError } from '../errors';
 import type {
   AssemblyAiConfig,
   RecordingMode,
@@ -60,21 +61,15 @@ function uploadTimeoutFor(body: UploadBody): number {
         ? body.byteLength
         : body instanceof Uint8Array
           ? body.byteLength
-          : (body as Buffer).length ?? 0;
+          : ((body as Buffer).length ?? 0);
   const mb = bytes / (1024 * 1024);
   const sized = Math.ceil(mb * UPLOAD_TIMEOUT_PER_MB_MS);
   return Math.max(REQUEST_TIMEOUT_MS, sized);
 }
 
 function isRetriableUploadError(err: unknown): boolean {
-  if (err instanceof Error) {
-    const msg = err.message.toLowerCase();
-    // Network blips, aborts (timeout), 5xx server errors. NOT 4xx — those
-    // mean a real config issue (bad key, bad request) that won't change
-    // on retry.
-    if (/network|fetch failed|connection reset|econn|abort|timeout/i.test(msg)) return true;
-    if (/^assemblyai upload: 5\d\d/.test(err.message)) return true;
-  }
+  if (isRetriableNetworkError(err)) return true;
+  if (err instanceof Error && /^AssemblyAI upload: 5\d\d/.test(err.message)) return true;
   return false;
 }
 
@@ -140,9 +135,7 @@ function classifyAssemblyAiError(step: string, status: number, body: string): Er
     lc.includes('too long') ||
     lc.includes('invalid audio')
   ) {
-    return new Error(
-      `AssemblyAI ${step}: audio rejected. ${body.slice(0, 200)} (HTTP ${status})`,
-    );
+    return new Error(`AssemblyAI ${step}: audio rejected. ${body.slice(0, 200)} (HTTP ${status})`);
   }
 
   // Generic fallback
@@ -161,15 +154,24 @@ async function uploadAudioBody(
   for (let attempt = 1; attempt <= UPLOAD_RETRY_ATTEMPTS; attempt += 1) {
     const t = withTimeout(timeoutMs);
     try {
-      const res = await http(`${BASE}/upload`, {
-        method: 'POST',
-        headers: {
-          Authorization: apiKey,
-          'Content-Type': 'application/octet-stream',
-        },
-        body: body as BodyInit,
-        signal: t.signal,
-      });
+      let res: Response;
+      try {
+        res = await http(`${BASE}/upload`, {
+          method: 'POST',
+          headers: {
+            Authorization: apiKey,
+            'Content-Type': 'application/octet-stream',
+          },
+          body: body as BodyInit,
+          signal: t.signal,
+        });
+      } catch (fetchErr) {
+        // Network-layer rejection (iOS Safari "Load failed", Chrome
+        // "Failed to fetch", AbortError on our timeout, etc.). Classify
+        // before letting the retry logic see it so the final user-facing
+        // error message is actionable.
+        throw classifyFetchError('AssemblyAI', 'upload', fetchErr);
+      }
       t.cancel();
       await expectOk(res, 'upload');
       const json = (await res.json()) as { upload_url: string };
@@ -237,9 +239,11 @@ async function requestTranscript(
       body: JSON.stringify(body),
       signal: t.signal,
     });
-  } finally {
+  } catch (fetchErr) {
     t.cancel();
+    throw classifyFetchError('AssemblyAI', 'request', fetchErr);
   }
+  t.cancel();
   await expectOk(res, 'request');
   const json = (await res.json()) as AssemblyAiTranscriptResponse;
   return json.id;
@@ -293,9 +297,20 @@ async function pollTranscript(
         headers: { Authorization: apiKey },
         signal: t.signal,
       });
-    } finally {
+    } catch (fetchErr) {
       t.cancel();
+      // Single transient blip on a poll request shouldn't fail the whole
+      // transcription. AssemblyAI has the job; we just couldn't reach
+      // them this tick. Sleep and retry — if the network is truly down,
+      // either a subsequent tick recovers or the overall poll budget
+      // expires with the timed-out error.
+      if (isRetriableNetworkError(fetchErr)) {
+        await sleep(intervalMs);
+        continue;
+      }
+      throw classifyFetchError('AssemblyAI', 'poll', fetchErr);
     }
+    t.cancel();
     await expectOk(res, 'poll');
     const json = (await res.json()) as AssemblyAiTranscriptResponse;
     if (json.status === 'completed') return json;

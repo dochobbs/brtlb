@@ -13,6 +13,15 @@ export interface ChangelogEntry {
 export const CHANGELOG: ReadonlyArray<ChangelogEntry> = [
   {
     date: '2026-05-01',
+    title: 'Better network error messages on iPhone',
+    items: [
+      'iOS Safari\'s opaque "Load failed" error during transcription / note generation is now translated into a clear "connection was interrupted" message that explains the likely cause (Wi-Fi/cellular dropped, page suspended on iOS, or vendor briefly unavailable) and points the user at the Retry button.',
+      'Same fix for Chrome\'s "Failed to fetch" and Firefox\'s "NetworkError" — all browsers now show actionable copy instead of raw network noise.',
+      'Poll-loop is now resilient to single transient network blips during long visits — instead of failing the whole transcription, it just retries on the next tick. Sustained outages still surface after the existing 90-min poll budget.',
+    ],
+  },
+  {
+    date: '2026-05-01',
     title: 'Multi-patient tabs',
     items: [
       'Sibling visits now show one tab per patient above the note. Tap a tab to scope every action to that kid: Copy, Share, Email, Download, Tweak, Regenerate, and section-paste all retarget to the active tab.',

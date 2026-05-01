@@ -1,5 +1,6 @@
 import type { GenerateNoteInput, LlmProvider } from '../types';
 import { composeNotePrompt } from '../prompts/compose';
+import { classifyFetchError } from '../errors';
 
 /**
  * Gemini API adapter — uses a simple API key (AIzaSy...) and the
@@ -68,6 +69,11 @@ export function createGeminiApiKeyProvider(
           }),
           signal: controller.signal,
         });
+      } catch (fetchErr) {
+        // Network-layer rejection. iOS Safari's "Load failed" is the
+        // most painful case to surface to physicians without context.
+        clearTimeout(timer);
+        throw classifyFetchError('Gemini', 'generate', fetchErr);
       } finally {
         clearTimeout(timer);
       }
@@ -101,9 +107,7 @@ function classifyGeminiError(status: number, body: string): Error {
   // 403 + billing keywords → Cloud project doesn't have billing linked
   if (
     status === 403 &&
-    (/billing/i.test(body) ||
-      /CONSUMER_INVALID/i.test(body) ||
-      /SERVICE_DISABLED/i.test(body))
+    (/billing/i.test(body) || /CONSUMER_INVALID/i.test(body) || /SERVICE_DISABLED/i.test(body))
   ) {
     return new Error(
       'gemini-api-key: your Gemini Cloud project either has no billing linked or the Generative Language API is disabled. Link billing at https://console.cloud.google.com/billing/linkedaccount and confirm the API is enabled at https://console.cloud.google.com/apis/library/generativelanguage.googleapis.com — same key will work once both are set.',
