@@ -271,10 +271,12 @@ function LiveRecordingView(props: LiveRecordingViewProps) {
       {props.hasBeenInterrupted ? (
         <div className="rounded-md border border-amber-300 bg-amber-50 p-2.5 text-left text-xs leading-relaxed text-amber-900">
           <p className="font-semibold">
-            Recording was interrupted — {Math.round(props.totalInterruptedMs / 1000)}s of audio lost
+            Recording may have been interrupted for {Math.round(props.totalInterruptedMs / 1000)}s
           </p>
           <p className="mt-1">
-            Keep the screen on for the rest of the visit, or stop now and re-record.
+            The screen was off, the app was backgrounded, or another app used the mic. Audio
+            captured before/after is intact; review the transcript to confirm what made it
+            through. Keep the screen on for the rest of the visit.
           </p>
         </div>
       ) : isAmbient ? (
