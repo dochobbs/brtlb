@@ -156,6 +156,20 @@ const AUDIT_LOG_CAP = 200;
 
 let dbPromise: Promise<IDBPDatabase<BrtlbSchema>> | null = null;
 
+/**
+ * The most insidious failure mode for IDB: if another tab has the DB
+ * open at an older version (e.g., a brtlb tab still on v2 when this tab
+ * tries to upgrade to v3), the openDB promise hangs forever. listRecordings,
+ * putRecording, etc. all stall behind it. Symptoms: home screen stuck on
+ * "Loading…", Stop button produces a blank screen because the meta write
+ * never resolves.
+ *
+ * Fix: handle `blocked` and `blocking` callbacks. Show the user a clear
+ * error and reload the page when other tabs close. Also surface the
+ * `terminated` event so a closed DB connection isn't held forever.
+ */
+let dbBlockedAlertShown = false;
+
 export function getDb(): Promise<IDBPDatabase<BrtlbSchema>> {
   if (!dbPromise) {
     dbPromise = openDB<BrtlbSchema>(DB_NAME, DB_VERSION, {
@@ -186,6 +200,37 @@ export function getDb(): Promise<IDBPDatabase<BrtlbSchema>> {
             log.createIndex('by-ts', 'ts');
           }
         }
+      },
+      // Fires in OTHER tabs when this tab is trying to upgrade. Close the
+      // existing connection so this tab can proceed.
+      blocking() {
+        try {
+          // Force-close this old connection. The new-version tab will then
+          // open successfully.
+          // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+          dbPromise!.then((db) => db.close()).catch(() => {});
+          dbPromise = null;
+        } catch {
+          // ignore
+        }
+      },
+      // Fires in THIS tab when openDB is waiting on other tabs to close.
+      blocked() {
+        if (dbBlockedAlertShown) return;
+        dbBlockedAlertShown = true;
+        console.warn('brtlb: IDB upgrade blocked by another tab. Asking user to close it.');
+        if (typeof window !== 'undefined') {
+          // Use alert so the user can't miss it. The alternative is a stuck
+          // page with no explanation.
+          window.alert(
+            "brtlb is updating to a new version of its local database, but another brtlb tab is still open on the old version. Close any other brtlb tabs / windows and reload this page.",
+          );
+        }
+      },
+      terminated() {
+        // Connection closed unexpectedly — drop the cached promise so the
+        // next call re-opens cleanly.
+        dbPromise = null;
       },
     });
   }
