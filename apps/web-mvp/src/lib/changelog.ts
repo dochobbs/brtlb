@@ -12,6 +12,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ReadonlyArray<ChangelogEntry> = [
   {
+    date: '2026-05-01',
+    title: 'Long-visit upload hardening',
+    items: [
+      'Upload timeout now scales with file size (~30 sec/MB) so a 90-minute autism eval on a slow connection has up to ~11 minutes to upload instead of getting cut at 5 min.',
+      'Single auto-retry on transient upload errors (network blip, 5xx, timeout). Permanent errors (4xx auth/format) fail immediately as before.',
+      'No 4MB body limit anywhere in the current path — audio uploads go browser → AssemblyAI directly. The 4MB cap only applies to Vercel Edge Functions, which brtlb does not use.',
+    ],
+  },
+  {
     date: '2026-04-30',
     title: 'Dark mode',
     items: [

@@ -33,13 +33,49 @@ const BASE = 'https://api.assemblyai.com/v2';
 // even a 3-hour evaluation in ~10-15 min. The 90-min cap below is purely
 // a safety net for stuck/lost jobs — successful transcriptions return
 // as soon as AssemblyAI is done regardless of cap.
-const REQUEST_TIMEOUT_MS = 300_000; // 5 min per HTTP request
+const REQUEST_TIMEOUT_MS = 300_000; // 5 min per HTTP request (default for short calls)
 const TOTAL_POLL_BUDGET_MS = 90 * 60_000; // 90 min safety net for stuck jobs
+
+/**
+ * Per-MB upload budget for slow connections. A 90-min recording at 32 kbps
+ * is ~22 MB. On a 256 Kbps uplink (rural / weak hotspot / congested clinic
+ * WiFi), 22 MB takes ~12 min — exceeding a fixed 5-min cap. So we scale the
+ * upload timeout to file size: max(REQUEST_TIMEOUT_MS, 30 sec/MB).
+ */
+const UPLOAD_TIMEOUT_PER_MB_MS = 30_000; // 30 sec per MB
+/** Single retry attempt for transient upload failures. */
+const UPLOAD_RETRY_ATTEMPTS = 2;
 
 function withTimeout(ms: number): { signal: AbortSignal; cancel: () => void } {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), ms);
   return { signal: controller.signal, cancel: () => clearTimeout(timer) };
+}
+
+function uploadTimeoutFor(body: UploadBody): number {
+  const bytes =
+    body instanceof Blob
+      ? body.size
+      : body instanceof ArrayBuffer
+        ? body.byteLength
+        : body instanceof Uint8Array
+          ? body.byteLength
+          : (body as Buffer).length ?? 0;
+  const mb = bytes / (1024 * 1024);
+  const sized = Math.ceil(mb * UPLOAD_TIMEOUT_PER_MB_MS);
+  return Math.max(REQUEST_TIMEOUT_MS, sized);
+}
+
+function isRetriableUploadError(err: unknown): boolean {
+  if (err instanceof Error) {
+    const msg = err.message.toLowerCase();
+    // Network blips, aborts (timeout), 5xx server errors. NOT 4xx — those
+    // mean a real config issue (bad key, bad request) that won't change
+    // on retry.
+    if (/network|fetch failed|connection reset|econn|abort|timeout/i.test(msg)) return true;
+    if (/^assemblyai upload: 5\d\d/.test(err.message)) return true;
+  }
+  return false;
 }
 
 export interface TranscribeOptions extends TranscribeInput {
@@ -66,24 +102,39 @@ async function uploadAudioBody(
   apiKey: string,
   body: UploadBody,
 ): Promise<string> {
-  const t = withTimeout(REQUEST_TIMEOUT_MS);
-  let res: Response;
-  try {
-    res = await http(`${BASE}/upload`, {
-      method: 'POST',
-      headers: {
-        Authorization: apiKey,
-        'Content-Type': 'application/octet-stream',
-      },
-      body: body as BodyInit,
-      signal: t.signal,
-    });
-  } finally {
-    t.cancel();
+  const timeoutMs = uploadTimeoutFor(body);
+  let lastErr: unknown;
+  for (let attempt = 1; attempt <= UPLOAD_RETRY_ATTEMPTS; attempt += 1) {
+    const t = withTimeout(timeoutMs);
+    try {
+      const res = await http(`${BASE}/upload`, {
+        method: 'POST',
+        headers: {
+          Authorization: apiKey,
+          'Content-Type': 'application/octet-stream',
+        },
+        body: body as BodyInit,
+        signal: t.signal,
+      });
+      t.cancel();
+      await expectOk(res, 'upload');
+      const json = (await res.json()) as { upload_url: string };
+      return json.upload_url;
+    } catch (err) {
+      t.cancel();
+      lastErr = err;
+      if (attempt < UPLOAD_RETRY_ATTEMPTS && isRetriableUploadError(err)) {
+        // Exponential-ish backoff: 1.5s on first retry. Single retry is
+        // usually enough — sustained outages aren't going to clear in 1.5s
+        // anyway. Surface the error to the user after the retry.
+        await new Promise((r) => setTimeout(r, 1500));
+        continue;
+      }
+      throw err;
+    }
   }
-  await expectOk(res, 'upload');
-  const json = (await res.json()) as { upload_url: string };
-  return json.upload_url;
+  // Unreachable, but TS wants it.
+  throw lastErr instanceof Error ? lastErr : new Error('upload failed');
 }
 
 async function uploadAudioFromPath(
