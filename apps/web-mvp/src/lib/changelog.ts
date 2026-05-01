@@ -13,6 +13,17 @@ export interface ChangelogEntry {
 export const CHANGELOG: ReadonlyArray<ChangelogEntry> = [
   {
     date: '2026-04-30',
+    title: 'Friction-free note export',
+    items: [
+      'Per-section copy chips: tap "HPI" or "Plan" or "Assessment" to copy just that section into the matching EHR field, instead of copying the whole note and highlighting by hand.',
+      'Copy now preserves bold formatting (abnormal exam findings, sensitive flags) when the destination supports rich text — Elation, Word, most rich-text-aware fields. Plain-text fallback for everything else.',
+      '"Email this note" button — pre-filled subject and body, your mail app opens, send to yourself to bridge devices without a backend.',
+      'New "Move this note to another device" tip with the specific recipes for Apple-to-Apple Universal Clipboard, AirDrop, email, and iCloud Drive.',
+      'Fixed dictation transcripts being silently dropped — AssemblyAI returns dictation in `text` (not `utterances`) and we were only mapping the latter.',
+    ],
+  },
+  {
+    date: '2026-04-30',
     title: 'Privacy & security panel + audit log',
     items: [
       'New "Privacy & security" section in Settings: what stays on this device, what leaves and to where, your responsibilities, and a runbook for if you lose this device.',

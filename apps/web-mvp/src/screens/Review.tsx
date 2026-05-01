@@ -24,6 +24,12 @@ import {
 import { redactKeysInText } from '../lib/redact';
 import { Markdown, remarkGfm } from '../lib/markdown';
 import { SpeakerChips } from '../components/SpeakerChips';
+import {
+  copyNoteRich,
+  mailtoForNote,
+  markdownToPlainText as exportMarkdownToPlainText,
+  splitNoteIntoSections,
+} from '../lib/note-export';
 
 const STAGE_LABEL: Record<PipelineStage, string> = {
   uploading: 'Uploading audio…',
@@ -115,6 +121,7 @@ export function Review() {
   const [editedLabel, setEditedLabel] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [copiedSection, setCopiedSection] = useState<string | null>(null);
   const [regenerating, setRegenerating] = useState(false);
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>('soap');
   const [speakerRoles, setSpeakerRoles] = useState<SpeakerRoleAssignment[]>([]);
@@ -196,6 +203,8 @@ export function Review() {
     if (transcript) return renderTranscriptText(transcript, speakerRoles);
     return meta?.transcriptText ?? '';
   }, [transcript, speakerRoles, meta?.transcriptText]);
+
+  const noteSections = useMemo(() => splitNoteIntoSections(editedNote), [editedNote]);
 
   async function runPipelineForRecording(m: RecordingMeta): Promise<void> {
     setError(null);
@@ -310,10 +319,44 @@ export function Review() {
   }
 
   async function handleCopy(): Promise<void> {
-    await navigator.clipboard.writeText(editedNote);
+    // Prefer rich-text copy so bolded abnormal exam findings survive paste
+    // into Elation / Word / any rich-text-aware destination. Falls back to
+    // plain text on browsers that don't support ClipboardItem.
+    const ok = await copyNoteRich(editedNote);
+    if (!ok) {
+      try {
+        await navigator.clipboard.writeText(editedNote);
+      } catch {
+        return; // permission denied; show nothing rather than crash
+      }
+    }
     setCopied(true);
     setTimeout(() => setCopied(false), 1500);
     if (meta) void logAudit('note_copied', { recordingId: meta.id });
+  }
+
+  async function handleCopySection(section: { label: string; body: string }): Promise<void> {
+    // Per-section copy uses the same rich/plain dual-format trick so the
+    // section pastes into the corresponding EHR field with bold preserved.
+    const md = `**${section.label}**\n\n${section.body}`;
+    const ok = await copyNoteRich(md);
+    if (!ok) {
+      try {
+        await navigator.clipboard.writeText(`${section.label}\n\n${section.body}`);
+      } catch {
+        return;
+      }
+    }
+    setCopiedSection(section.label);
+    setTimeout(() => setCopiedSection(null), 1500);
+    if (meta) void logAudit('note_copied', { recordingId: meta.id });
+  }
+
+  function handleEmail(): void {
+    if (!meta || !editedNote) return;
+    const subject = (editedLabel || meta.label || 'brtlb visit note').trim();
+    window.location.href = mailtoForNote(editedNote, subject);
+    void logAudit('note_shared', { recordingId: meta.id });
   }
 
   async function handleShare(): Promise<void> {
@@ -335,28 +378,9 @@ export function Review() {
     await handleCopy();
   }
 
-  function markdownToPlainText(md: string): string {
-    return md
-      // Strip fenced code blocks but keep their content.
-      .replace(/```[a-zA-Z0-9]*\n?/g, '')
-      // Drop heading hashes; keep the heading text.
-      .replace(/^#{1,6}\s+/gm, '')
-      // Bold / italic / inline code wrappers.
-      .replace(/(\*\*|__)(.*?)\1/g, '$2')
-      .replace(/(\*|_)(.*?)\1/g, '$2')
-      .replace(/`([^`]+)`/g, '$1')
-      // Bullet list markers → "- " stays readable; ordered list stays.
-      .replace(/^\s*[-*+]\s+/gm, '- ')
-      // Markdown links [text](url) → text
-      .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '$1')
-      // Collapse triple+ blank lines.
-      .replace(/\n{3,}/g, '\n\n')
-      .trim();
-  }
-
   function handleDownload(): void {
     if (!meta) return;
-    const plain = markdownToPlainText(editedNote);
+    const plain = exportMarkdownToPlainText(editedNote);
     const blob = new Blob([plain], { type: 'text/plain;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -857,6 +881,37 @@ export function Review() {
             </div>
           ) : null}
 
+          {noteSections.length >= 2 ? (
+            <div className="mt-4 rounded-md border border-graphite-soft/20 bg-mist/50 p-3">
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-xs font-medium uppercase tracking-wide text-graphite-soft">
+                  Copy by section
+                </p>
+                <span className="text-[11px] text-graphite-soft">
+                  Drops bold formatting straight into your EHR's matching field
+                </span>
+              </div>
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {noteSections.map((s) => (
+                  <button
+                    key={s.label}
+                    type="button"
+                    onClick={() => handleCopySection(s)}
+                    disabled={!editedNote}
+                    className={
+                      'rounded-full border px-3 py-1 text-xs font-medium transition disabled:opacity-50 ' +
+                      (copiedSection === s.label
+                        ? 'border-emerald-300 bg-emerald-50 text-emerald-800'
+                        : 'border-graphite-soft/30 bg-white text-graphite hover:bg-mist')
+                    }
+                  >
+                    {copiedSection === s.label ? `✓ ${s.label}` : s.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : null}
+
           <div className="mt-4 flex flex-wrap gap-2">
             <Button onClick={handleShare} disabled={!editedNote}>
               Share
@@ -866,8 +921,18 @@ export function Review() {
               onClick={handleCopy}
               disabled={!editedNote}
               className="rounded-md border border-graphite-soft/30 bg-white px-4 py-2 text-sm font-medium text-graphite hover:bg-mist disabled:opacity-50"
+              title="Copies with bold formatting preserved when the destination supports it"
             >
-              {copied ? 'Copied' : 'Copy text'}
+              {copied ? 'Copied' : 'Copy'}
+            </button>
+            <button
+              type="button"
+              onClick={handleEmail}
+              disabled={!editedNote}
+              className="rounded-md border border-graphite-soft/30 bg-white px-4 py-2 text-sm font-medium text-graphite hover:bg-mist disabled:opacity-50"
+              title="Opens your mail app with the note pre-filled — handy for moving the note to another device"
+            >
+              Email
             </button>
             <button
               type="button"
@@ -878,6 +943,33 @@ export function Review() {
               Download
             </button>
           </div>
+
+          <details className="mt-3 rounded-md border border-graphite-soft/20 p-2.5 text-xs">
+            <summary className="cursor-pointer text-graphite-soft hover:text-graphite">
+              Move this note to another device
+            </summary>
+            <ul className="mt-2 space-y-1.5 pl-1 leading-relaxed text-graphite-soft">
+              <li>
+                <span className="font-medium text-graphite">Apple to Apple:</span> tap{' '}
+                <em>Copy</em> here, then paste on your Mac/iPad. Universal Clipboard syncs through
+                iCloud (same Apple ID, both devices logged in, Bluetooth + Wi-Fi on).
+              </li>
+              <li>
+                <span className="font-medium text-graphite">AirDrop:</span> tap <em>Share</em> →
+                pick your laptop in the recipient list. Note arrives as a text file on macOS.
+              </li>
+              <li>
+                <span className="font-medium text-graphite">Email yourself:</span> tap{' '}
+                <em>Email</em> — your mail app opens with the note pre-filled. Send to any
+                address you check on the destination device.
+              </li>
+              <li>
+                <span className="font-medium text-graphite">iOS Save to Files:</span> tap{' '}
+                <em>Download</em>, then in the Files prompt save to <em>iCloud Drive</em>. The
+                file appears in Finder on your Mac within seconds.
+              </li>
+            </ul>
+          </details>
 
           {/* QA review — Roci-style note-vs-transcript safety check */}
           {transcript && editedNote ? (
