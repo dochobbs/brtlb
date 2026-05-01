@@ -1,0 +1,504 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>brtlb — multi-patient demo (current state)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            colors: {
+              graphite: '#1F2328',
+              'graphite-soft': '#3D444D',
+              seafoam: '#A8E6CF',
+              'seafoam-pale': '#E8FAF3',
+              mist: '#F6F8FA',
+            },
+            fontFamily: {
+              sans: ['Inter', 'system-ui', 'sans-serif'],
+            },
+          },
+        },
+      };
+    </script>
+    <style>
+      body {
+        font-family: 'Inter', system-ui, sans-serif;
+        background: #f6f8fa;
+        color: #1f2328;
+      }
+      /* Markdown preview-ish styling for the note */
+      .prose h2 {
+        font-size: 1.15rem;
+        font-weight: 600;
+        margin-top: 1.4em;
+        margin-bottom: 0.5em;
+        line-height: 1.25;
+      }
+      .prose h2:first-child {
+        margin-top: 0;
+      }
+      .prose h3 {
+        font-size: 0.95rem;
+        font-weight: 600;
+        margin-top: 1em;
+        margin-bottom: 0.3em;
+      }
+      .prose p {
+        margin: 0.5em 0;
+        line-height: 1.55;
+      }
+      .prose ul {
+        padding-left: 1.4em;
+        margin: 0.4em 0;
+      }
+      .prose li {
+        margin: 0.15em 0;
+      }
+      .prose hr {
+        border: 0;
+        border-top: 1px solid rgba(31, 35, 40, 0.12);
+        margin: 1.5em 0;
+      }
+      .prose strong {
+        font-weight: 600;
+      }
+      .annotation-arrow::before {
+        content: '←';
+        margin-right: 0.4rem;
+        opacity: 0.6;
+      }
+    </style>
+  </head>
+  <body class="min-h-screen">
+    <main class="mx-auto max-w-5xl px-4 py-8 sm:px-6 sm:py-10">
+      <!-- Demo banner -->
+      <div class="mb-6 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+        <p class="font-semibold">Static demo of brtlb's Review screen for a 3-patient visit.</p>
+        <p class="mt-1 text-xs">
+          This is what the actual UI looks like today. Buttons are non-functional —
+          the demo's purpose is to show the multi-patient interface as it stands and where
+          the per-section paste experience breaks down with multiple kids.
+        </p>
+      </div>
+
+      <!-- Header (mimics Review header) -->
+      <header class="mb-6 flex items-center justify-between">
+        <button class="text-sm text-graphite-soft hover:text-graphite">← All recordings</button>
+        <button class="rounded-md border border-red-200 bg-white px-3 py-1.5 text-xs font-medium text-red-700">
+          Delete
+        </button>
+      </header>
+
+      <!-- Visit label -->
+      <div class="mb-6">
+        <input
+          type="text"
+          value="Hobbs siblings — Tommy ear pain + WCVs"
+          class="w-full rounded-md border border-graphite-soft/30 bg-white px-3 py-2 text-base font-medium text-graphite focus:border-graphite focus:outline-none"
+        />
+        <p class="mt-1 text-xs text-graphite-soft">
+          Auto-suggested label · brtlb · Today, 10:42 am · 14 min · ambient
+        </p>
+      </div>
+
+      <!-- Multi-patient detection banner -->
+      <div
+        class="mb-6 rounded-md border border-seafoam/40 bg-seafoam-pale/40 p-3 text-sm text-graphite sm:p-4"
+      >
+        <p class="font-medium">3 patients detected in this recording:</p>
+        <ul class="mt-1 ml-4 list-disc space-y-0.5 text-xs text-graphite-soft">
+          <li>
+            <span class="font-medium text-graphite">Tommy</span>
+            <span> · Sick Visit — ear pain, fever</span>
+          </li>
+          <li>
+            <span class="font-medium text-graphite">Lily</span>
+            <span> · Well Child</span>
+          </li>
+          <li>
+            <span class="font-medium text-graphite">Max</span>
+            <span> · Well Child</span>
+          </li>
+        </ul>
+        <p class="mt-2 text-xs text-graphite-soft">
+          One section per patient appears in the note below, separated by a horizontal rule.
+          Copy the section you need into the matching chart.
+        </p>
+      </div>
+
+      <div class="grid gap-4 sm:gap-6 lg:grid-cols-2">
+        <!-- Transcript panel (collapsed) -->
+        <section class="rounded-xl bg-white p-4 shadow-sm sm:p-6">
+          <h2 class="mb-3 text-sm font-medium uppercase tracking-wide text-graphite-soft">
+            Transcript
+          </h2>
+          <div class="mb-3 flex flex-wrap gap-1.5">
+            <button class="rounded-full border border-graphite-soft/30 bg-mist px-3 py-1 text-xs">
+              Speaker A → <span class="font-medium">Provider</span>
+            </button>
+            <button class="rounded-full border border-graphite-soft/30 bg-mist px-3 py-1 text-xs">
+              Speaker B → <span class="font-medium">Parent</span>
+            </button>
+            <button class="rounded-full border border-graphite-soft/30 bg-mist px-3 py-1 text-xs">
+              Speaker C → <span class="font-medium">Patient</span>
+            </button>
+          </div>
+          <p class="text-sm font-medium text-graphite-soft">▸ Show transcript</p>
+        </section>
+
+        <!-- Note panel -->
+        <section class="rounded-xl bg-white p-4 shadow-sm sm:p-6">
+          <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <h2 class="text-sm font-medium uppercase tracking-wide text-graphite-soft">Note</h2>
+            <span class="text-xs text-graphite-soft">via gemini-api-key</span>
+          </div>
+
+          <div class="mb-3 flex flex-wrap items-center gap-2">
+            <label class="text-xs text-graphite-soft">Template</label>
+            <select
+              class="rounded-md border border-graphite-soft/30 bg-white px-2 py-1 text-xs text-graphite"
+            >
+              <option>SOAP</option>
+            </select>
+            <button
+              class="rounded-md border border-graphite-soft/30 bg-white px-2 py-1 text-xs"
+            >
+              Regenerate
+            </button>
+            <div class="ml-auto inline-flex rounded-md border border-graphite-soft/30 p-0.5 text-xs">
+              <button class="rounded bg-graphite px-3 py-0.5 text-white">Edit</button>
+              <button class="rounded px-3 py-0.5 text-graphite-soft">Formatted</button>
+            </div>
+          </div>
+
+          <!-- The actual note as a single concatenated markdown string -->
+          <article class="prose rounded-md border border-graphite-soft/20 bg-mist/30 p-4 text-sm text-graphite">
+            <h2>Tommy · Sick Visit — ear pain</h2>
+
+            <h3>Chief Complaint</h3>
+            <p>4-year-old male presenting with right ear pain and fever.</p>
+
+            <h3>HPI</h3>
+            <p>
+              Tommy is a previously healthy 4-year-old who developed right ear pain yesterday
+              evening, accompanied by Tmax 102.3°F at home. Mom reports decreased appetite and poor
+              sleep last night due to discomfort. No vomiting, no diarrhea, no rash. URI symptoms
+              for 4 days prior. No prior ear infections.
+            </p>
+
+            <h3>ROS</h3>
+            <p>
+              Positive for fever, ear pain, congestion, decreased appetite. Denies cough, vomiting,
+              diarrhea, rash, dysuria.
+            </p>
+
+            <h3>Exam</h3>
+            <p>
+              Vitals: T 101.2°F (clinic), HR 110, RR 22, O2 99%.<br />
+              General: Tired-appearing but consolable.<br />
+              HEENT: <strong>Right TM erythematous, bulging, with loss of landmarks.</strong> Left
+              TM clear. Oropharynx mildly erythematous, no exudate.<br />
+              Lungs: Clear to auscultation bilaterally.<br />
+              Cardiac: RRR, no murmur.
+            </p>
+
+            <h3>Assessment</h3>
+            <ol>
+              <li>Acute otitis media, right.</li>
+            </ol>
+
+            <h3>Plan</h3>
+            <ul>
+              <li>Amoxicillin — flag mg/kg dosing for clinician verification.</li>
+              <li>Tylenol/Motrin alternating for pain and fever as needed.</li>
+              <li>Return precautions: persistent fever &gt;48h on antibiotics, ear drainage,
+                worsening pain, lethargy.</li>
+              <li>Follow-up in 2 weeks if symptoms persist.</li>
+            </ul>
+
+            <hr />
+
+            <h2>Lily · Well Child</h2>
+
+            <h3>Subjective / Interval History</h3>
+            <p>
+              2-year-old female here for routine well-child check. No acute concerns from mom.
+              Eating well, sleeping through the night. Speaking in 2-3 word sentences. Toilet
+              training in progress. Active in daycare.
+            </p>
+
+            <h3>Developmental Surveillance</h3>
+            <p>
+              Milestones reviewed and on track for age across gross motor, fine motor, language,
+              and social domains. M-CHAT not administered today.
+            </p>
+
+            <h3>Exam</h3>
+            <p>
+              Vitals: Wt 12.5 kg (50th %ile), Ht 86 cm (50th %ile), HC not measured (over 2).<br />
+              General: Active, cheerful, well-appearing.<br />
+              HEENT: TMs clear bilaterally. Oropharynx clear.<br />
+              Lungs: Clear.<br />
+              Skin: No rashes.
+            </p>
+
+            <h3>Assessment</h3>
+            <ol>
+              <li>Well 2-year-old, growth and development appropriate.</li>
+            </ol>
+
+            <h3>Plan</h3>
+            <ul>
+              <li>Routine vaccines today: <strong>Hep A #1.</strong></li>
+              <li>Anticipatory guidance: car seat, sun safety, screen time, dental hygiene,
+                temper tantrums.</li>
+              <li>Next visit: 30 months for surveillance, 3-year for next WCV.</li>
+            </ul>
+
+            <hr />
+
+            <h2>Max · Well Child</h2>
+
+            <h3>Subjective / Interval History</h3>
+            <p>
+              6-month-old male here for well-child check. Breastfeeding well. Sleeping 8-hour
+              stretches at night with one feed. Tummy time tolerated well. Babbling, smiling
+              socially. No acute concerns.
+            </p>
+
+            <h3>Developmental Surveillance</h3>
+            <p>
+              Sits with support, rolls both ways. Reaches for objects, transfers between hands.
+              Babbles consonants. Recognizes parents. On track.
+            </p>
+
+            <h3>Exam</h3>
+            <p>
+              Vitals: Wt 7.6 kg (45th %ile), Length 67 cm (50th %ile), HC 43 cm (40th %ile).<br />
+              General: Active, alert, well-appearing.<br />
+              HEENT: AF soft and flat. TMs clear. Oropharynx normal.<br />
+              Lungs: Clear.<br />
+              Cardiac: RRR, no murmur.<br />
+              Hips: Stable.
+            </p>
+
+            <h3>Assessment</h3>
+            <ol>
+              <li>Well 6-month-old, growth and development appropriate.</li>
+            </ol>
+
+            <h3>Plan</h3>
+            <ul>
+              <li>Routine 6-month vaccines today: <strong>DTaP #3, Hib #3, IPV #3, PCV #3,
+                  Rotavirus #3.</strong></li>
+              <li>Anticipatory guidance: introducing solids, choking hazards, baby-proofing,
+                dental hygiene starting with first tooth.</li>
+              <li>Next visit: 9 months.</li>
+            </ul>
+          </article>
+
+          <!-- Section paste panel (current state) -->
+          <div class="mt-4 rounded-md border border-dashed border-graphite-soft/30 bg-mist/30 px-3 py-2 text-xs text-graphite-soft">
+            <span class="font-medium text-graphite">Tip:</span> open brtlb and your EHR
+            <span class="font-medium">side-by-side</span>. Easiest path on Chrome desktop:
+            right-click brtlb's tab → <span class="font-medium">Split tab with…</span> → pick
+            your EHR tab.
+          </div>
+
+          <div class="mt-3 rounded-md border border-graphite-soft/20 bg-mist/50 p-3">
+            <div class="flex flex-wrap items-center justify-between gap-2">
+              <p class="text-xs font-medium uppercase tracking-wide text-graphite-soft">
+                Section paste
+              </p>
+              <div class="inline-flex rounded-full border border-graphite-soft/25 bg-white p-0.5 text-[11px]">
+                <button class="rounded-full px-2.5 py-0.5 font-medium text-graphite-soft">Pick</button>
+                <button class="rounded-full px-2.5 py-0.5 font-medium text-graphite-soft">Walk through</button>
+                <button class="rounded-full bg-graphite px-2.5 py-0.5 font-medium text-white">All-in-one</button>
+              </div>
+            </div>
+            <div class="mt-2">
+              <button
+                class="rounded-md bg-graphite px-4 py-2 text-sm font-medium text-white hover:bg-graphite-soft"
+              >
+                Copy whole note
+              </button>
+              <p class="mt-2 text-[11px] text-graphite-soft">
+                Bold section headings keep the structure visible when pasted into a single field.
+              </p>
+            </div>
+          </div>
+
+          <!-- Then below: showing what "Pick" mode actually looks like with 3 patients -->
+          <div class="mt-6 rounded-md border-2 border-red-300 bg-red-50/40 p-3 text-xs text-graphite">
+            <p class="font-semibold text-red-800">↓ THIS IS THE FRICTION ↓</p>
+            <p class="mt-1 text-red-700">
+              If you switch to <em>Pick</em> mode, here's what the chips look like today.
+              The parser sees every <code class="rounded bg-white px-1">## H2</code> /
+              <code class="rounded bg-white px-1">### H3</code> and emits a chip — patient headers
+              and per-section headings mixed together. Tapping "HPI" copies whichever HPI follows
+              the first one (Tommy's), and the patient context gets visually flattened.
+            </p>
+          </div>
+
+          <div class="mt-3 rounded-md border border-graphite-soft/20 bg-mist/50 p-3">
+            <p class="text-xs font-medium uppercase tracking-wide text-graphite-soft">
+              Section paste — Pick mode (current behavior)
+            </p>
+            <div class="mt-2 flex flex-wrap gap-1.5">
+              <!-- Tommy's chips -->
+              <button class="rounded-full border border-graphite-soft/30 bg-white px-3 py-1 text-xs font-medium text-graphite">
+                Tommy · Sick Visit — ear pain
+              </button>
+              <button class="rounded-full border border-graphite-soft/30 bg-white px-3 py-1 text-xs font-medium text-graphite">
+                Chief Complaint
+              </button>
+              <button class="rounded-full border border-graphite-soft/30 bg-white px-3 py-1 text-xs font-medium text-graphite">
+                HPI
+              </button>
+              <button class="rounded-full border border-graphite-soft/30 bg-white px-3 py-1 text-xs font-medium text-graphite">
+                ROS
+              </button>
+              <button class="rounded-full border border-graphite-soft/30 bg-white px-3 py-1 text-xs font-medium text-graphite">
+                Exam
+              </button>
+              <button class="rounded-full border border-graphite-soft/30 bg-white px-3 py-1 text-xs font-medium text-graphite">
+                Assessment
+              </button>
+              <button class="rounded-full border border-graphite-soft/30 bg-white px-3 py-1 text-xs font-medium text-graphite">
+                Plan
+              </button>
+              <!-- Lily's chips -->
+              <button class="rounded-full border border-graphite-soft/30 bg-white px-3 py-1 text-xs font-medium text-graphite">
+                Lily · Well Child
+              </button>
+              <button class="rounded-full border border-graphite-soft/30 bg-white px-3 py-1 text-xs font-medium text-graphite">
+                Subjective / Interval History
+              </button>
+              <button class="rounded-full border border-graphite-soft/30 bg-white px-3 py-1 text-xs font-medium text-graphite">
+                Developmental Surveillance
+              </button>
+              <button class="rounded-full border border-graphite-soft/30 bg-white px-3 py-1 text-xs font-medium text-graphite">
+                Exam
+              </button>
+              <button class="rounded-full border border-graphite-soft/30 bg-white px-3 py-1 text-xs font-medium text-graphite">
+                Assessment
+              </button>
+              <button class="rounded-full border border-graphite-soft/30 bg-white px-3 py-1 text-xs font-medium text-graphite">
+                Plan
+              </button>
+              <!-- Max's chips -->
+              <button class="rounded-full border border-graphite-soft/30 bg-white px-3 py-1 text-xs font-medium text-graphite">
+                Max · Well Child
+              </button>
+              <button class="rounded-full border border-graphite-soft/30 bg-white px-3 py-1 text-xs font-medium text-graphite">
+                Subjective / Interval History
+              </button>
+              <button class="rounded-full border border-graphite-soft/30 bg-white px-3 py-1 text-xs font-medium text-graphite">
+                Developmental Surveillance
+              </button>
+              <button class="rounded-full border border-graphite-soft/30 bg-white px-3 py-1 text-xs font-medium text-graphite">
+                Exam
+              </button>
+              <button class="rounded-full border border-graphite-soft/30 bg-white px-3 py-1 text-xs font-medium text-graphite">
+                Assessment
+              </button>
+              <button class="rounded-full border border-graphite-soft/30 bg-white px-3 py-1 text-xs font-medium text-graphite">
+                Plan
+              </button>
+            </div>
+            <p class="mt-2 text-[11px] text-red-700">
+              19 chips. "HPI", "Exam", "Assessment", "Plan" each appear multiple times. No visual
+              cue for which patient each section belongs to once it's a chip.
+            </p>
+          </div>
+
+          <!-- The proposed Option 1 fix preview -->
+          <div class="mt-6 rounded-md border-2 border-emerald-300 bg-emerald-50/40 p-3 text-xs text-graphite">
+            <p class="font-semibold text-emerald-800">↓ PROPOSED FIX (Option 1 from the design discussion) ↓</p>
+            <p class="mt-1 text-emerald-700">
+              Same chip primitive, just grouped by patient. Section parser becomes patient-aware:
+              detects H2 patient headers, treats subsequent sections as belonging to that patient
+              until the next H2.
+            </p>
+          </div>
+
+          <div class="mt-3 space-y-3 rounded-md border border-graphite-soft/20 bg-mist/50 p-3">
+            <p class="text-xs font-medium uppercase tracking-wide text-graphite-soft">
+              Section paste — Pick mode (proposed)
+            </p>
+
+            <div>
+              <p class="mb-1 text-xs font-semibold text-graphite">Tommy · Sick Visit — ear pain</p>
+              <div class="flex flex-wrap gap-1.5">
+                <button class="rounded-full border border-graphite-soft/30 bg-white px-3 py-1 text-xs font-medium text-graphite">CC</button>
+                <button class="rounded-full border border-graphite-soft/30 bg-white px-3 py-1 text-xs font-medium text-graphite">HPI</button>
+                <button class="rounded-full border border-graphite-soft/30 bg-white px-3 py-1 text-xs font-medium text-graphite">ROS</button>
+                <button class="rounded-full border border-graphite-soft/30 bg-white px-3 py-1 text-xs font-medium text-graphite">Exam</button>
+                <button class="rounded-full border border-graphite-soft/30 bg-white px-3 py-1 text-xs font-medium text-graphite">A</button>
+                <button class="rounded-full border border-graphite-soft/30 bg-white px-3 py-1 text-xs font-medium text-graphite">Plan</button>
+                <button class="rounded-full border border-graphite-soft/30 bg-graphite px-3 py-1 text-xs font-medium text-white">Copy whole note for Tommy</button>
+              </div>
+            </div>
+
+            <div>
+              <p class="mb-1 text-xs font-semibold text-graphite">Lily · Well Child</p>
+              <div class="flex flex-wrap gap-1.5">
+                <button class="rounded-full border border-graphite-soft/30 bg-white px-3 py-1 text-xs font-medium text-graphite">Subj/Interval Hx</button>
+                <button class="rounded-full border border-graphite-soft/30 bg-white px-3 py-1 text-xs font-medium text-graphite">Dev. Surveillance</button>
+                <button class="rounded-full border border-graphite-soft/30 bg-white px-3 py-1 text-xs font-medium text-graphite">Exam</button>
+                <button class="rounded-full border border-graphite-soft/30 bg-white px-3 py-1 text-xs font-medium text-graphite">A</button>
+                <button class="rounded-full border border-graphite-soft/30 bg-white px-3 py-1 text-xs font-medium text-graphite">Plan</button>
+                <button class="rounded-full border border-graphite-soft/30 bg-graphite px-3 py-1 text-xs font-medium text-white">Copy whole note for Lily</button>
+              </div>
+            </div>
+
+            <div>
+              <p class="mb-1 text-xs font-semibold text-graphite">Max · Well Child</p>
+              <div class="flex flex-wrap gap-1.5">
+                <button class="rounded-full border border-graphite-soft/30 bg-white px-3 py-1 text-xs font-medium text-graphite">Subj/Interval Hx</button>
+                <button class="rounded-full border border-graphite-soft/30 bg-white px-3 py-1 text-xs font-medium text-graphite">Dev. Surveillance</button>
+                <button class="rounded-full border border-graphite-soft/30 bg-white px-3 py-1 text-xs font-medium text-graphite">Exam</button>
+                <button class="rounded-full border border-graphite-soft/30 bg-white px-3 py-1 text-xs font-medium text-graphite">A</button>
+                <button class="rounded-full border border-graphite-soft/30 bg-white px-3 py-1 text-xs font-medium text-graphite">Plan</button>
+                <button class="rounded-full border border-graphite-soft/30 bg-graphite px-3 py-1 text-xs font-medium text-white">Copy whole note for Max</button>
+              </div>
+            </div>
+
+            <p class="mt-1 text-[11px] text-graphite-soft">
+              Patient identity preserved. Section labels are scoped — no duplicate "HPI" chips
+              fighting for first-match behavior. "Copy whole note for X" gives you per-patient
+              dump if you'd rather paste each kid's note as one block into separate Elation
+              encounters. <span class="font-medium">Walk through</span> mode would step through
+              patient-by-patient, naming the kid at each step ("Copy Tommy's HPI →").
+            </p>
+          </div>
+
+          <!-- Standard share / copy / email / download row -->
+          <div class="mt-4 flex flex-wrap gap-2">
+            <button class="rounded-md bg-graphite px-4 py-2 text-sm font-medium text-white">
+              Share
+            </button>
+            <button class="rounded-md border border-graphite-soft/30 bg-white px-4 py-2 text-sm font-medium text-graphite">
+              Copy
+            </button>
+            <button class="rounded-md border border-graphite-soft/30 bg-white px-4 py-2 text-sm font-medium text-graphite">
+              Email…
+            </button>
+            <button class="rounded-md border border-graphite-soft/30 bg-white px-4 py-2 text-sm font-medium text-graphite">
+              Download
+            </button>
+          </div>
+        </section>
+      </div>
+    </main>
+  </body>
+</html>
