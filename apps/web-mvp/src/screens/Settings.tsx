@@ -593,6 +593,15 @@ function PrivacySecuritySection() {
         <p className="mt-2 pl-1 text-xs text-graphite-soft">
           Wipe all of it via the Danger zone below. Audio also auto-purges on the schedule above.
         </p>
+        <div className="mt-3 rounded border border-graphite-soft/20 bg-mist/40 p-2 pl-3 text-xs leading-relaxed text-graphite-soft">
+          <p className="font-medium text-graphite">No cross-device sync.</p>
+          <p className="mt-1">
+            brtlb has no backend, so each device + browser is its own island. A recording made on
+            your iPhone PWA won't appear on your laptop, on Android, or even in Safari on the same
+            iPhone (the "Add to Home Screen" PWA and the Safari tab are separate containers).
+            Use Copy or Download to move a note between devices manually.
+          </p>
+        </div>
       </details>
 
       <details className="mt-3 rounded-md border border-graphite-soft/20 p-3">
