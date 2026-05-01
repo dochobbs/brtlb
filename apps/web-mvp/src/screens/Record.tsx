@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Button, DotsMark } from '@brtlb/ui';
 import { useAppStore } from '../store';
 import { useRecorderStore } from '../lib/recorder-store';
@@ -30,42 +30,78 @@ export function Record() {
   const addBookmark = useRecorderStore((s) => s.addBookmark);
 
   const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+
+  // Wraps a promise with a timeout so a stalled IDB write or recorder.onstop
+  // can't strand the UI on "Saving recording…" forever. Times out after 15s.
+  function withTimeout<T>(p: Promise<T>, label: string, ms = 15_000): Promise<T> {
+    return new Promise<T>((resolve, reject) => {
+      const t = setTimeout(() => reject(new Error(`Timed out after ${ms / 1000}s: ${label}`)), ms);
+      p.then(
+        (v) => {
+          clearTimeout(t);
+          resolve(v);
+        },
+        (e) => {
+          clearTimeout(t);
+          reject(e);
+        },
+      );
+    });
+  }
 
   async function handleStop(): Promise<void> {
     setSaving(true);
-    const blob = await stop();
-    if (!blob) {
+    setSaveError(null);
+    try {
+      const blob = await withTimeout(stop(), 'recorder.stop');
+      if (!blob) {
+        setSaving(false);
+        return;
+      }
+      const id =
+        activeRecordingId ??
+        (typeof crypto !== 'undefined' && 'randomUUID' in crypto
+          ? crypto.randomUUID()
+          : `r_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`);
+      const meta: RecordingMeta = {
+        id,
+        createdAt: new Date().toISOString(),
+        durationMs: elapsedMs,
+        mode,
+        stage: 'recorded',
+        errorMessage: null,
+        transcriptText: null,
+        noteMarkdown: null,
+        templateId: mode === 'dictation' ? 'dictation' : 'soap',
+        patternId: 'narrative',
+        providerUsed: null,
+        label: null,
+        bookmarks: bookmarks.length > 0 ? [...bookmarks] : undefined,
+      };
+      await withTimeout(putAudio(id, blob), 'putAudio');
+      await withTimeout(putRecording(meta), 'putRecording');
+      selectRecording(id);
+      reset();
+      setView('review');
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'unknown error during save';
+      console.warn('brtlb: save failed', err);
+      setSaveError(msg);
       setSaving(false);
-      return;
     }
-    // Use the id the recorder-store generated at start time so persisted
-    // audio chunks are tied to the same id we save the final blob under.
-    const id =
-      activeRecordingId ??
-      (typeof crypto !== 'undefined' && 'randomUUID' in crypto
-        ? crypto.randomUUID()
-        : `r_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`);
-    const meta: RecordingMeta = {
-      id,
-      createdAt: new Date().toISOString(),
-      durationMs: elapsedMs,
-      mode,
-      stage: 'recorded',
-      errorMessage: null,
-      transcriptText: null,
-      noteMarkdown: null,
-      // Dictation mode → dictation template by default; ambient → SOAP.
-      templateId: mode === 'dictation' ? 'dictation' : 'soap',
-      patternId: 'narrative',
-      providerUsed: null,
-      label: null,
-      bookmarks: bookmarks.length > 0 ? [...bookmarks] : undefined,
-    };
-    await putAudio(id, blob);
-    await putRecording(meta);
-    selectRecording(id);
+  }
+
+  async function handleForceDiscard(): Promise<void> {
+    // Last-resort recovery if IDB is wedged. Reset the recorder, drop the
+    // pending state, and bounce the user home. The audio chunks persisted
+    // mid-recording are still in IDB and will surface as "recovered" on
+    // next app load via recoverOrphanedRecordings — so they don't lose
+    // anything permanently.
+    setSaveError(null);
+    setSaving(false);
     reset();
-    setView('review');
+    setView('home');
   }
 
   function handleCancel(): void {
@@ -126,12 +162,32 @@ export function Record() {
         </div>
       ) : null}
 
-      {!error && saving ? (
-        <div className="w-full max-w-md text-center">
-          <p className="inline-flex items-center gap-2 text-sm text-graphite-soft">
-            <span aria-hidden className="inline-block h-2 w-2 animate-pulse rounded-full bg-seafoam" />
-            Saving recording…
+      {!error && saving ? <SavingState /> : null}
+
+      {!error && saveError ? (
+        <div className="w-full max-w-md space-y-3 rounded-md border border-red-300 bg-red-50 p-4 text-sm text-red-800">
+          <p className="font-medium">Couldn't save the recording</p>
+          <p className="font-mono text-xs break-all">{saveError}</p>
+          <p className="text-xs text-red-700/90">
+            The audio chunks captured during recording are still on this device — they'll surface
+            as a "recovered" recording on the home screen next time you load brtlb.
           </p>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={handleStop}
+              className="rounded-md border border-red-300 bg-white px-3 py-1.5 text-xs font-medium text-red-800 hover:bg-red-100"
+            >
+              Try again
+            </button>
+            <button
+              type="button"
+              onClick={handleForceDiscard}
+              className="rounded-md border border-red-300 bg-white px-3 py-1.5 text-xs font-medium text-red-800 hover:bg-red-100"
+            >
+              Cancel and go home
+            </button>
+          </div>
         </div>
       ) : null}
 
@@ -150,6 +206,31 @@ export function Record() {
         />
       ) : null}
     </main>
+  );
+}
+
+function SavingState() {
+  // After ~3 seconds, show a "taking longer than usual" hint. Saves should
+  // be sub-second normally; if we're past 3s it means IDB is congested
+  // (large audio blob, slow disk, or a wedged transaction). User gets
+  // visibility instead of staring at a static spinner.
+  const [slow, setSlow] = useState(false);
+  useEffect(() => {
+    const t = setTimeout(() => setSlow(true), 3000);
+    return () => clearTimeout(t);
+  }, []);
+  return (
+    <div className="w-full max-w-md text-center">
+      <p className="inline-flex items-center gap-2 text-sm text-graphite-soft">
+        <span aria-hidden className="inline-block h-2 w-2 animate-pulse rounded-full bg-seafoam" />
+        Saving recording…
+      </p>
+      {slow ? (
+        <p className="mt-2 text-xs text-graphite-soft">
+          Taking longer than usual. Don't close this tab — the audio is still being written.
+        </p>
+      ) : null}
+    </div>
   );
 }
 
