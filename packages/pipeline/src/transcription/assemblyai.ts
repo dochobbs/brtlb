@@ -140,6 +140,33 @@ async function requestTranscript(
   return json.id;
 }
 
+/**
+ * Best-effort DELETE on a completed transcript. AssemblyAI honors this by
+ * removing the transcript record (and the uploaded audio) from their side.
+ * Cuts vendor retention from days to seconds. Failures are swallowed —
+ * deletion is privacy-positive but never load-bearing for the pipeline.
+ */
+async function deleteTranscriptOnVendor(
+  http: typeof fetch,
+  apiKey: string,
+  id: string,
+): Promise<void> {
+  try {
+    const t = withTimeout(REQUEST_TIMEOUT_MS);
+    try {
+      await http(`${BASE}/transcript/${id}`, {
+        method: 'DELETE',
+        headers: { Authorization: apiKey },
+        signal: t.signal,
+      });
+    } finally {
+      t.cancel();
+    }
+  } catch {
+    // best-effort; log nothing in production to avoid noise
+  }
+}
+
 async function pollTranscript(
   http: typeof fetch,
   apiKey: string,
@@ -194,6 +221,7 @@ async function runTranscription(
     wordBoost?: string[];
     intervalMs: number;
     sleep: (ms: number) => Promise<void>;
+    deleteOnCompletion?: boolean;
   },
 ): Promise<Transcript> {
   const speakerLabels = options.mode === 'ambient';
@@ -231,6 +259,12 @@ async function runTranscription(
     ];
   }
 
+  // Privacy-positive auto-delete after we've successfully pulled the
+  // transcript content. Fire-and-forget — we already have what we need.
+  if (options.deleteOnCompletion) {
+    void deleteTranscriptOnVendor(options.http, options.apiKey, id);
+  }
+
   return {
     id,
     recordingId: '',
@@ -252,6 +286,7 @@ export async function transcribeWithAssemblyAi(input: TranscribeOptions): Promis
     wordBoost: input.wordBoost,
     intervalMs,
     sleep,
+    deleteOnCompletion: input.config.deleteOnCompletion,
   });
 }
 
@@ -280,5 +315,6 @@ export async function transcribeBlobWithAssemblyAi(
     wordBoost: input.wordBoost,
     intervalMs,
     sleep,
+    deleteOnCompletion: input.config.deleteOnCompletion,
   });
 }

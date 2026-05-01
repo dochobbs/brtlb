@@ -190,7 +190,10 @@ export async function runMvpPipeline(input: RunMvpPipelineInput): Promise<RunMvp
     transcript = await transcribeBlobWithAssemblyAi({
       audio: input.audio,
       mode: input.mode,
-      config: { apiKey: input.settings.assemblyAiKey },
+      config: {
+        apiKey: input.settings.assemblyAiKey,
+        deleteOnCompletion: input.settings.deleteAssemblyAiAfterTranscription,
+      },
       wordBoost: [...PEDIATRIC_WORD_BOOST],
     });
     input.onStage?.('transcribing');

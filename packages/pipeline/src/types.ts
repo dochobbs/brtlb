@@ -101,6 +101,13 @@ export type ProviderConfig =
 
 export interface AssemblyAiConfig {
   apiKey: string;
+  /**
+   * If true, fire DELETE /v2/transcript/{id} after successfully pulling the
+   * completed transcript. Cuts vendor retention from days (per AssemblyAI's
+   * default policy) to seconds. Best-effort: failures are logged but don't
+   * break the pipeline.
+   */
+  deleteOnCompletion?: boolean;
 }
 
 export interface TranscribeInput {

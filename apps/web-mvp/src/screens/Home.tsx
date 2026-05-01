@@ -101,6 +101,10 @@ export function Home() {
   const [recordings, setRecordings] = useState<RecordingMeta[] | null>(null);
   const [starting, setStarting] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<RecordingMeta | null>(null);
+  const [query, setQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'ready' | 'failed' | 'in_progress'>(
+    'all',
+  );
 
   async function confirmDelete(): Promise<void> {
     if (!pendingDelete) return;
@@ -145,9 +149,35 @@ export function Home() {
     setView('review');
   }
 
+  const filteredRecordings = useMemo(() => {
+    if (!recordings) return null;
+    const q = query.trim().toLowerCase();
+    return recordings.filter((r) => {
+      // Status filter
+      if (statusFilter === 'ready' && r.stage !== 'ready_for_review') return false;
+      if (statusFilter === 'failed' && r.stage !== 'failed') return false;
+      if (
+        statusFilter === 'in_progress' &&
+        r.stage !== 'recording' &&
+        r.stage !== 'recorded' &&
+        r.stage !== 'uploading' &&
+        r.stage !== 'transcribing' &&
+        r.stage !== 'generating'
+      )
+        return false;
+      // Text search across label + transcript + note. PHI search is local
+      // only — never leaves the device.
+      if (!q) return true;
+      const haystack = [r.label ?? '', r.transcriptText ?? '', r.noteMarkdown ?? '']
+        .join('\n')
+        .toLowerCase();
+      return haystack.includes(q);
+    });
+  }, [recordings, query, statusFilter]);
+
   const groups = useMemo(
-    () => (recordings ? groupRecordings(recordings, now) : []),
-    [recordings, now],
+    () => (filteredRecordings ? groupRecordings(filteredRecordings, now) : []),
+    [filteredRecordings, now],
   );
 
   const todayCount = groups.find((g) => g.label === 'Today')?.items.length ?? 0;
@@ -228,6 +258,73 @@ export function Home() {
       </section>
 
       <section>
+        {recordings && recordings.length >= 4 ? (
+          <div className="mb-4 space-y-2">
+            <div className="relative">
+              <input
+                type="search"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Search labels, transcripts, notes…"
+                className="w-full rounded-md border border-graphite-soft/30 bg-white px-3 py-2 pr-9 text-sm text-graphite focus:border-graphite focus:outline-none focus:ring-1 focus:ring-graphite"
+                autoComplete="off"
+              />
+              {query ? (
+                <button
+                  type="button"
+                  onClick={() => setQuery('')}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 text-xs text-graphite-soft hover:text-graphite"
+                  aria-label="Clear search"
+                >
+                  ×
+                </button>
+              ) : null}
+            </div>
+            <div className="flex flex-wrap gap-1.5 text-[11px]">
+              {(
+                [
+                  ['all', 'All'],
+                  ['ready', 'Ready'],
+                  ['in_progress', 'In progress'],
+                  ['failed', 'Failed'],
+                ] as const
+              ).map(([key, label]) => {
+                const count =
+                  key === 'all'
+                    ? recordings.length
+                    : recordings.filter((r) => {
+                        if (key === 'ready') return r.stage === 'ready_for_review';
+                        if (key === 'failed') return r.stage === 'failed';
+                        return ['recording', 'recorded', 'uploading', 'transcribing', 'generating'].includes(
+                          r.stage,
+                        );
+                      }).length;
+                if (count === 0 && key !== 'all') return null;
+                return (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() => setStatusFilter(key)}
+                    className={
+                      'rounded-full border px-2.5 py-1 font-medium transition ' +
+                      (statusFilter === key
+                        ? 'border-graphite bg-graphite text-white'
+                        : 'border-graphite-soft/30 bg-white text-graphite-soft hover:text-graphite')
+                    }
+                  >
+                    {label} <span className="opacity-60">{count}</span>
+                  </button>
+                );
+              })}
+            </div>
+            {(query || statusFilter !== 'all') && filteredRecordings ? (
+              <p className="text-[11px] text-graphite-soft">
+                Showing {filteredRecordings.length} of {recordings.length}
+              </p>
+            ) : null}
+          </div>
+        ) : null}
+
         {recordings === null ? (
           <p className="text-sm text-graphite-soft">Loading…</p>
         ) : recordings.length === 0 ? (
@@ -236,6 +333,20 @@ export function Home() {
             <p className="mt-3 text-sm text-graphite-soft">
               No recordings yet. Your first one will appear here.
             </p>
+          </div>
+        ) : filteredRecordings && filteredRecordings.length === 0 ? (
+          <div className="rounded-xl border border-dashed border-graphite-soft/30 bg-white p-6 text-center">
+            <p className="text-sm text-graphite-soft">No recordings match.</p>
+            <button
+              type="button"
+              onClick={() => {
+                setQuery('');
+                setStatusFilter('all');
+              }}
+              className="mt-2 text-xs text-graphite underline-offset-2 hover:underline"
+            >
+              Clear filters
+            </button>
           </div>
         ) : (
           <div className="space-y-6">

@@ -20,6 +20,13 @@ export interface Settings {
   customTemplates: CustomTemplate[];
   /** Set true once the user has finished (or explicitly skipped) the onboarding wizard. */
   wizardCompletedV1: boolean;
+  /**
+   * If true, brtlb fires DELETE on the AssemblyAI transcript right after
+   * pulling the result. Cuts vendor retention from days to seconds. Default
+   * true — privacy-positive, no functional cost since we keep the transcript
+   * locally anyway.
+   */
+  deleteAssemblyAiAfterTranscription: boolean;
 }
 
 export interface CustomTemplate {
@@ -43,6 +50,7 @@ const DEFAULT_SETTINGS: Settings = {
   idleLockMinutes: 5,
   customTemplates: [],
   wizardCompletedV1: false,
+  deleteAssemblyAiAfterTranscription: true,
 };
 
 const SETTINGS_KEY = 'brtlb.settings.v1';

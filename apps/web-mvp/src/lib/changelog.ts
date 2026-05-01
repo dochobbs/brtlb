@@ -13,6 +13,15 @@ export interface ChangelogEntry {
 export const CHANGELOG: ReadonlyArray<ChangelogEntry> = [
   {
     date: '2026-04-30',
+    title: 'Search recordings + AssemblyAI auto-delete',
+    items: [
+      'Search bar on Home (appears once you have 4+ recordings) — finds recordings by label, transcript content, or note content. Local-only; never leaves the device.',
+      'Status filters: All / Ready / In progress / Failed. Counts shown live so you can see at a glance how many are stuck.',
+      'New Settings toggle (Privacy & Security): "Delete AssemblyAI transcripts after pulling" — when on, brtlb tells AssemblyAI to delete the transcript and audio from their side right after we receive it. Cuts vendor retention from days to seconds. Default ON.',
+    ],
+  },
+  {
+    date: '2026-04-30',
     title: 'Subtle recording UI + faster delete',
     items: [
       'Recording screen no longer dominates with a giant timer and bouncy 24-bar VU meter. Ambient mode (patient watching) defaults to a small status dot, modest timer, and a calm single-line breathing indicator. The full meter shows briefly at the start so you can confirm mic levels, then collapses.',

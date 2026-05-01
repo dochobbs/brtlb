@@ -19,6 +19,7 @@ describe('useAppStore', () => {
         idleLockMinutes: 5,
         customTemplates: [],
         wizardCompletedV1: false,
+        deleteAssemblyAiAfterTranscription: true,
       },
       view: 'home',
       currentRecordingId: null,

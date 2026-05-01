@@ -552,9 +552,15 @@ function formatAuditTime(ts: number): string {
 }
 
 function PrivacySecuritySection() {
+  const settings = useAppStore((s) => s.settings);
+  const saveSettings = useAppStore((s) => s.saveSettings);
   const [auditEntries, setAuditEntries] = useState<AuditLogEntry[] | null>(null);
   const [auditOpen, setAuditOpen] = useState(false);
   const [clipboardStatus, setClipboardStatus] = useState<string | null>(null);
+
+  function handleToggleAutoDelete(): void {
+    saveSettings({ deleteAssemblyAiAfterTranscription: !settings.deleteAssemblyAiAfterTranscription });
+  }
 
   async function loadAuditOnExpand(): Promise<void> {
     if (auditEntries !== null) return;
@@ -710,6 +716,38 @@ function PrivacySecuritySection() {
       </details>
 
       <div className="mt-4 rounded-md border border-graphite-soft/20 p-3">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex-1">
+            <p className="text-sm font-medium text-graphite">
+              Delete AssemblyAI transcripts after pulling
+            </p>
+            <p className="mt-0.5 text-xs text-graphite-soft">
+              When on, brtlb tells AssemblyAI to delete the transcript and audio from their side
+              right after we receive the result. Cuts vendor retention from their default policy
+              (days) to seconds. Best-effort — failures don't break the pipeline.
+            </p>
+          </div>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={settings.deleteAssemblyAiAfterTranscription}
+            onClick={handleToggleAutoDelete}
+            className={
+              'relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition ' +
+              (settings.deleteAssemblyAiAfterTranscription ? 'bg-graphite' : 'bg-graphite-soft/30')
+            }
+          >
+            <span
+              className={
+                'inline-block h-5 w-5 transform rounded-full bg-white shadow transition ' +
+                (settings.deleteAssemblyAiAfterTranscription ? 'translate-x-5' : 'translate-x-0.5')
+              }
+            />
+          </button>
+        </div>
+      </div>
+
+      <div className="mt-3 rounded-md border border-graphite-soft/20 p-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
             <p className="text-sm font-medium text-graphite">Clipboard hygiene</p>
