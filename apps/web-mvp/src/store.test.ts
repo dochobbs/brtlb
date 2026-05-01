@@ -20,6 +20,7 @@ describe('useAppStore', () => {
         customTemplates: [],
         wizardCompletedV1: false,
         deleteAssemblyAiAfterTranscription: true,
+        theme: 'system',
       },
       view: 'home',
       currentRecordingId: null,

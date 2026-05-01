@@ -13,6 +13,14 @@ export interface ChangelogEntry {
 export const CHANGELOG: ReadonlyArray<ChangelogEntry> = [
   {
     date: '2026-04-30',
+    title: 'Dark mode',
+    items: [
+      'Theme toggle in Settings: Auto / Light / Dark. Auto follows your OS preference and switches automatically when the OS does.',
+      'Calibrated for low-light exam rooms — slightly muted seafoam accents to avoid glare. Status banners (red, amber, emerald) keep their bright tones for visibility.',
+    ],
+  },
+  {
+    date: '2026-04-30',
     title: 'Search recordings + AssemblyAI auto-delete',
     items: [
       'Search bar on Home (appears once you have 4+ recordings) — finds recordings by label, transcript content, or note content. Local-only; never leaves the device.',

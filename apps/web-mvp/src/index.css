@@ -3,12 +3,80 @@
 @tailwind utilities;
 
 :root {
+  /* Light mode palette — the original brtlb design. */
   --brtlb-graphite: #1f2328;
   --brtlb-graphite-soft: #3d444d;
   --brtlb-seafoam: #a8e6cf;
   --brtlb-seafoam-pale: #e8faf3;
   --brtlb-white: #ffffff;
   --brtlb-mist: #f6f8fa;
+  --brtlb-page-bg: #f6f8fa;
+  --brtlb-card-bg: #ffffff;
+  --brtlb-border-soft: rgba(31, 35, 40, 0.12);
+  color-scheme: light;
+}
+
+:root.dark {
+  /* Dark mode palette — same semantic tokens, different values.
+     Calibrated for readability + low-glare in low-light exam rooms. */
+  --brtlb-graphite: #e6eaee; /* primary text — was darkest, now lightest */
+  --brtlb-graphite-soft: #9da5ad; /* secondary text */
+  --brtlb-seafoam: #7bc9a0; /* slightly muted so it doesn't glow */
+  --brtlb-seafoam-pale: rgba(168, 230, 207, 0.1);
+  --brtlb-white: #1b1f24; /* "white" cards become dark cards */
+  --brtlb-mist: #252a30; /* hover states */
+  --brtlb-page-bg: #0e1116;
+  --brtlb-card-bg: #1b1f24;
+  --brtlb-border-soft: rgba(255, 255, 255, 0.08);
+  color-scheme: dark;
+}
+
+/* Most of the codebase uses Tailwind's `bg-white` for cards. Override it
+   under .dark so cards re-skin without touching every component. Same for
+   common neutral border colors. */
+.dark .bg-white {
+  background-color: var(--brtlb-card-bg);
+}
+.dark .border-graphite-soft\/20,
+.dark .border-graphite-soft\/25,
+.dark .border-graphite-soft\/30 {
+  border-color: var(--brtlb-border-soft);
+}
+
+/* In light mode, `bg-graphite` is the dark button background and `text-graphite`
+   is the dark text color — same token, both uses. In dark mode that breaks:
+   variables flip so graphite-as-text becomes light (correct), but the same
+   token used as a button background goes light too (light bg + white text =
+   invisible). Override the BACKGROUND uses explicitly here so text uses keep
+   the variable-driven light color. */
+.dark .bg-graphite {
+  background-color: #2c313a;
+}
+.dark .hover\:bg-graphite:hover {
+  background-color: #2c313a;
+}
+.dark .hover\:bg-graphite-soft:hover {
+  background-color: #3a4049;
+}
+/* Markdown previews and the prose blockquote use a hardcoded light border. */
+.dark .prose hr {
+  border-top-color: rgba(255, 255, 255, 0.1);
+}
+/* Status-color banners (red, amber, emerald) keep their light-mode tone for
+   readability — but soften the very-light tints so they don't glare. */
+.dark .bg-red-50 {
+  background-color: rgba(220, 38, 38, 0.12);
+}
+.dark .bg-amber-50 {
+  background-color: rgba(217, 119, 6, 0.12);
+}
+.dark .bg-emerald-50 {
+  background-color: rgba(16, 185, 129, 0.12);
+}
+.dark .bg-mist\/40,
+.dark .bg-mist\/30,
+.dark .bg-mist\/50 {
+  background-color: rgba(255, 255, 255, 0.04);
 }
 
 html,
@@ -21,7 +89,7 @@ body {
     BlinkMacSystemFont,
     'Segoe UI',
     sans-serif;
-  background-color: var(--brtlb-mist);
+  background-color: var(--brtlb-page-bg);
   color: var(--brtlb-graphite);
   /* Honor iOS safe areas (notches, home bar) */
   padding-left: env(safe-area-inset-left);

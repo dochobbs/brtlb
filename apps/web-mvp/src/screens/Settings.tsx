@@ -234,25 +234,28 @@ export function Settings() {
         </button>
       </header>
 
-      <div className="mb-6 flex flex-wrap items-center gap-3 text-sm text-graphite-soft">
-        <button
-          type="button"
-          onClick={() => setView('wizard')}
-          className="rounded-md border border-graphite-soft/30 bg-white px-3 py-1.5 text-xs font-medium text-graphite hover:bg-mist"
-        >
-          Run setup wizard
-        </button>
-        <span>
-          Need keys?{' '}
-          <a
-            href="https://github.com/dochobbs/brtlb/blob/main/docs/SETUP.md"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-graphite underline underline-offset-2 hover:text-graphite-soft"
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-3 text-sm text-graphite-soft">
+        <div className="flex flex-wrap items-center gap-3">
+          <button
+            type="button"
+            onClick={() => setView('wizard')}
+            className="rounded-md border border-graphite-soft/30 bg-white px-3 py-1.5 text-xs font-medium text-graphite hover:bg-mist"
           >
-            Setup guide →
-          </a>
-        </span>
+            Run setup wizard
+          </button>
+          <span>
+            Need keys?{' '}
+            <a
+              href="https://github.com/dochobbs/brtlb/blob/main/docs/SETUP.md"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-graphite underline underline-offset-2 hover:text-graphite-soft"
+            >
+              Setup guide →
+            </a>
+          </span>
+        </div>
+        <ThemeToggle />
       </div>
 
       <ChangelogPanel />
@@ -804,6 +807,43 @@ function PrivacySecuritySection() {
         ) : null}
       </details>
     </section>
+  );
+}
+
+function ThemeToggle() {
+  const theme = useAppStore((s) => s.settings.theme);
+  const saveSettings = useAppStore((s) => s.saveSettings);
+
+  const options: Array<{ key: 'system' | 'light' | 'dark'; label: string }> = [
+    { key: 'system', label: 'Auto' },
+    { key: 'light', label: 'Light' },
+    { key: 'dark', label: 'Dark' },
+  ];
+
+  return (
+    <div
+      role="radiogroup"
+      aria-label="Theme"
+      className="inline-flex rounded-full border border-graphite-soft/25 bg-white p-0.5 text-xs"
+    >
+      {options.map((o) => (
+        <button
+          key={o.key}
+          type="button"
+          role="radio"
+          aria-checked={theme === o.key}
+          onClick={() => saveSettings({ theme: o.key })}
+          className={
+            'rounded-full px-3 py-1 font-medium transition ' +
+            (theme === o.key
+              ? 'bg-graphite text-white'
+              : 'text-graphite-soft hover:text-graphite')
+          }
+        >
+          {o.label}
+        </button>
+      ))}
+    </div>
   );
 }
 

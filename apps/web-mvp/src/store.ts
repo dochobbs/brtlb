@@ -27,6 +27,11 @@ export interface Settings {
    * locally anyway.
    */
   deleteAssemblyAiAfterTranscription: boolean;
+  /**
+   * Color theme. 'system' follows the OS preference via prefers-color-scheme.
+   * 'light' / 'dark' force the choice regardless of OS. Default 'system'.
+   */
+  theme: 'system' | 'light' | 'dark';
 }
 
 export interface CustomTemplate {
@@ -51,6 +56,7 @@ const DEFAULT_SETTINGS: Settings = {
   customTemplates: [],
   wizardCompletedV1: false,
   deleteAssemblyAiAfterTranscription: true,
+  theme: 'system',
 };
 
 const SETTINGS_KEY = 'brtlb.settings.v1';

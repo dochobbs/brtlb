@@ -2,14 +2,18 @@ import type { Config } from 'tailwindcss';
 
 const config: Config = {
   content: ['./index.html', './src/**/*.{ts,tsx}', '../../packages/ui/src/**/*.{ts,tsx}'],
+  darkMode: 'class',
   theme: {
     extend: {
       colors: {
-        graphite: '#1F2328',
-        'graphite-soft': '#3D444D',
-        seafoam: '#A8E6CF',
-        'seafoam-pale': '#E8FAF3',
-        mist: '#F6F8FA',
+        // CSS-variable-backed so the same Tailwind class flips automatically
+        // when the `dark` class is on <html>. Variables are defined in
+        // src/index.css for both light and dark modes.
+        graphite: 'var(--brtlb-graphite)',
+        'graphite-soft': 'var(--brtlb-graphite-soft)',
+        seafoam: 'var(--brtlb-seafoam)',
+        'seafoam-pale': 'var(--brtlb-seafoam-pale)',
+        mist: 'var(--brtlb-mist)',
       },
       fontFamily: {
         sans: [

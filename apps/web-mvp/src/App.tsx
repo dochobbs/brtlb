@@ -20,8 +20,30 @@ export function App() {
   const audioPurgeDays = useAppStore((s) => s.settings.audioPurgeDays);
   const wizardCompletedV1 = useAppStore((s) => s.settings.wizardCompletedV1);
   const hasRequiredKeys = useAppStore((s) => s.hasRequiredKeys);
+  const theme = useAppStore((s) => s.settings.theme);
 
   useIdleLock();
+
+  // Apply the user's theme preference to <html>. 'system' follows the OS
+  // via prefers-color-scheme; 'light' / 'dark' force the choice. We use
+  // a class on the document element so Tailwind's `dark:` variant fires
+  // and the CSS variable swap in index.css takes effect everywhere.
+  useEffect(() => {
+    const root = document.documentElement;
+    function applyTheme() {
+      const dark =
+        theme === 'dark' ||
+        (theme === 'system' &&
+          window.matchMedia &&
+          window.matchMedia('(prefers-color-scheme: dark)').matches);
+      root.classList.toggle('dark', dark);
+    }
+    applyTheme();
+    if (theme !== 'system' || !window.matchMedia) return;
+    const mq = window.matchMedia('(prefers-color-scheme: dark)');
+    mq.addEventListener('change', applyTheme);
+    return () => mq.removeEventListener('change', applyTheme);
+  }, [theme]);
 
   // First-run auto-launch: if the user has never finished the wizard AND has
   // no keys yet, drop them into the wizard. Returning users with keys see
