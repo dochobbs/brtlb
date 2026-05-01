@@ -1024,10 +1024,10 @@ export function Review() {
 
           <div className="mt-4 rounded-md border border-dashed border-graphite-soft/30 bg-mist/30 px-3 py-2 text-xs text-graphite-soft">
             <span className="font-medium text-graphite">Tip:</span> open brtlb and your EHR{' '}
-            <span className="font-medium">side-by-side</span> — Chrome desktop supports this via
-            window snap (drag the title bar to a screen edge) or with the{' '}
-            <span className="font-medium">Tile</span> shortcut on macOS Sequoia. No copy-paste
-            round-trip, just glance and tap.
+            <span className="font-medium">side-by-side</span>. Easiest path on Chrome desktop:
+            right-click brtlb's tab → <span className="font-medium">Split tab with…</span> → pick
+            your EHR tab. Both stay in the same window, fastest paste loop. Window-snap or macOS
+            Sequoia's Tile shortcut also work.
           </div>
 
           {noteSections.length >= 2 ? (
