@@ -99,6 +99,14 @@ export function Review() {
       setQaReview(m.qaReviewMarkdown ?? null);
       setPearls(m.pearlsMarkdown ?? null);
       setQuotes(m.quotesMarkdown ?? null);
+      // Hydrate the error banner + retry buttons from the persisted state so
+      // a failed recording reopened later (refresh, navigation back) still
+      // shows the retry options. Without this, error stays null and the
+      // retry block never renders.
+      if (m.stage === 'failed' && m.errorMessage) {
+        setError(m.errorMessage);
+        setStage('failed');
+      }
       if (m.stage === 'recorded') {
         await runPipelineForRecording(m);
       }
