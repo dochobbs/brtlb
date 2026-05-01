@@ -212,10 +212,29 @@ async function runTranscription(
     options.sleep,
   );
 
+  // Dictation mode (speaker_labels: false) returns `text` but no `utterances`
+  // array. Without this fallback we'd hand the LLM an empty transcript and
+  // produce a useless note. Synthesize a single utterance from the full text
+  // so downstream consumers see one continuous "Speaker A" turn from the
+  // physician — which is exactly what dictation is.
+  let utterances = (final.utterances ?? []).map(toUtterance);
+  if (utterances.length === 0 && final.text && final.text.trim().length > 0) {
+    utterances = [
+      {
+        speakerId: 'A',
+        role: options.mode === 'dictation' ? 'provider' : null,
+        startMs: 0,
+        endMs: 0,
+        text: final.text,
+        confidence: 1,
+      },
+    ];
+  }
+
   return {
     id,
     recordingId: '',
-    utterances: (final.utterances ?? []).map(toUtterance),
+    utterances,
     createdAt: new Date().toISOString(),
   };
 }

@@ -43,6 +43,59 @@ const ROLE_DISPLAY: Record<string, string> = {
   other: 'Other',
 };
 
+function EmptyTranscriptState(props: {
+  stage: PipelineStage | null;
+  recordingStage: RecordingMeta['stage'];
+  isProcessing: boolean;
+  onRetry: () => void;
+}) {
+  if (props.isProcessing) {
+    const label =
+      props.stage === 'uploading'
+        ? 'Uploading audio…'
+        : props.stage === 'transcribing'
+          ? 'Transcribing… (this can take a minute on long visits)'
+          : props.stage === 'generating'
+            ? 'Transcript captured. Generating note…'
+            : 'Working…';
+    return <p className="text-sm text-graphite-soft">{label}</p>;
+  }
+  if (props.recordingStage === 'recorded') {
+    return (
+      <div className="space-y-2">
+        <p className="text-sm text-graphite-soft">
+          Transcription hasn't started yet for this recording.
+        </p>
+        <button
+          type="button"
+          onClick={props.onRetry}
+          className="rounded-md border border-graphite-soft/30 bg-white px-3 py-1.5 text-xs font-medium text-graphite hover:bg-mist"
+        >
+          Transcribe now
+        </button>
+      </div>
+    );
+  }
+  if (props.recordingStage === 'ready_for_review') {
+    return (
+      <div className="space-y-2">
+        <p className="text-sm text-graphite-soft">
+          The transcription pass returned no speech. Common causes: very quiet audio, mic
+          permission denied mid-record, or a recording that happened to capture mostly silence.
+        </p>
+        <button
+          type="button"
+          onClick={props.onRetry}
+          className="rounded-md border border-graphite-soft/30 bg-white px-3 py-1.5 text-xs font-medium text-graphite hover:bg-mist"
+        >
+          Retry from audio
+        </button>
+      </div>
+    );
+  }
+  return <p className="text-sm text-graphite-soft">No transcript yet.</p>;
+}
+
 function renderTranscriptText(transcript: Transcript, roles: SpeakerRoleAssignment[]): string {
   const map = new Map(roles.map((r) => [r.speakerId, r.role]));
   return transcript.utterances
@@ -668,7 +721,12 @@ export function Review() {
               </pre>
             </details>
           ) : (
-            <p className="text-sm text-graphite-soft">No transcript yet.</p>
+            <EmptyTranscriptState
+              stage={stage}
+              recordingStage={meta.stage}
+              isProcessing={isProcessing}
+              onRetry={handleRetry}
+            />
           )}
         </section>
 
