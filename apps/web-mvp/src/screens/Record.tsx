@@ -280,8 +280,8 @@ function LiveRecordingView(props: LiveRecordingViewProps) {
       ) : isAmbient ? (
         <div className="rounded-md border border-seafoam bg-seafoam/20 p-2.5 text-left text-xs leading-relaxed text-graphite">
           <p>
-            <span className="font-medium">Tip:</span> keep the screen on for the whole visit —
-            recording stops if you lock the phone or switch apps.
+            <span className="font-medium">Heads up:</span> keep the screen on for the whole visit
+            — recording stops if you lock the phone or switch apps.
           </p>
         </div>
       ) : null}
