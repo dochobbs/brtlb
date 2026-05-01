@@ -222,7 +222,7 @@ export function Review() {
   const [copiedSections, setCopiedSections] = useState<Set<string>>(new Set());
   /** Index of the section the guided-paste flow is currently on. */
   const [guidedIdx, setGuidedIdx] = useState<number>(0);
-  const [pasteMode, setPasteMode] = useState<'chips' | 'guided' | 'combined'>('chips');
+  const [pasteMode, setPasteMode] = useState<'chips' | 'guided' | 'combined'>('combined');
   const [regenerating, setRegenerating] = useState(false);
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>('soap');
   const [speakerRoles, setSpeakerRoles] = useState<SpeakerRoleAssignment[]>([]);
@@ -470,20 +470,19 @@ export function Review() {
   }
 
   async function handleCopyCombined(): Promise<void> {
-    // Combined copy with horizontal-rule separators between sections so the
-    // structure stays visible even when pasted into a single notes field.
+    // The bold section headings (**HPI**, **Plan**, etc.) carry the visual
+    // structure on their own — no horizontal-rule separator needed. Plain
+    // text fallback gets the same shape: heading, blank line, body, blank line.
     if (noteSections.length === 0) {
       await handleCopy();
       return;
     }
-    const md = noteSections
-      .map((s) => `**${s.label}**\n\n${s.body}`)
-      .join('\n\n---\n\n');
+    const md = noteSections.map((s) => `**${s.label}**\n\n${s.body}`).join('\n\n');
     const ok = await copyNoteRich(md);
     if (!ok) {
       try {
         await navigator.clipboard.writeText(
-          noteSections.map((s) => `${s.label}\n\n${s.body}`).join('\n\n— — —\n\n'),
+          noteSections.map((s) => `${s.label}\n\n${s.body}`).join('\n\n'),
         );
       } catch {
         return;
@@ -1023,8 +1022,16 @@ export function Review() {
             </div>
           ) : null}
 
+          <div className="mt-4 rounded-md border border-dashed border-graphite-soft/30 bg-mist/30 px-3 py-2 text-xs text-graphite-soft">
+            <span className="font-medium text-graphite">Tip:</span> open brtlb and your EHR{' '}
+            <span className="font-medium">side-by-side</span> — Chrome desktop supports this via
+            window snap (drag the title bar to a screen edge) or with the{' '}
+            <span className="font-medium">Tile</span> shortcut on macOS Sequoia. No copy-paste
+            round-trip, just glance and tap.
+          </div>
+
           {noteSections.length >= 2 ? (
-            <div className="mt-4 rounded-md border border-graphite-soft/20 bg-mist/50 p-3">
+            <div className="mt-3 rounded-md border border-graphite-soft/20 bg-mist/50 p-3">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <p className="text-xs font-medium uppercase tracking-wide text-graphite-soft">
                   Section paste
@@ -1108,9 +1115,9 @@ export function Review() {
                     {copied ? '✓ Copied' : 'Copy whole note'}
                   </button>
                   <p className="mt-2 text-[11px] text-graphite-soft">
-                    Sections joined with{' '}
-                    <code className="rounded bg-white px-1 py-0.5">---</code> separators so
-                    structure stays visible when pasted into a single field.
+                    Bold section headings keep the structure visible when pasted into a single
+                    field. Switch to <em>Pick</em> or <em>Walk through</em> if your EHR has
+                    separate fields per section.
                   </p>
                 </div>
               )}
@@ -1177,6 +1184,13 @@ export function Review() {
                 <span className="font-medium text-graphite">Email to yourself:</span> tap{' '}
                 <em>Email</em>. Safe only if your email provider (Workspace Gmail with HIPAA BAA,
                 Office 365 with BAA) is BAA-covered. Personal Gmail / iCloud Mail are not.
+              </li>
+              <li>
+                <span className="font-medium text-graphite">iOS Notes (Apple to Apple):</span> tap{' '}
+                <em>Share</em> → pick <em>Notes</em>. The note lands in your Notes app and (if
+                you have iCloud-synced Notes) appears on Mac/iPad within seconds — same legal
+                profile as Universal Clipboard. For PHI, prefer <em>"On My iPhone"</em> Notes
+                accounts (no iCloud sync) over the iCloud account.
               </li>
               <li>
                 <span className="font-medium text-graphite">iOS Save to Files:</span> tap{' '}
