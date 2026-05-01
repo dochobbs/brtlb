@@ -6,6 +6,66 @@ export interface NoteSection {
 }
 
 /**
+ * Separator that pipeline-browser uses between per-patient sections in the
+ * concatenated multi-patient note: see `regenerateNoteFromTranscript` and
+ * `runMvpPipeline`. Splitting on this gives one chunk per patient.
+ */
+export const MULTI_PATIENT_SEPARATOR = '\n\n---\n\n';
+
+export interface PatientNoteChunk {
+  /** Matches the patient segment id (p0, p1, ...). */
+  id: string;
+  /** Display label for the tab — segment.patientLabel. */
+  label: string;
+  /** segment.visitType, used for the sub-label under the tab. */
+  visitType: string;
+  /** Full markdown for this patient — heading + body, as stored. */
+  body: string;
+}
+
+/**
+ * Split a concatenated multi-patient note (joined with MULTI_PATIENT_SEPARATOR)
+ * into one chunk per patient segment, in order. Returns [] if the note is
+ * empty, the segment list has 1 or fewer entries, or the chunk count doesn't
+ * match the segment count (in which case the caller should fall back to
+ * treating the note as one combined view — splitting incorrectly would lose
+ * content silently).
+ */
+export function splitConcatenatedMultiPatientNote(
+  note: string,
+  segments: ReadonlyArray<{ id: string; patientLabel: string; visitType: string }>,
+): PatientNoteChunk[] {
+  if (!note.trim()) return [];
+  if (segments.length <= 1) return [];
+  const parts = note.split(MULTI_PATIENT_SEPARATOR);
+  if (parts.length !== segments.length) return [];
+  return parts.map((body, i) => ({
+    id: segments[i]!.id,
+    label: segments[i]!.patientLabel,
+    visitType: segments[i]!.visitType,
+    body,
+  }));
+}
+
+/**
+ * Splice a new body for one segment back into the full concatenated note.
+ * If the segment index is out of range or the note isn't actually multi-
+ * patient (no separator found), returns the new body as-is — single-patient
+ * notes have no concatenation to preserve.
+ */
+export function spliceMultiPatientNote(
+  fullNote: string,
+  segmentIndex: number,
+  newSegmentBody: string,
+): string {
+  const parts = fullNote.split(MULTI_PATIENT_SEPARATOR);
+  if (parts.length === 1) return newSegmentBody;
+  if (segmentIndex < 0 || segmentIndex >= parts.length) return fullNote;
+  parts[segmentIndex] = newSegmentBody;
+  return parts.join(MULTI_PATIENT_SEPARATOR);
+}
+
+/**
  * Split a markdown note into discrete sections by heading. Recognizes both
  * `## Heading` and `**Heading**` styles since brtlb's templates use a mix.
  * Sections without bodies are skipped. Returns an empty array if no headings
@@ -44,10 +104,7 @@ export function splitNoteIntoSections(md: string): NoteSection[] {
  * abnormal exam findings when pasted into rich-text-aware destinations.
  */
 export function markdownToHtml(md: string): string {
-  let html = md
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;');
+  let html = md.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
   html = html.replace(/^###\s+(.+)$/gm, '<h3>$1</h3>');
   html = html.replace(/^##\s+(.+)$/gm, '<h2>$1</h2>');

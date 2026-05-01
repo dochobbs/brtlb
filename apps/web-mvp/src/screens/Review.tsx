@@ -14,8 +14,10 @@ import {
 } from '../lib/db';
 import {
   captureQuotes,
+  filterTranscriptForSegment,
   generateClinicalPearls,
   regenerateNoteFromTranscript,
+  regenerateSinglePatientNote,
   reviewNoteQuality,
   runMvpPipeline,
   tweakNote,
@@ -29,7 +31,10 @@ import {
   copyNoteRich,
   mailtoForNote,
   markdownToPlainText as exportMarkdownToPlainText,
+  spliceMultiPatientNote,
+  splitConcatenatedMultiPatientNote,
   splitNoteIntoSections,
+  type PatientNoteChunk,
 } from '../lib/note-export';
 
 const STAGE_LABEL: Record<PipelineStage, string> = {
@@ -229,6 +234,12 @@ export function Review() {
   const [regenerating, setRegenerating] = useState(false);
   const [templateAppliedToast, setTemplateAppliedToast] = useState<string | null>(null);
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>('soap');
+  /** Active tab for multi-patient view. Either a segment id (p0, p1, …) or
+   * the literal 'all' for the combined view. Ignored when patientSegments
+   * has 1 or 0 entries. Defaults to the first patient on load — landing
+   * on a scoped tab immediately makes the per-tab retargeting model
+   * obvious. The 'All combined' tab is always there for global edits. */
+  const [activeTab, setActiveTab] = useState<string>('all');
   const [speakerRoles, setSpeakerRoles] = useState<SpeakerRoleAssignment[]>([]);
   const [noteView, setNoteView] = useState<'edit' | 'preview'>('edit');
   const [qaReview, setQaReview] = useState<string | null>(null);
@@ -264,6 +275,16 @@ export function Review() {
       setQaReview(m.qaReviewMarkdown ?? null);
       setPearls(m.pearlsMarkdown ?? null);
       setQuotes(m.quotesMarkdown ?? null);
+      // Land on the first patient's tab when this is a multi-patient
+      // recording — the per-tab scope is the load-bearing UX, putting the
+      // user on 'all' first hides it. Single-patient stays on 'all' (which
+      // is just the whole note since there are no tabs).
+      const firstSegId = m.patientSegments?.[0]?.id;
+      if ((m.patientSegments?.length ?? 0) > 1 && firstSegId) {
+        setActiveTab(firstSegId);
+      } else {
+        setActiveTab('all');
+      }
       // Hydrate the error banner + retry buttons from the persisted state so
       // a failed recording reopened later (refresh, navigation back) still
       // shows the retry options. Without this, error stays null and the
@@ -309,7 +330,31 @@ export function Review() {
     return meta?.transcriptText ?? '';
   }, [transcript, speakerRoles, meta?.transcriptText]);
 
-  const noteSections = useMemo(() => splitNoteIntoSections(editedNote), [editedNote]);
+  // Multi-patient tabs derived at render time by splitting the concatenated
+  // note on the '\n\n---\n\n' separator the pipeline emits. No data model
+  // change: notes still stored as one string. Tabs disappear automatically
+  // for single-patient recordings or when the chunk count doesn't match
+  // the segment count (rare; could happen if the user manually deleted a
+  // separator while editing).
+  const segments = useMemo(() => meta?.patientSegments ?? [], [meta?.patientSegments]);
+  const isMultiPatient = segments.length > 1;
+  const noteChunks: PatientNoteChunk[] = useMemo(() => {
+    if (!isMultiPatient) return [];
+    return splitConcatenatedMultiPatientNote(editedNote, segments);
+  }, [editedNote, segments, isMultiPatient]);
+  const activeChunkIdx =
+    isMultiPatient && activeTab !== 'all' ? noteChunks.findIndex((c) => c.id === activeTab) : -1;
+  const activeChunk = activeChunkIdx >= 0 ? noteChunks[activeChunkIdx] : null;
+  const activeSegment = activeChunk
+    ? (segments.find((s) => s.id === activeChunk.id) ?? null)
+    : null;
+  /** The note string the user's actions (copy, share, email, download,
+   * section paste, edit textarea) operate on. When a single-patient tab is
+   * active, this is just that patient's section. Otherwise it's the full
+   * note. */
+  const effectiveNote = activeChunk ? activeChunk.body : editedNote;
+
+  const noteSections = useMemo(() => splitNoteIntoSections(effectiveNote), [effectiveNote]);
 
   async function runPipelineForRecording(m: RecordingMeta): Promise<void> {
     setError(null);
@@ -407,6 +452,28 @@ export function Review() {
     await persistMeta({ label: trimmed || null });
   }
 
+  function handleTabChange(tabId: string): void {
+    if (tabId === activeTab) return;
+    setActiveTab(tabId);
+    // Section-paste progress is per-scope: switching from Tommy → Lily, the
+    // user is starting Lily's paste flow fresh, not continuing Tommy's.
+    setCopiedSections(new Set());
+    setGuidedIdx(0);
+    setCopiedSection(null);
+  }
+
+  function handleEditChange(next: string): void {
+    // In a per-patient tab, the textarea is showing just that segment's
+    // chunk. We splice it back into the full concatenated note so siblings'
+    // sections stay intact, then update editedNote with the merged result.
+    // On the 'all' tab (or single-patient), the value IS the full note.
+    if (activeChunkIdx >= 0) {
+      setEditedNote((prev) => spliceMultiPatientNote(prev, activeChunkIdx, next));
+      return;
+    }
+    setEditedNote(next);
+  }
+
   async function handleSaveEdits(): Promise<void> {
     if (!meta) return;
     if (meta.noteMarkdown === editedNote) return;
@@ -427,10 +494,10 @@ export function Review() {
     // Prefer rich-text copy so bolded abnormal exam findings survive paste
     // into Elation / Word / any rich-text-aware destination. Falls back to
     // plain text on browsers that don't support ClipboardItem.
-    const ok = await copyNoteRich(editedNote);
+    const ok = await copyNoteRich(effectiveNote);
     if (!ok) {
       try {
-        await navigator.clipboard.writeText(editedNote);
+        await navigator.clipboard.writeText(effectiveNote);
       } catch {
         return; // permission denied; show nothing rather than crash
       }
@@ -498,9 +565,9 @@ export function Review() {
   }
 
   function handleEmail(): void {
-    if (!meta || !editedNote) return;
+    if (!meta || !effectiveNote) return;
     const subject = (editedLabel || meta.label || 'brtlb visit note').trim();
-    window.location.href = mailtoForNote(editedNote, subject);
+    window.location.href = mailtoForNote(effectiveNote, subject);
     void logAudit('note_shared', { recordingId: meta.id });
   }
 
@@ -513,7 +580,7 @@ export function Review() {
     const title = 'brtlb visit note';
     if (typeof navigator !== 'undefined' && typeof navigator.share === 'function') {
       try {
-        await navigator.share({ title, text: editedNote });
+        await navigator.share({ title, text: effectiveNote });
         if (meta) void logAudit('note_shared', { recordingId: meta.id });
         return;
       } catch {
@@ -525,17 +592,28 @@ export function Review() {
 
   function handleDownload(): void {
     if (!meta) return;
-    const plain = exportMarkdownToPlainText(editedNote);
+    const plain = exportMarkdownToPlainText(effectiveNote);
     const blob = new Blob([plain], { type: 'text/plain;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    const stem = meta.label
+    const baseStem = meta.label
       ? meta.label
           .replace(/[^a-z0-9-_ ]/gi, '')
           .replace(/\s+/g, '-')
           .toLowerCase()
       : meta.id;
+    // Per-tab downloads include the patient label so the file system
+    // doesn't end up with three identical filenames after the user
+    // downloads each kid's note from a sibling visit.
+    const tabSuffix = activeChunk
+      ? '-' +
+        activeChunk.label
+          .replace(/[^a-z0-9-_ ]/gi, '')
+          .replace(/\s+/g, '-')
+          .toLowerCase()
+      : '';
+    const stem = baseStem + tabSuffix;
     a.download = `brtlb-${stem}.txt`;
     a.click();
     URL.revokeObjectURL(url);
@@ -587,6 +665,41 @@ export function Review() {
     setRegenerating(true);
     setError(null);
     try {
+      // Per-patient regenerate: the active tab is one segment of a multi-
+      // patient recording. Re-run the LLM for just that patient and splice
+      // the result back into the concatenated note. Siblings' sections are
+      // untouched — no re-pay for transcription, no risk of clobbering.
+      if (activeSegment && activeChunkIdx >= 0) {
+        const out = await regenerateSinglePatientNote({
+          transcript,
+          segment: activeSegment,
+          mode: meta.mode,
+          settings,
+          templateId: selectedTemplateId,
+          speakerRoles,
+          bookmarks: meta.bookmarks ?? [],
+        });
+        const merged = spliceMultiPatientNote(editedNote, activeChunkIdx, out.segmentBody);
+        await persistMeta({
+          noteMarkdown: merged,
+          providerUsed: out.providerUsed,
+          qaReviewMarkdown: null,
+          qaReviewedAt: null,
+          pearlsMarkdown: null,
+          pearlsAt: null,
+        });
+        setEditedNote(merged);
+        setQaReview(null);
+        setPearls(null);
+        const builtIn = BUILTIN_TEMPLATES.find((t) => t.id === selectedTemplateId);
+        const custom = settings.customTemplates.find((t) => t.id === selectedTemplateId);
+        const name = builtIn?.name ?? custom?.name ?? selectedTemplateId;
+        setTemplateAppliedToast(`Generated ${activeSegment.patientLabel} as ${name}`);
+        setTimeout(() => setTemplateAppliedToast(null), 2500);
+        return;
+      }
+
+      // 'All combined' tab (or single-patient): full regenerate.
       const out = await regenerateNoteFromTranscript({
         transcript,
         mode: meta.mode,
@@ -616,13 +729,13 @@ export function Review() {
       setEditedNote(out.note);
       setQaReview(null);
       setPearls(null);
-      // Surface which template was actually applied. Easy to mis-pick from
-      // the dropdown; this gives the physician a moment of "wait, that's
-      // not what I wanted" before they paste into the chart.
       const builtIn = BUILTIN_TEMPLATES.find((t) => t.id === selectedTemplateId);
       const custom = settings.customTemplates.find((t) => t.id === selectedTemplateId);
       const name = builtIn?.name ?? custom?.name ?? selectedTemplateId;
-      setTemplateAppliedToast(`Generated as ${name}`);
+      const scopeLabel = isMultiPatient ? 'all patients' : null;
+      setTemplateAppliedToast(
+        scopeLabel ? `Generated ${scopeLabel} as ${name}` : `Generated as ${name}`,
+      );
       setTimeout(() => setTemplateAppliedToast(null), 2500);
     } catch (err) {
       const msg = redactKeysInText(err instanceof Error ? err.message : 'regenerate failed');
@@ -661,14 +774,36 @@ export function Review() {
     setTweaking(true);
     setError(null);
     try {
-      const revised = await tweakNote({
-        note: editedNote,
-        transcript,
-        mode: meta.mode,
-        settings,
-        instruction,
-        speakerRoles,
-      });
+      // Per-patient tweak: pre-scope the note + transcript to the active
+      // segment, then splice the LLM's revision back into the concatenated
+      // note. The other patients' sections are not in the prompt, so the
+      // LLM physically cannot edit them.
+      let revised: string;
+      if (activeSegment && activeChunkIdx >= 0 && activeChunk) {
+        const filtered = filterTranscriptForSegment(transcript, activeSegment);
+        const segRevised = await tweakNote({
+          note: activeChunk.body,
+          transcript: filtered,
+          mode: meta.mode,
+          settings,
+          instruction,
+          speakerRoles,
+        });
+        revised = spliceMultiPatientNote(editedNote, activeChunkIdx, segRevised);
+      } else {
+        revised = await tweakNote({
+          note: editedNote,
+          transcript,
+          mode: meta.mode,
+          settings,
+          instruction,
+          speakerRoles,
+          // 'All combined' tab on a multi-patient recording: the prompt
+          // needs to know it's editing a multi-patient note so it preserves
+          // every patient's section unless the instruction says otherwise.
+          noteCoversMultiplePatients: isMultiPatient,
+        });
+      }
       await persistMeta({
         noteMarkdown: revised,
         // any tweak invalidates a prior QA pass + pearls
@@ -780,32 +915,15 @@ export function Review() {
         </div>
       ) : null}
 
-      {meta.patientSegments && meta.patientSegments.length > 1 ? (
+      {isMultiPatient ? (
         <div className="mb-4 rounded-md border border-seafoam/40 bg-seafoam-pale/40 p-3 text-sm text-graphite sm:mb-6 sm:p-4">
           <p className="font-medium">
-            {meta.patientSegments.length} patients detected in this recording:
+            {segments.length} patients detected. Tap a patient tab below to view, copy, or edit just
+            that note.
           </p>
-          <ul className="mt-1 ml-4 list-disc space-y-0.5 text-xs text-graphite-soft">
-            {meta.patientSegments.map((s) => {
-              const visitTypeLabel = s.visitType
-                .replace(/_/g, ' ')
-                .replace(/\b\w/g, (c) => c.toUpperCase());
-              const concerns = s.acuteConcerns.length > 0 ? ` — ${s.acuteConcerns.join(', ')}` : '';
-              return (
-                <li key={s.id}>
-                  <span className="font-medium text-graphite">{s.patientLabel}</span>
-                  <span>
-                    {' '}
-                    · {visitTypeLabel}
-                    {concerns}
-                  </span>
-                </li>
-              );
-            })}
-          </ul>
-          <p className="mt-2 text-xs text-graphite-soft">
-            One section per patient appears in the note below, separated by a horizontal rule. Copy
-            the section you need into the matching chart.
+          <p className="mt-1 text-xs text-graphite-soft">
+            The "All combined" tab shows every patient's note for one-shot copy. The active tab
+            decides what Tweak, Regenerate, and the export buttons apply to.
           </p>
         </div>
       ) : null}
@@ -937,6 +1055,68 @@ export function Review() {
             ) : null}
           </div>
 
+          {isMultiPatient && noteChunks.length > 0 ? (
+            <div
+              role="tablist"
+              aria-label="Patient tabs — switch to retarget Tweak, Regenerate, Copy, Share, Email, Download"
+              className="-mx-1 mb-3 flex flex-wrap gap-1 overflow-x-auto pb-1"
+            >
+              {noteChunks.map((chunk) => {
+                const isActive = activeTab === chunk.id;
+                const visitTypeShort = chunk.visitType
+                  .replace(/_/g, ' ')
+                  .replace(/\b\w/g, (c) => c.toUpperCase());
+                return (
+                  <button
+                    key={chunk.id}
+                    role="tab"
+                    aria-selected={isActive}
+                    type="button"
+                    onClick={() => handleTabChange(chunk.id)}
+                    className={
+                      'flex items-center gap-1.5 whitespace-nowrap rounded-full border px-3 py-1.5 text-xs font-medium ' +
+                      (isActive
+                        ? 'border-graphite border-2 bg-seafoam/40 text-graphite font-semibold'
+                        : 'border-graphite-soft/30 bg-white text-graphite hover:bg-mist')
+                    }
+                  >
+                    {chunk.label}
+                    <span className="text-[10px] text-graphite-soft">· {visitTypeShort}</span>
+                  </button>
+                );
+              })}
+              <button
+                role="tab"
+                aria-selected={activeTab === 'all'}
+                type="button"
+                onClick={() => handleTabChange('all')}
+                className={
+                  'flex items-center gap-1.5 whitespace-nowrap rounded-full border px-3 py-1.5 text-xs font-medium ' +
+                  (activeTab === 'all'
+                    ? 'border-graphite border-2 bg-seafoam/40 text-graphite font-semibold'
+                    : 'border-graphite-soft/30 bg-mist/60 text-graphite-soft hover:bg-mist')
+                }
+              >
+                All combined
+              </button>
+            </div>
+          ) : null}
+
+          {isMultiPatient && activeChunk ? (
+            <p className="mb-3 text-xs text-graphite-soft">
+              <span className="font-medium text-graphite">Scoped to {activeChunk.label}.</span>{' '}
+              Copy, Share, Email, Download, Tweak, and Regenerate apply to {activeChunk.label} only.
+              Switch tabs to retarget.
+            </p>
+          ) : isMultiPatient && activeTab === 'all' ? (
+            <p className="mb-3 text-xs text-graphite-soft">
+              <span className="font-medium text-graphite">All-combined view.</span> Copy and export
+              apply to every patient. Tweak edits across all patients (e.g.,{' '}
+              <em>"add return precautions to all plans"</em>) — switch to a patient tab to scope
+              edits.
+            </p>
+          ) : null}
+
           <div className="mb-3 flex flex-wrap items-center gap-2">
             <label className="text-xs text-graphite-soft">Template</label>
             <select
@@ -1003,16 +1183,16 @@ export function Review() {
 
           {noteView === 'edit' ? (
             <textarea
-              value={editedNote}
-              onChange={(e) => setEditedNote(e.target.value)}
+              value={effectiveNote}
+              onChange={(e) => handleEditChange(e.target.value)}
               onBlur={handleSaveEdits}
               disabled={isProcessing || regenerating}
               placeholder={isProcessing ? 'Working…' : 'No note yet.'}
               className="min-h-[280px] w-full resize-y rounded-md border border-graphite-soft/20 bg-white p-3 font-mono text-sm leading-relaxed text-graphite focus:border-graphite focus:outline-none focus:ring-1 focus:ring-graphite sm:min-h-[400px]"
             />
-          ) : editedNote ? (
+          ) : effectiveNote ? (
             <div className="prose min-h-[280px] max-w-none overflow-y-auto rounded-md border border-graphite-soft/20 bg-white p-3 text-sm leading-relaxed text-graphite sm:min-h-[400px]">
-              <Markdown remarkPlugins={[remarkGfm]}>{editedNote}</Markdown>
+              <Markdown remarkPlugins={[remarkGfm]}>{effectiveNote}</Markdown>
             </div>
           ) : (
             <div className="min-h-[280px] rounded-md border border-graphite-soft/20 bg-white p-3 text-sm text-graphite-soft sm:min-h-[400px]">
@@ -1023,11 +1203,22 @@ export function Review() {
           {/* Natural-language edit — the hero interaction. Tell brtlb what to change in plain English. */}
           {transcript && editedNote ? (
             <div className="mt-4 rounded-xl border border-seafoam/40 bg-seafoam-pale/40 p-3 sm:p-4">
-              <label className="block text-sm font-semibold text-graphite">
-                Tell brtlb what to change
-              </label>
+              <div className="flex flex-wrap items-center gap-2">
+                <label className="block text-sm font-semibold text-graphite">
+                  Tell brtlb what to change
+                </label>
+                {isMultiPatient ? (
+                  <span className="rounded-full bg-graphite px-2.5 py-0.5 text-[11px] font-medium text-white">
+                    {activeChunk ? activeChunk.label : 'All 3'}
+                  </span>
+                ) : null}
+              </div>
               <p className="mt-0.5 text-xs text-graphite-soft">
-                Plain English. Press ⌘/Ctrl + Enter to send.
+                {isMultiPatient && activeChunk
+                  ? `Edit applies to ${activeChunk.label} only. Switch to All combined for cross-patient edits.`
+                  : isMultiPatient
+                    ? 'Edit applies across all patients. Switch to a patient tab to scope.'
+                    : 'Plain English. Press ⌘/Ctrl + Enter to send.'}
               </p>
               <textarea
                 value={tweakInstruction}

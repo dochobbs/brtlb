@@ -137,10 +137,7 @@ RULES:
 
 Examples of valid output: soap | well-child | sick-visit | follow-up | adhd-med-check | procedure | behavioral-health | developmental-eval`;
 
-async function detectVisitType(
-  transcript: Transcript,
-  settings: Settings,
-): Promise<string> {
+async function detectVisitType(transcript: Transcript, settings: Settings): Promise<string> {
   // Use the first ~2000 chars of transcript text for the routing decision.
   // Longer is wasteful and the LLM rarely needs more for the call.
   const text = transcript.utterances
@@ -174,7 +171,10 @@ async function detectVisitType(
   } catch {
     return 'soap'; // any failure → safe fallback
   }
-  const cleaned = raw.trim().toLowerCase().replace(/[^a-z0-9-]/g, '');
+  const cleaned = raw
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9-]/g, '');
   return (AUTO_DETECT_CANDIDATES as readonly string[]).includes(cleaned) ? cleaned : 'soap';
 }
 
@@ -220,11 +220,7 @@ export async function runMvpPipeline(input: RunMvpPipelineInput): Promise<RunMvp
   // already carries its own visit_type from the split prompt and should
   // override the global template choice.
   let templateId = initialTemplateId;
-  if (
-    !isMultiPatient &&
-    input.mode === 'ambient' &&
-    initialTemplateId === 'soap'
-  ) {
+  if (!isMultiPatient && input.mode === 'ambient' && initialTemplateId === 'soap') {
     templateId = await detectVisitType(transcript, input.settings);
   }
   const template = resolveTemplate(templateId, input.settings.customTemplates);
@@ -260,15 +256,9 @@ export async function runMvpPipeline(input: RunMvpPipelineInput): Promise<RunMvp
       // patient headers.
       const sections: string[] = [];
       for (const seg of patientSegments) {
-        const filtered = filterTranscriptByIndices(
-          transcript,
-          seg.relevantUtteranceIndices,
-        );
+        const filtered = filterTranscriptByIndices(transcript, seg.relevantUtteranceIndices);
         const segTemplateId = templateForVisitType(seg.visitType);
-        const segTemplate = resolveTemplate(
-          segTemplateId,
-          input.settings.customTemplates,
-        );
+        const segTemplate = resolveTemplate(segTemplateId, input.settings.customTemplates);
         if (!segTemplate) throw new Error(`Unknown template: ${segTemplateId}`);
         const augmentedPromptBody = `${segTemplate.promptBody}\n\n${segmentContextPreamble(seg)}`;
         const segNote = await provider.generateNote({
@@ -358,10 +348,7 @@ HARD RULES:
 - If transcript is too short or ambiguous to summarize, output exactly: "Visit"
 - Output the label ONLY. One line. No explanation.`;
 
-async function suggestLabel(
-  transcript: Transcript,
-  settings: Settings,
-): Promise<string | null> {
+async function suggestLabel(transcript: Transcript, settings: Settings): Promise<string | null> {
   if (transcript.utterances.length === 0) return null;
   // First ~1500 chars is enough for routing-style decisions.
   const text = transcript.utterances
@@ -456,9 +443,7 @@ async function detectChapters(
   settings: Settings,
 ): Promise<TranscriptChapter[]> {
   if (transcript.utterances.length < 20) return []; // not enough to chapter
-  const numbered = transcript.utterances
-    .map((u, idx) => `[${idx}] ${u.text}`)
-    .join('\n');
+  const numbered = transcript.utterances.map((u, idx) => `[${idx}] ${u.text}`).join('\n');
 
   const detectorTemplate: NoteTemplate = {
     id: 'chapter-detector',
@@ -480,7 +465,9 @@ async function detectChapters(
   } catch {
     return [];
   }
-  let parsed: { chapters?: Array<{ label?: string; start_utterance_index?: number; summary?: string }> };
+  let parsed: {
+    chapters?: Array<{ label?: string; start_utterance_index?: number; summary?: string }>;
+  };
   try {
     parsed = JSON.parse(extractJson(raw));
   } catch {
@@ -560,9 +547,7 @@ export async function regenerateNoteFromTranscript(
     for (const seg of segments) {
       const filtered = filterTranscriptByIndices(input.transcript, seg.relevantUtteranceIndices);
       const segTemplateId =
-        input.templateId !== 'soap'
-          ? input.templateId
-          : templateForVisitType(seg.visitType);
+        input.templateId !== 'soap' ? input.templateId : templateForVisitType(seg.visitType);
       const segTemplate = resolveTemplate(segTemplateId, input.settings.customTemplates);
       if (!segTemplate) throw new Error(`Unknown template: ${segTemplateId}`);
       const augmentedPromptBody = `${segTemplate.promptBody}\n\n${segmentContextPreamble(seg)}`;
@@ -612,6 +597,75 @@ export async function regenerateNoteFromTranscript(
   };
   const note = await provider.generateNote(noteInput);
   return { note, providerUsed: kind };
+}
+
+export interface RegenerateSinglePatientInput {
+  /** Full structured transcript (will be filtered to the segment's utterances). */
+  transcript: Transcript;
+  segment: PatientSegment;
+  mode: RecordingMode;
+  settings: Settings;
+  /**
+   * Template id for this patient. Pass the active tab's template; falls
+   * back to the visit-type-derived default when 'soap' (sentinel for
+   * "not explicitly chosen").
+   */
+  templateId: string;
+  patternId?: string;
+  speakerRoles?: SpeakerRoleAssignment[];
+  bookmarks?: NoteBookmark[];
+}
+
+export interface RegenerateSinglePatientOutput {
+  /** The patient's note WITH the H2 header — drop-in replacement for one
+   * chunk in the concatenated multi-patient note. */
+  segmentBody: string;
+  providerUsed: ProviderKind;
+}
+
+/**
+ * Re-run the LLM for ONE patient segment in a multi-patient recording.
+ * Used by the per-tab Regenerate button — leaves siblings' sections
+ * untouched. Returns the segment's note prefixed with its H2 patient
+ * header so the caller can splice it into the concatenated note.
+ */
+export async function regenerateSinglePatientNote(
+  input: RegenerateSinglePatientInput,
+): Promise<RegenerateSinglePatientOutput> {
+  const pattern = getPattern(input.patternId ?? 'narrative');
+  if (!pattern) throw new Error(`Unknown pattern: ${input.patternId}`);
+  const { provider, kind } = buildProvider(input.settings);
+  const filtered = filterTranscriptByIndices(
+    input.transcript,
+    input.segment.relevantUtteranceIndices,
+  );
+  const segTemplateId =
+    input.templateId !== 'soap' ? input.templateId : templateForVisitType(input.segment.visitType);
+  const segTemplate = resolveTemplate(segTemplateId, input.settings.customTemplates);
+  if (!segTemplate) throw new Error(`Unknown template: ${segTemplateId}`);
+  const augmentedPromptBody = `${segTemplate.promptBody}\n\n${segmentContextPreamble(input.segment)}`;
+  const segNote = await provider.generateNote({
+    transcript: filtered,
+    template: {
+      id: segTemplate.id,
+      name: segTemplate.name,
+      description: segTemplate.description,
+      promptBody: augmentedPromptBody,
+    },
+    pattern: {
+      id: pattern.id,
+      name: pattern.name,
+      description: pattern.description,
+      promptModifier: pattern.promptModifier,
+    },
+    mode: input.mode,
+    speakerRoles: input.speakerRoles ?? [],
+    bookmarks: input.bookmarks ?? [],
+  });
+  return {
+    segmentBody: `${patientHeader(input.segment)}\n\n${segNote.trim()}`,
+    providerUsed: kind,
+  };
 }
 
 const NEUTRAL_PATTERN = {
@@ -767,10 +821,7 @@ function allUtterancesSingleSegment(transcript: Transcript): PatientSegment {
   };
 }
 
-function filterTranscriptByIndices(
-  transcript: Transcript,
-  indices: number[],
-): Transcript {
+function filterTranscriptByIndices(transcript: Transcript, indices: number[]): Transcript {
   const sorted = [...indices].sort((a, b) => a - b);
   const utterances = sorted
     .map((i) => transcript.utterances[i])
@@ -779,9 +830,7 @@ function filterTranscriptByIndices(
 }
 
 function patientHeader(seg: PatientSegment): string {
-  const visitTypeLabel = seg.visitType
-    .replace(/_/g, ' ')
-    .replace(/\b\w/g, (c) => c.toUpperCase());
+  const visitTypeLabel = seg.visitType.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
   const tail = seg.acuteConcerns.length > 0 ? ` — ${seg.acuteConcerns.join(', ')}` : '';
   return `## ${seg.patientLabel} · ${visitTypeLabel}${tail}`;
 }
@@ -1002,6 +1051,16 @@ export interface TweakNoteInput {
   settings: Settings;
   instruction: string;
   speakerRoles?: SpeakerRoleAssignment[];
+  /**
+   * When the note covers multiple patients in one concatenated string
+   * (sections separated by horizontal rules), set this so the tweak prompt
+   * tells the LLM to preserve every patient's section instead of
+   * collapsing to a single primary patient. Only relevant for the "All
+   * combined" tab in multi-patient view; one-of-many tweaks pre-scope the
+   * note + transcript to the active patient before calling this, so they
+   * don't need this flag.
+   */
+  noteCoversMultiplePatients?: boolean;
 }
 
 /**
@@ -1009,8 +1068,17 @@ export interface TweakNoteInput {
  * a free-form physician instruction ("shorten the assessment", "rewrite
  * the plan as a numbered list", "fix the dose to mg/kg") and return a
  * revised note. The transcript still gates fabrication.
+ *
+ * For a single-patient tweak inside a multi-patient recording, the caller
+ * pre-scopes the inputs: pass that segment's note chunk as `note` and the
+ * filtered transcript as `transcript` (use `filterTranscriptForSegment`).
+ * Leave `noteCoversMultiplePatients` false in that case — the LLM should
+ * treat its inputs as a single-patient note.
  */
 export async function tweakNote(input: TweakNoteInput): Promise<string> {
+  const scopeRule = input.noteCoversMultiplePatients
+    ? "- The note covers MULTIPLE patients separated by '---' horizontal rules. Preserve every patient's section header and content unless the instruction explicitly targets every patient (e.g., 'add return precautions to all plans'). Single-patient instructions like 'fix the dose' apply only to the patient that section is about — leave the other patients' sections untouched."
+    : "- Keep the note scoped to this encounter's primary patient.";
   const tweakTemplate: NoteTemplate = {
     id: 'tweak',
     name: 'Tweak',
@@ -1020,7 +1088,7 @@ Keep the note faithful to the transcript.
 
 HARD RULES:
 - Do not invent history, exam findings, vitals, or diagnoses not supported by the transcript.
-- Keep the note scoped to this encounter's primary patient.
+${scopeRule}
 - Only make changes that are necessary to satisfy the instruction unless the instruction explicitly says the current note is wrong.
 - Preserve sections the instruction does not mention.
 - Return the COMPLETE revised note in markdown, not just a diff or the changed section.
@@ -1041,6 +1109,19 @@ ${input.note}`,
     speakerRoles: input.speakerRoles ?? [],
   });
   return out.trim();
+}
+
+/**
+ * Convenience wrapper around `filterTranscriptByIndices` for callers that
+ * have a PatientSegment but not the indices array directly. Used by the
+ * multi-patient tabbed Review to pre-scope the transcript before tweak /
+ * pearls / quotes calls so the LLM only sees one patient's utterances.
+ */
+export function filterTranscriptForSegment(
+  transcript: Transcript,
+  segment: { relevantUtteranceIndices: number[] },
+): Transcript {
+  return filterTranscriptByIndices(transcript, segment.relevantUtteranceIndices);
 }
 
 // Re-export composeNotePrompt for tests / dev tooling

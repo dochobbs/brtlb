@@ -13,6 +13,17 @@ export interface ChangelogEntry {
 export const CHANGELOG: ReadonlyArray<ChangelogEntry> = [
   {
     date: '2026-05-01',
+    title: 'Multi-patient tabs',
+    items: [
+      'Sibling visits now show one tab per patient above the note. Tap a tab to scope every action to that kid: Copy, Share, Email, Download, Tweak, Regenerate, and section-paste all retarget to the active tab.',
+      '"All combined" tab is always available for global actions — copy the whole sibling note in one shot, or tweak across all patients ("add return precautions to all plans").',
+      "Per-patient regenerate — re-run the note for just one kid without touching the others. No re-pay for transcription; the other patients' sections stay intact.",
+      "Per-patient tweak now sends only that patient's section + filtered transcript to the LLM, so the other patients physically can't be touched. Cross-patient tweaks on the All-combined tab use a multi-patient-aware prompt that preserves every section unless the instruction explicitly targets all.",
+      'Single-patient recordings are unchanged — no tabs, same streamlined view as before.',
+    ],
+  },
+  {
+    date: '2026-05-01',
     title: 'Bundle 1 hardening',
     items: [
       'Top-level error boundary — if React ever throws, you get a "Something broke" card with Reload and "Wipe local data and reload" buttons instead of a blank screen.',
