@@ -186,16 +186,14 @@
           <button class="absolute left-3 top-3 text-xs text-graphite-soft">← Cancel</button>
 
           <div class="w-full max-w-sm space-y-5">
-            <!-- Interruption banner — amber, not red. Loud enough to notice,
-                 not loud enough to feel like an emergency. Worded to allow
-                 for the false-positive case (screen covered but mic still
-                 captured) where nothing was actually lost. -->
+            <!-- Interruption banner — amber, definitive copy. Only shown
+                 when the chunk-count check confirms MediaRecorder actually
+                 stopped during the hidden window. -->
             <div class="rounded-md border border-amber-300 bg-amber-50 p-2.5 text-left text-xs leading-relaxed text-amber-900">
-              <p class="font-semibold">Recording may have been interrupted for 24s</p>
+              <p class="font-semibold">Recording was interrupted — 24s of audio lost</p>
               <p class="mt-1">
-                The screen was off, the app was backgrounded, or another app used the mic. Audio
-                captured before/after is intact; review the transcript to confirm what made it
-                through. Keep the screen on for the rest of the visit.
+                Audio captured before and after is intact. Keep the screen on for the rest of the
+                visit, or stop now and re-record.
               </p>
             </div>
 

@@ -304,15 +304,19 @@ export const useRecorderStore = create<RecorderStore>((set, get) => {
             });
         }
 
-        // Detect screen lock / app backgrounding mid-recording. The user
-        // can't see a visual warning when the screen is off, but we can:
-        //  1. Try to vibrate (Android only, no-op on iOS)
-        //  2. Track wall-clock time spent hidden so we can report the
-        //     gap when the user returns
-        //  3. Set a flag the UI can read on resume to show a clear warning
+        // Detect screen lock / app backgrounding mid-recording. We use a
+        // chunk-count check on return to decide whether audio was actually
+        // lost: MediaRecorder emits a chunk every ~1s, and on iOS the tab
+        // fully suspends with no chunks during the hidden window. So if
+        // seq stayed flat across the hidden period, audio was lost. If it
+        // increased, MediaRecorder kept running underneath (e.g., desktop
+        // browser with display sleep, or some Android cases) and there's
+        // no real loss — we suppress the banner to avoid false alarms.
+        let seqAtHide: number | null = null;
         const handler = () => {
           if (document.hidden) {
             internals.lastHiddenAt = Date.now();
+            seqAtHide = internals.seq;
             // Best-effort vibration alert. Android responds; iOS ignores.
             if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
               try {
@@ -321,17 +325,21 @@ export const useRecorderStore = create<RecorderStore>((set, get) => {
                 // some browsers throw on policy violation; not load-bearing
               }
             }
-          } else if (internals.lastHiddenAt !== null) {
+          } else if (internals.lastHiddenAt !== null && seqAtHide !== null) {
             const gap = Date.now() - internals.lastHiddenAt;
-            internals.totalHiddenMs += gap;
-            internals.hiddenIntervals.push({
-              startMs: internals.lastHiddenAt,
-              endMs: Date.now(),
-            });
+            const chunksDuringHide = internals.seq - seqAtHide;
             internals.lastHiddenAt = null;
-            // Only flag interruptions over 1.5s to avoid noise from quick
-            // app-switch peeks that didn't actually disrupt audio.
-            if (gap > 1500) {
+            seqAtHide = null;
+            // Only treat as real loss if MediaRecorder produced no chunks
+            // during the hidden window AND the window was >1.5s. Sub-1.5s
+            // is noise either way; chunk activity during the window means
+            // audio kept capturing.
+            if (gap > 1500 && chunksDuringHide === 0) {
+              internals.totalHiddenMs += gap;
+              internals.hiddenIntervals.push({
+                startMs: Date.now() - gap,
+                endMs: Date.now(),
+              });
               set({
                 hasBeenInterrupted: true,
                 totalInterruptedMs: internals.totalHiddenMs,
