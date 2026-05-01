@@ -126,7 +126,16 @@ export function Record() {
         </div>
       ) : null}
 
-      {!error && isLive ? (
+      {!error && saving ? (
+        <div className="w-full max-w-md text-center">
+          <p className="inline-flex items-center gap-2 text-sm text-graphite-soft">
+            <span aria-hidden className="inline-block h-2 w-2 animate-pulse rounded-full bg-seafoam" />
+            Saving recording…
+          </p>
+        </div>
+      ) : null}
+
+      {!error && !saving && isLive ? (
         <LiveRecordingView
           mode={mode}
           state={state}
