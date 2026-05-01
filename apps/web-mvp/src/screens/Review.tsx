@@ -49,6 +49,102 @@ const ROLE_DISPLAY: Record<string, string> = {
   other: 'Other',
 };
 
+function GuidedPaste(props: {
+  sections: { label: string; body: string }[];
+  idx: number;
+  onCopy: () => void;
+  onJump: (i: number) => void;
+  copiedSet: Set<string>;
+  copiedJustNow: string | null;
+}) {
+  const { sections, idx, onCopy, onJump, copiedSet, copiedJustNow } = props;
+  const total = sections.length;
+  const done = idx >= total;
+  const current = sections[Math.min(idx, total - 1)];
+
+  if (done) {
+    return (
+      <div className="mt-2">
+        <p className="text-sm text-emerald-700">✓ All {total} sections copied. Nice work.</p>
+        <button
+          type="button"
+          onClick={() => onJump(0)}
+          className="mt-2 text-xs text-graphite-soft underline-offset-2 hover:underline"
+        >
+          Start over
+        </button>
+      </div>
+    );
+  }
+
+  if (!current) return null;
+  const justCopied = copiedJustNow === current.label;
+  const wordCount = current.body.split(/\s+/).filter(Boolean).length;
+
+  return (
+    <div className="mt-2 space-y-2.5">
+      <div className="flex items-center justify-between text-[11px] text-graphite-soft">
+        <span>
+          Section {idx + 1} of {total}
+        </span>
+        <span>~{wordCount} words</span>
+      </div>
+      <button
+        type="button"
+        onClick={onCopy}
+        className={
+          'flex w-full items-center justify-between gap-3 rounded-lg border px-4 py-3 text-left transition ' +
+          (justCopied
+            ? 'border-emerald-300 bg-emerald-50 text-emerald-800'
+            : 'border-graphite bg-graphite text-white hover:bg-graphite-soft')
+        }
+      >
+        <span className="text-sm font-medium">
+          {justCopied ? '✓ Copied — paste it now, then come back' : `Copy ${current.label}`}
+        </span>
+        <span aria-hidden className="text-base">
+          {justCopied ? '✓' : '→'}
+        </span>
+      </button>
+      <div className="flex items-center justify-between gap-2 text-[11px] text-graphite-soft">
+        <button
+          type="button"
+          onClick={() => onJump(Math.max(0, idx - 1))}
+          disabled={idx === 0}
+          className="hover:text-graphite disabled:opacity-40"
+        >
+          ← Previous
+        </button>
+        <div className="flex flex-1 justify-center gap-1">
+          {sections.map((s, i) => (
+            <button
+              key={s.label}
+              type="button"
+              onClick={() => onJump(i)}
+              title={s.label}
+              className={
+                'h-1.5 w-5 rounded-full transition ' +
+                (i === idx
+                  ? 'bg-graphite'
+                  : copiedSet.has(s.label)
+                    ? 'bg-graphite/40'
+                    : 'bg-graphite-soft/25')
+              }
+            />
+          ))}
+        </div>
+        <button
+          type="button"
+          onClick={() => onJump(Math.min(total, idx + 1))}
+          className="hover:text-graphite"
+        >
+          Skip →
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function EmptyTranscriptState(props: {
   stage: PipelineStage | null;
   recordingStage: RecordingMeta['stage'];
@@ -122,6 +218,11 @@ export function Review() {
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [copiedSection, setCopiedSection] = useState<string | null>(null);
+  /** Set of section labels copied during this Review session — persists for guided paste. */
+  const [copiedSections, setCopiedSections] = useState<Set<string>>(new Set());
+  /** Index of the section the guided-paste flow is currently on. */
+  const [guidedIdx, setGuidedIdx] = useState<number>(0);
+  const [pasteMode, setPasteMode] = useState<'chips' | 'guided' | 'combined'>('chips');
   const [regenerating, setRegenerating] = useState(false);
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>('soap');
   const [speakerRoles, setSpeakerRoles] = useState<SpeakerRoleAssignment[]>([]);
@@ -348,7 +449,48 @@ export function Review() {
       }
     }
     setCopiedSection(section.label);
+    setCopiedSections((prev) => {
+      const next = new Set(prev);
+      next.add(section.label);
+      return next;
+    });
     setTimeout(() => setCopiedSection(null), 1500);
+    if (meta) void logAudit('note_copied', { recordingId: meta.id });
+  }
+
+  async function handleGuidedCopy(): Promise<void> {
+    const section = noteSections[guidedIdx];
+    if (!section) return;
+    await handleCopySection(section);
+    // Auto-advance to the next section after a brief pause so the user sees
+    // the ✓ acknowledgement before the button label changes.
+    setTimeout(() => {
+      setGuidedIdx((i) => Math.min(i + 1, noteSections.length));
+    }, 450);
+  }
+
+  async function handleCopyCombined(): Promise<void> {
+    // Combined copy with horizontal-rule separators between sections so the
+    // structure stays visible even when pasted into a single notes field.
+    if (noteSections.length === 0) {
+      await handleCopy();
+      return;
+    }
+    const md = noteSections
+      .map((s) => `**${s.label}**\n\n${s.body}`)
+      .join('\n\n---\n\n');
+    const ok = await copyNoteRich(md);
+    if (!ok) {
+      try {
+        await navigator.clipboard.writeText(
+          noteSections.map((s) => `${s.label}\n\n${s.body}`).join('\n\n— — —\n\n'),
+        );
+      } catch {
+        return;
+      }
+    }
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
     if (meta) void logAudit('note_copied', { recordingId: meta.id });
   }
 
@@ -883,32 +1025,95 @@ export function Review() {
 
           {noteSections.length >= 2 ? (
             <div className="mt-4 rounded-md border border-graphite-soft/20 bg-mist/50 p-3">
-              <div className="flex items-center justify-between gap-2">
+              <div className="flex flex-wrap items-center justify-between gap-2">
                 <p className="text-xs font-medium uppercase tracking-wide text-graphite-soft">
-                  Copy by section
+                  Section paste
                 </p>
-                <span className="text-[11px] text-graphite-soft">
-                  Drops bold formatting straight into your EHR's matching field
-                </span>
+                <div className="inline-flex rounded-full border border-graphite-soft/25 bg-white p-0.5 text-[11px]">
+                  {(['chips', 'guided', 'combined'] as const).map((m) => (
+                    <button
+                      key={m}
+                      type="button"
+                      onClick={() => {
+                        setPasteMode(m);
+                        if (m === 'guided') setGuidedIdx(0);
+                      }}
+                      className={
+                        'rounded-full px-2.5 py-0.5 font-medium transition ' +
+                        (pasteMode === m
+                          ? 'bg-graphite text-white'
+                          : 'text-graphite-soft hover:text-graphite')
+                      }
+                    >
+                      {m === 'chips' ? 'Pick' : m === 'guided' ? 'Walk through' : 'All-in-one'}
+                    </button>
+                  ))}
+                </div>
               </div>
-              <div className="mt-2 flex flex-wrap gap-1.5">
-                {noteSections.map((s) => (
+
+              {pasteMode === 'chips' ? (
+                <>
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    {noteSections.map((s) => {
+                      const seenThisSession = copiedSections.has(s.label);
+                      const justCopied = copiedSection === s.label;
+                      return (
+                        <button
+                          key={s.label}
+                          type="button"
+                          onClick={() => handleCopySection(s)}
+                          disabled={!editedNote}
+                          className={
+                            'rounded-full border px-3 py-1 text-xs font-medium transition disabled:opacity-50 ' +
+                            (justCopied
+                              ? 'border-emerald-300 bg-emerald-50 text-emerald-800'
+                              : seenThisSession
+                                ? 'border-graphite-soft/30 bg-white text-graphite-soft'
+                                : 'border-graphite-soft/30 bg-white text-graphite hover:bg-mist')
+                          }
+                        >
+                          {justCopied ? `✓ ${s.label}` : seenThisSession ? `✓ ${s.label}` : s.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {copiedSections.size > 0 ? (
+                    <p className="mt-2 text-[11px] text-graphite-soft">
+                      {copiedSections.size} of {noteSections.length} copied
+                    </p>
+                  ) : (
+                    <p className="mt-2 text-[11px] text-graphite-soft">
+                      Tap to copy that section into your EHR's matching field. Bold formatting
+                      preserved.
+                    </p>
+                  )}
+                </>
+              ) : pasteMode === 'guided' ? (
+                <GuidedPaste
+                  sections={noteSections}
+                  idx={guidedIdx}
+                  onCopy={handleGuidedCopy}
+                  onJump={(i) => setGuidedIdx(i)}
+                  copiedSet={copiedSections}
+                  copiedJustNow={copiedSection}
+                />
+              ) : (
+                <div className="mt-2">
                   <button
-                    key={s.label}
                     type="button"
-                    onClick={() => handleCopySection(s)}
+                    onClick={handleCopyCombined}
                     disabled={!editedNote}
-                    className={
-                      'rounded-full border px-3 py-1 text-xs font-medium transition disabled:opacity-50 ' +
-                      (copiedSection === s.label
-                        ? 'border-emerald-300 bg-emerald-50 text-emerald-800'
-                        : 'border-graphite-soft/30 bg-white text-graphite hover:bg-mist')
-                    }
+                    className="rounded-md bg-graphite px-4 py-2 text-sm font-medium text-white hover:bg-graphite-soft disabled:opacity-50"
                   >
-                    {copiedSection === s.label ? `✓ ${s.label}` : s.label}
+                    {copied ? '✓ Copied' : 'Copy whole note'}
                   </button>
-                ))}
-              </div>
+                  <p className="mt-2 text-[11px] text-graphite-soft">
+                    Sections joined with{' '}
+                    <code className="rounded bg-white px-1 py-0.5">---</code> separators so
+                    structure stays visible when pasted into a single field.
+                  </p>
+                </div>
+              )}
             </div>
           ) : null}
 
@@ -930,9 +1135,9 @@ export function Review() {
               onClick={handleEmail}
               disabled={!editedNote}
               className="rounded-md border border-graphite-soft/30 bg-white px-4 py-2 text-sm font-medium text-graphite hover:bg-mist disabled:opacity-50"
-              title="Opens your mail app with the note pre-filled — handy for moving the note to another device"
+              title="Opens your mail app with the note pre-filled. Only safe if your email provider is HIPAA-BAA-covered."
             >
-              Email
+              Email…
             </button>
             <button
               type="button"
@@ -948,25 +1153,35 @@ export function Review() {
             <summary className="cursor-pointer text-graphite-soft hover:text-graphite">
               Move this note to another device
             </summary>
+            <p className="mt-2 rounded border border-amber-200 bg-amber-50 p-2 text-[11px] leading-relaxed text-amber-900">
+              <span className="font-medium">HIPAA caveat:</span> these convenience routes use
+              ecosystem services (iCloud, your mail provider) that are <em>not</em> automatically
+              BAA-covered. The lowest-risk options are <span className="font-medium">AirDrop</span>{' '}
+              (peer-to-peer, never hits the cloud) and{' '}
+              <span className="font-medium">Workspace Gmail</span> (covered when your domain has an
+              active HIPAA BAA with Google). Avoid personal Gmail / iCloud Mail / iCloud Drive for
+              real PHI unless your practice's HIPAA program explicitly permits.
+            </p>
             <ul className="mt-2 space-y-1.5 pl-1 leading-relaxed text-graphite-soft">
               <li>
-                <span className="font-medium text-graphite">Apple to Apple:</span> tap{' '}
-                <em>Copy</em> here, then paste on your Mac/iPad. Universal Clipboard syncs through
-                iCloud (same Apple ID, both devices logged in, Bluetooth + Wi-Fi on).
+                <span className="font-medium text-graphite">AirDrop (lowest risk):</span> tap{' '}
+                <em>Share</em> → pick your laptop in the recipient list. Note arrives as a text
+                file on macOS. Peer-to-peer, never traverses any cloud.
               </li>
               <li>
-                <span className="font-medium text-graphite">AirDrop:</span> tap <em>Share</em> →
-                pick your laptop in the recipient list. Note arrives as a text file on macOS.
+                <span className="font-medium text-graphite">Universal Clipboard (Apple to Apple):</span>{' '}
+                tap <em>Copy</em>, paste on your Mac/iPad. Convenient but transits Apple briefly —
+                Apple does not sign BAAs for iCloud.
               </li>
               <li>
-                <span className="font-medium text-graphite">Email yourself:</span> tap{' '}
-                <em>Email</em> — your mail app opens with the note pre-filled. Send to any
-                address you check on the destination device.
+                <span className="font-medium text-graphite">Email to yourself:</span> tap{' '}
+                <em>Email</em>. Safe only if your email provider (Workspace Gmail with HIPAA BAA,
+                Office 365 with BAA) is BAA-covered. Personal Gmail / iCloud Mail are not.
               </li>
               <li>
                 <span className="font-medium text-graphite">iOS Save to Files:</span> tap{' '}
-                <em>Download</em>, then in the Files prompt save to <em>iCloud Drive</em>. The
-                file appears in Finder on your Mac within seconds.
+                <em>Download</em>, save to <em>On My iPhone</em> (local, safe) or{' '}
+                <em>iCloud Drive</em> (convenient, not BAA-covered).
               </li>
             </ul>
           </details>
