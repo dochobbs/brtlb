@@ -68,6 +68,33 @@
       window.process.nextTick = window.process.nextTick || function (cb) { Promise.resolve().then(cb); };
       window.global = window.global || window;
     </script>
+    <script>
+      // Apply theme synchronously before React hydrates so dark-mode users
+      // don't see a light-mode flash. We read the same localStorage key the
+      // store reads, fall back to OS preference if unset or unparseable.
+      (function () {
+        try {
+          var raw = window.localStorage && window.localStorage.getItem('brtlb.settings.v1');
+          var theme = 'system';
+          if (raw) {
+            try {
+              var parsed = JSON.parse(raw);
+              if (parsed && typeof parsed.theme === 'string') theme = parsed.theme;
+            } catch (e) {
+              // ignore malformed JSON; treat as system
+            }
+          }
+          var prefersDark =
+            window.matchMedia &&
+            window.matchMedia('(prefers-color-scheme: dark)').matches;
+          var dark = theme === 'dark' || (theme === 'system' && prefersDark);
+          if (dark) document.documentElement.classList.add('dark');
+        } catch (e) {
+          // localStorage blocked (e.g. cookies disabled) — fall through to
+          // light mode, the default.
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>
