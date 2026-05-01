@@ -1,8 +1,9 @@
 # brtlb failure modes — catalog + remediation plan
 
-> Status: analysis. Not all of these are bugs to fix; some are inherent
-> limitations to document. The point is to know which is which and choose
-> deliberately.
+> Status: analysis + active remediation. Last updated 2026-05-01.
+> Many items marked 🟨 partial in the original draft have moved to ✅
+> handled. Bundle 1 is roughly half-shipped — see "Recently shipped"
+> at bottom.
 
 Each item is rated:
 - **Severity**: 🔴 critical (data loss, PHI leak, clinical safety) / 🟡 medium (UX/frustration) / 🟢 low (rare, recoverable)
@@ -19,9 +20,7 @@ Each item is rated:
 **Action:** verify that `recoverOrphanedRecordings` and `recoverInterruptedRecordings` both handle the "stage=recording, no recordings entry, only chunks" case. If they don't, add a third recovery path.
 
 ### 🔴 iOS Safari suspends tab when screen locks mid-recording
-**Status:** 🟨 partial. Documented in privacy panel. Chunk-save retains audio captured before suspension. Audio after suspension is lost.
-**Real risk:** user records 60-min visit, screen locks 10 min in, brtlb captures 10 min then silently stops. They get back to a 10-min recording.
-**Action:** (1) add a wake-lock attempt at recording start (`navigator.wakeLock`); (2) detect background event and warn the user when they return; (3) the only real fix is native shell — already on roadmap. Document the current behavior more prominently in the recording UI.
+**Status:** ✅ **handled** (as of 2026-05-01). Three layers shipped: (1) `navigator.wakeLock.request('screen')` acquired at recording start to prevent accidental auto-lock; (2) seafoam pre-record advisory in ambient mode reminds user to keep screen on; (3) deterministic chunk-count check on visibility return — banner only fires when MediaRecorder actually stopped, with definitive copy: "Recording was interrupted — Xs of audio lost." Native shell still required for true background recording (Capacitor on roadmap), but the failure mode is no longer silent.
 
 ### 🔴 Storage fills up during recording (IDB QuotaExceededError)
 **Status:** ❌ unhandled. `appendAudioChunk` errors are caught and warned to console; user sees no UI signal. Recording continues in memory but chunks aren't persisting → tab crash = lost audio.
@@ -29,19 +28,18 @@ Each item is rated:
 **Action:** detect QuotaExceededError on chunk persist, surface a "Device storage full" warning in the recording UI, suggest deleting old recordings before continuing.
 
 ### 🟡 Mic source disconnects mid-recording (AirPods, USB mic, Bluetooth headset)
-**Status:** ❌ unhandled. MediaRecorder may continue but produce silence, or fire `onerror`.
-**Real risk:** physician using AirPods, one falls out / disconnects, recording continues silently, transcript ends abruptly with no warning.
-**Action:** listen to `mediaStream.oninactive` and `track.onmute`/`onended`. On detection, flash a red "Mic disconnected" warning in the recording UI; pause the recorder so the user can decide.
+**Status:** ✅ **handled** (as of 2026-05-01). `track.onmute` / `track.onunmute` / `track.onended` listeners attached to every audio track. Brief mute (incoming call) → counted into interruption gap warning. Permanent loss (track ended) → clear error message: "The microphone became unavailable. Another app may have taken it, the device was unplugged, or permission was revoked. Stop and re-record when the mic is available again."
 
 ### 🟡 Mic permission revoked mid-session (browser settings change)
-**Status:** ❌ unhandled. Next start would prompt again, but in-session degradation is silent.
-**Real risk:** rare but possible if user denies permission accidentally then doesn't re-grant.
-**Action:** subscribe to `navigator.permissions.query({name: 'microphone'})` change events, surface immediate warning.
+**Status:** ✅ **handled** (as of 2026-05-01). `track.onended` covers this case — surfaces same error UI as mic disconnect. User can stop, re-grant permission, and re-record.
+
+### 🟡 Incoming call interrupting focus
+**Status:** ✅ **handled** (as of 2026-05-01). `track.onmute` fires when OS takes the mic for an accepted call (CallKit on iOS, telephony on Android). For ignored calls in modern banner mode (iOS 14+ default), no interruption fires — recording continues uninterrupted. For legacy fullscreen call mode, the chunk-count check correctly identifies whether audio was actually lost.
 
 ### 🟡 Network drops during transcription poll
-**Status:** 🟨 partial. The poll has timeouts per request but no retry — first failure throws, recording fails, user gets an error.
+**Status:** 🟨 partial. Upload now has retry+adaptive timeout. Poll loop still has per-request timeouts but no retry on transient errors.
 **Real risk:** clinic WiFi flakes for 10 seconds during a long visit's poll, transcription marked failed even though AssemblyAI completed it on their side.
-**Action:** add retry with exponential backoff on poll requests (already retry on upload). 3 attempts before giving up.
+**Action:** add retry with exponential backoff on poll requests (already retry on upload). 3 attempts before giving up. Bundle 2.
 
 ### 🟢 Phone overheats / throttles
 **Status:** ❌ unhandled. MediaRecorder may slow or skip frames.
@@ -120,9 +118,7 @@ Each item is rated:
 **Action:** none beyond what's done.
 
 ### 🔴 User edits note manually then accidentally hits Regenerate, losing all edits
-**Status:** ❌ unhandled. No confirm dialog before destructive Regenerate.
-**Real risk:** common. Especially after spending 30 seconds tweaking a Plan section.
-**Action:** if the note has been manually edited since generation (track a `dirty` flag on edit), Regenerate shows a confirmation: "Your manual edits will be lost. Continue?"
+**Status:** ✅ **handled** (as of 2026-05-01). Tracks whether `editedNote !== meta.noteMarkdown` (manual edits since last generation). If so, Regenerate shows ConfirmDialog: "Discard your manual edits? The note has manual edits since it was generated. Regenerating will replace the note with a fresh LLM output and lose your edits. There's no undo." Defaults focus on Cancel; danger-toned red Confirm.
 
 ### 🟡 User deletes a recording then realizes they wanted it
 **Status:** 🟨 partial. ConfirmDialog gates delete. No undo after confirm.
@@ -149,9 +145,7 @@ Each item is rated:
 **Action:** add a max-recording-duration soft cap warning — at 60 min, show a banner "Still recording — confirm to continue another 30 min, or stop now." Also useful as a spend-control nudge for AssemblyAI cost.
 
 ### 🟡 User runs out of AssemblyAI credit / billing fails
-**Status:** ❌ unhandled. They get a generic 4xx error after upload.
-**Real risk:** moderate. Trial credit exhaustion is the most common case.
-**Action:** detect 402/billing-related errors specifically, route the user to AssemblyAI's billing dashboard.
+**Status:** ✅ **handled** (as of 2026-05-01). Errors classified at the API boundary by HTTP status + body content. 402 / "credit" / "balance" → "account out of credit or payment failed. Top up at https://www.assemblyai.com/dashboard/account to continue." 429 → rate limit message. 401/403 → auth failure (with BAA-scope-mismatch variant when relevant). 400 → audio-rejection details. Generic fallback otherwise.
 
 ### 🟡 User pastes wrong key into wrong field (Gemini key into AssemblyAI field)
 **Status:** ✅ handled. Wizard verifies each key live against its respective endpoint before letting the user advance.
@@ -223,6 +217,58 @@ Prevents accidental edit loss.
 - IDB version downgrade recovery
 - Service worker conflict detection
 - Native shell for true background audio (already roadmapped under Capacitor)
+
+---
+
+---
+
+## Recently shipped (2026-05-01 batch)
+
+This batch addressed eight failure modes from the catalog in one focused
+day of work. All shipped to brtlb.vercel.app and verified building +
+testing clean (40 pipeline tests, 15 web-mvp tests).
+
+### Resolved this batch
+
+| Failure mode | Severity | Commit |
+|---|---|---|
+| iOS screen lock during recording (silent failure) | 🔴 → ✅ | `3a31515`, `af0129d` |
+| Mic disconnects mid-recording (AirPods, USB) | 🟡 → ✅ | `7fe81ee` |
+| Mic permission revoked mid-session | 🟡 → ✅ | `7fe81ee` |
+| Incoming call interrupts recording | 🟡 → ✅ | `7fe81ee` |
+| Long-visit upload timeout on slow connections | 🟡 → ✅ | `63d8f04` (earlier) |
+| User loses manual edits hitting Regenerate | 🔴 → ✅ | `ade80fb` |
+| AssemblyAI billing/quota errors opaque | 🟡 → ✅ | `ade80fb` |
+| Interruption banner false positives | 🟡 → ✅ | `af0129d` |
+
+### Still in Bundle 1 (not yet shipped)
+
+- ❌ Top-level error boundary (catch React render errors)
+- ❌ Capability check at boot (older browser detection)
+- ❌ Storage full / IDB QuotaExceededError detection during chunk save
+- ❌ Template-applied toast after Regenerate
+- ❌ Verify recoverOrphanedRecordings handles dead-battery case
+
+These are the lowest-effort items still standing. ~1 hour total.
+
+### Bundle 2 work
+
+- Wake-lock at recording start ✅ shipped (was Bundle 2 originally, pulled into the screen-lock fix)
+- ❌ Background-detection toast (covered by interruption banner; lower priority)
+- ❌ Verify recoverOrphanedRecordings for stage=recording case
+- ❌ Max-recording-duration warning at 60 min
+- ❌ Poll-loop retry with backoff
+- ❌ Manual Lock Now button
+
+### Bundle 3 (consent + compliance) — unchanged
+
+- ❌ Pre-record consent prompt
+- ❌ BAA attestation in Settings
+- ❌ Patient-name on section paste chips (covered by multi-patient design proposal)
+
+### Bundle 4 (soft-delete) — unchanged
+
+- ❌ Trash bin with 7-day undo
 
 ---
 
