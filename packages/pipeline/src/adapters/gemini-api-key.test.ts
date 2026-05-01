@@ -80,7 +80,7 @@ describe('createGeminiApiKeyProvider', () => {
       { kind: 'gemini-api-key', apiKey: 'k', model: 'm' },
       { httpClient },
     );
-    await expect(p.generateNote(input())).rejects.toThrow(/gemini-api-key: 403/);
+    await expect(p.generateNote(input())).rejects.toThrow(/gemini-api-key: authentication failed.*HTTP 403/);
   });
 
   it('concatenates multiple text parts of the first candidate', async () => {

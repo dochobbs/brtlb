@@ -74,7 +74,7 @@ export function createGeminiApiKeyProvider(
 
       if (!res.ok) {
         const body = await res.text().catch(() => '');
-        throw new Error(`gemini-api-key: ${res.status} ${body}`);
+        throw classifyGeminiError(res.status, body);
       }
 
       const json = (await res.json()) as GeminiResponse;
@@ -82,4 +82,74 @@ export function createGeminiApiKeyProvider(
       return parts.map((p) => p.text ?? '').join('');
     },
   };
+}
+
+/**
+ * Turn a Gemini API HTTP error into an actionable Error. Distinguishes:
+ * - billing not linked / API not enabled (403 + billing/CONSUMER_INVALID)
+ * - quota exceeded (429)
+ * - Workspace org-policy block (API_KEYS_DISALLOWED)
+ * - bad/invalid key (400 INVALID_ARGUMENT)
+ * - model not available (404)
+ *
+ * Error subclassing isn't worth it; substring detection on the message is
+ * sufficient for retry classification and UI routing.
+ */
+function classifyGeminiError(status: number, body: string): Error {
+  const lc = body.toLowerCase();
+
+  // 403 + billing keywords → Cloud project doesn't have billing linked
+  if (
+    status === 403 &&
+    (/billing/i.test(body) ||
+      /CONSUMER_INVALID/i.test(body) ||
+      /SERVICE_DISABLED/i.test(body))
+  ) {
+    return new Error(
+      'gemini-api-key: your Gemini Cloud project either has no billing linked or the Generative Language API is disabled. Link billing at https://console.cloud.google.com/billing/linkedaccount and confirm the API is enabled at https://console.cloud.google.com/apis/library/generativelanguage.googleapis.com — same key will work once both are set.',
+    );
+  }
+
+  // 403 with API key disallowed → org policy block
+  if (
+    status === 403 &&
+    (/API[_ ]Keys?[_ ](are[_ ])?Disallowed/i.test(body) ||
+      /iam\.managed\.disableServiceAccountApiKeyCreation/i.test(body))
+  ) {
+    return new Error(
+      "gemini-api-key: your Workspace org policy blocks API key creation for this project. As a Workspace admin, override at https://console.cloud.google.com/iam-admin/orgpolicies/list (filter by 'api'). See the wizard's admin path for full steps.",
+    );
+  }
+
+  // 429 → quota / rate limit
+  if (status === 429 || lc.includes('quota') || lc.includes('rate limit')) {
+    return new Error(
+      'gemini-api-key: quota exceeded or rate limit hit. Wait a minute and try again, or upgrade your Cloud project quota at https://console.cloud.google.com/iam-admin/quotas (filter by Generative Language API).',
+    );
+  }
+
+  // 401 / generic 403 → bad key
+  if (status === 401 || status === 403) {
+    return new Error(
+      `gemini-api-key: authentication failed. Verify your Gemini API key in Settings is correct and active. (HTTP ${status})`,
+    );
+  }
+
+  // 400 with INVALID_ARGUMENT → malformed request, often bad model name or
+  // unrecognized parameter
+  if (status === 400) {
+    return new Error(
+      `gemini-api-key: request rejected. ${body.slice(0, 200)} (HTTP 400) — try "List my models" in Settings to pick a valid model.`,
+    );
+  }
+
+  // 404 → model name not available to this key/project
+  if (status === 404) {
+    return new Error(
+      `gemini-api-key: model not found for this key. The model name may have been retired or your project doesn't have access. Use "List my models" in Settings to pick one. (HTTP 404)`,
+    );
+  }
+
+  // Generic fallback
+  return new Error(`gemini-api-key: ${status} ${body.slice(0, 300)}`);
 }
