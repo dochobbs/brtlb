@@ -275,18 +275,17 @@ function LiveRecordingView(props: LiveRecordingViewProps) {
             lost)
           </p>
           <p className="mt-1 text-xs leading-relaxed">
-            iOS pauses browser-based recording when the screen locks or you switch apps. The
-            audio captured before/after each interruption is fine, but anything during the lock is
-            gone. Keep the screen on for the rest of the visit, or stop now and re-record.
+            iOS pauses browser recording when the screen locks or you switch apps. The audio
+            captured before and after the interruption is fine — anything during the lock is gone.
+            Keep the screen on for the rest of the visit, or stop now and re-record.
           </p>
         </div>
       ) : isAmbient ? (
         <div className="rounded-md border border-amber-200 bg-amber-50 p-2.5 text-left text-xs text-amber-900">
           <p>
-            <span className="font-medium">Heads up:</span> brtlb in the browser stops recording
-            when you lock the phone or switch apps. Keep the screen on for the whole visit.
-            (Roci's native iOS app handles screen-lock recording — use that for unattended-phone
-            workflows.)
+            <span className="font-medium">Heads up:</span> recording stops when you lock the phone
+            or switch apps. Keep the screen on for the whole visit. brtlb tries to keep your screen
+            from auto-locking, but the manual lock button still works.
           </p>
         </div>
       ) : null}

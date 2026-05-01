@@ -1,0 +1,296 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>brtlb — recording screen states</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            colors: {
+              graphite: '#1F2328',
+              'graphite-soft': '#3D444D',
+              seafoam: '#A8E6CF',
+              'seafoam-pale': '#E8FAF3',
+              mist: '#F6F8FA',
+            },
+            fontFamily: {
+              sans: ['Inter', 'system-ui', 'sans-serif'],
+            },
+          },
+        },
+      };
+    </script>
+    <style>
+      body {
+        font-family: 'Inter', system-ui, sans-serif;
+        background: #f6f8fa;
+        color: #1f2328;
+      }
+      @keyframes pulse-red {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.4; }
+      }
+      .pulse-red {
+        animation: pulse-red 1.4s ease-in-out infinite;
+      }
+      @keyframes breathe {
+        0%, 100% { width: 30%; opacity: 0.5; }
+        50% { width: 55%; opacity: 0.85; }
+      }
+      .breathe {
+        animation: breathe 2.6s ease-in-out infinite;
+      }
+    </style>
+  </head>
+  <body class="min-h-screen">
+    <header class="mx-auto max-w-5xl px-4 py-8 sm:px-6">
+      <h1 class="text-2xl font-semibold text-graphite">Recording screen states</h1>
+      <p class="mt-1 text-sm text-graphite-soft">
+        Three real states the recording UI can be in. All shown on the same page for comparison.
+      </p>
+    </header>
+
+    <div class="mx-auto grid max-w-5xl gap-6 px-4 pb-12 sm:px-6 lg:grid-cols-3">
+      <!-- State 1: Ambient mode, just started -->
+      <div class="rounded-xl border border-graphite-soft/20 bg-white p-4">
+        <p class="mb-3 text-xs font-medium uppercase tracking-wider text-graphite-soft">
+          1. Ambient mode, just started
+        </p>
+        <div class="relative flex min-h-[480px] flex-col items-center justify-center rounded-lg bg-mist px-4 py-6 text-center">
+          <button class="absolute left-3 top-3 text-xs text-graphite-soft">← Cancel</button>
+
+          <div class="w-full max-w-sm space-y-4">
+            <!-- Pre-record advisory -->
+            <div class="rounded-md border border-amber-200 bg-amber-50 p-2.5 text-left text-xs text-amber-900">
+              <p>
+                <span class="font-medium">Heads up:</span> recording stops when you lock the phone
+                or switch apps. Keep the screen on for the whole visit. brtlb tries to keep your
+                screen from auto-locking, but the manual lock button still works.
+              </p>
+            </div>
+
+            <!-- Status + timer -->
+            <div class="text-center">
+              <p class="inline-flex items-center gap-2 text-xs uppercase tracking-wide text-graphite-soft">
+                <span class="pulse-red inline-block h-2 w-2 rounded-full bg-red-500"></span>
+                Ambient · Recording
+              </p>
+              <p class="mt-2 font-mono text-2xl font-medium tabular-nums text-graphite">0:42</p>
+            </div>
+
+            <!-- Calm breathing line -->
+            <div class="flex h-2 items-center justify-center">
+              <div class="breathe h-0.5 rounded-full bg-graphite-soft/40"></div>
+            </div>
+
+            <!-- Buttons -->
+            <div class="flex flex-wrap items-center justify-center gap-2">
+              <button class="rounded-md border border-graphite-soft/30 bg-white px-3 py-1.5 text-sm font-medium text-graphite">
+                Pause
+              </button>
+              <button class="rounded-md border border-graphite-soft/30 bg-white px-3 py-1.5 text-sm font-medium text-graphite">
+                Mark moment
+              </button>
+              <button class="rounded-md bg-graphite px-3 py-1.5 text-sm font-medium text-white">
+                Stop
+              </button>
+            </div>
+
+            <div class="text-center">
+              <button class="text-[11px] text-graphite-soft underline-offset-2 hover:underline">
+                Mic check
+              </button>
+            </div>
+          </div>
+        </div>
+        <p class="mt-2 px-1 text-xs text-graphite-soft">
+          Default ambient state. The amber callout is dismissible and only appears for the first
+          ambient recording in the session. Wake Lock acquired silently in the background.
+        </p>
+      </div>
+
+      <!-- State 2: Recording in progress, no advisory dismissed -->
+      <div class="rounded-xl border border-graphite-soft/20 bg-white p-4">
+        <p class="mb-3 text-xs font-medium uppercase tracking-wider text-graphite-soft">
+          2. Recording in progress (subtle steady state)
+        </p>
+        <div class="relative flex min-h-[480px] flex-col items-center justify-center rounded-lg bg-mist px-4 py-6 text-center">
+          <button class="absolute left-3 top-3 text-xs text-graphite-soft">← Cancel</button>
+
+          <div class="w-full max-w-sm space-y-6">
+            <!-- Status + timer -->
+            <div class="text-center">
+              <p class="inline-flex items-center gap-2 text-xs uppercase tracking-wide text-graphite-soft">
+                <span class="pulse-red inline-block h-2 w-2 rounded-full bg-red-500"></span>
+                Ambient · Recording
+              </p>
+              <p class="mt-2 font-mono text-2xl font-medium tabular-nums text-graphite">8:23</p>
+            </div>
+
+            <!-- Calm breathing line -->
+            <div class="flex h-2 items-center justify-center">
+              <div class="breathe h-0.5 rounded-full bg-graphite-soft/40"></div>
+            </div>
+
+            <!-- Buttons -->
+            <div class="flex flex-wrap items-center justify-center gap-2">
+              <button class="rounded-md border border-graphite-soft/30 bg-white px-3 py-1.5 text-sm font-medium text-graphite">
+                Pause
+              </button>
+              <button class="rounded-md border border-graphite-soft/30 bg-white px-3 py-1.5 text-sm font-medium text-graphite">
+                Mark moment
+              </button>
+              <button class="rounded-md bg-graphite px-3 py-1.5 text-sm font-medium text-white">
+                Stop
+              </button>
+            </div>
+
+            <div class="text-center">
+              <button class="text-[11px] text-graphite-soft underline-offset-2 hover:underline">
+                Mic check
+              </button>
+            </div>
+
+            <!-- Marked moments -->
+            <div class="rounded-md border border-graphite-soft/20 bg-white px-3 py-2 text-left">
+              <p class="text-[10px] font-medium uppercase tracking-wide text-graphite-soft">
+                Marked moments
+              </p>
+              <ul class="mt-1 space-y-1 text-xs text-graphite-soft">
+                <li><span class="font-mono">2:14</span></li>
+                <li><span class="font-mono">5:48</span></li>
+              </ul>
+            </div>
+          </div>
+        </div>
+        <p class="mt-2 px-1 text-xs text-graphite-soft">
+          Visit in progress. Calm pulsing red dot, modest timer, breathing line. The patient sees
+          almost nothing if they glance at the screen. Two moments marked.
+        </p>
+      </div>
+
+      <!-- State 3: Returned from lock, gap warning -->
+      <div class="rounded-xl border-2 border-red-300 bg-red-50/50 p-4">
+        <p class="mb-3 text-xs font-medium uppercase tracking-wider text-red-700">
+          3. Returned from screen lock — interruption banner
+        </p>
+        <div class="relative flex min-h-[480px] flex-col items-center justify-center rounded-lg bg-mist px-4 py-6 text-center">
+          <button class="absolute left-3 top-3 text-xs text-graphite-soft">← Cancel</button>
+
+          <div class="w-full max-w-sm space-y-4">
+            <!-- Interruption banner -->
+            <div class="rounded-md border border-red-300 bg-red-50 p-3 text-left text-sm text-red-800">
+              <p class="font-semibold">⚠️ Recording was interrupted (24s of audio lost)</p>
+              <p class="mt-1 text-xs leading-relaxed">
+                iOS pauses browser recording when the screen locks or you switch apps. The audio
+                captured before and after the interruption is fine — anything during the lock is
+                gone. Keep the screen on for the rest of the visit, or stop now and re-record.
+              </p>
+            </div>
+
+            <!-- Status + timer -->
+            <div class="text-center">
+              <p class="inline-flex items-center gap-2 text-xs uppercase tracking-wide text-graphite-soft">
+                <span class="pulse-red inline-block h-2 w-2 rounded-full bg-red-500"></span>
+                Ambient · Recording
+              </p>
+              <p class="mt-2 font-mono text-2xl font-medium tabular-nums text-graphite">11:07</p>
+            </div>
+
+            <!-- Calm breathing line -->
+            <div class="flex h-2 items-center justify-center">
+              <div class="breathe h-0.5 rounded-full bg-graphite-soft/40"></div>
+            </div>
+
+            <!-- Buttons -->
+            <div class="flex flex-wrap items-center justify-center gap-2">
+              <button class="rounded-md border border-graphite-soft/30 bg-white px-3 py-1.5 text-sm font-medium text-graphite">
+                Pause
+              </button>
+              <button class="rounded-md border border-graphite-soft/30 bg-white px-3 py-1.5 text-sm font-medium text-graphite">
+                Mark moment
+              </button>
+              <button class="rounded-md bg-graphite px-3 py-1.5 text-sm font-medium text-white">
+                Stop
+              </button>
+            </div>
+
+            <div class="text-center">
+              <button class="text-[11px] text-graphite-soft underline-offset-2 hover:underline">
+                Mic check
+              </button>
+            </div>
+          </div>
+        </div>
+        <p class="mt-2 px-1 text-xs text-red-700">
+          User locked the phone at minute 8, came back at minute 8:24. The 24-second gap is named
+          explicitly. They can keep going (some audio is better than none) or stop and re-record.
+        </p>
+      </div>
+    </div>
+
+    <div class="mx-auto max-w-5xl space-y-4 px-4 pb-16 sm:px-6">
+      <h2 class="text-lg font-semibold text-graphite">Cross-platform behavior summary</h2>
+
+      <div class="overflow-x-auto rounded-md border border-graphite-soft/20 bg-white">
+        <table class="w-full text-sm">
+          <thead class="bg-mist text-xs uppercase tracking-wide text-graphite-soft">
+            <tr>
+              <th class="px-3 py-2 text-left font-medium">Platform</th>
+              <th class="px-3 py-2 text-left font-medium">Wake Lock</th>
+              <th class="px-3 py-2 text-left font-medium">Lock kills mic</th>
+              <th class="px-3 py-2 text-left font-medium">Vibration alert</th>
+              <th class="px-3 py-2 text-left font-medium">Gap warning</th>
+            </tr>
+          </thead>
+          <tbody class="text-xs">
+            <tr class="border-t border-graphite-soft/10">
+              <td class="px-3 py-2">iOS Safari (16.4+)</td>
+              <td class="px-3 py-2">✅ Works in tab</td>
+              <td class="px-3 py-2">❌ Within seconds</td>
+              <td class="px-3 py-2">❌ No API on iOS</td>
+              <td class="px-3 py-2">✅ Shows on return</td>
+            </tr>
+            <tr class="border-t border-graphite-soft/10">
+              <td class="px-3 py-2">iOS Safari PWA (17.4+)</td>
+              <td class="px-3 py-2">✅ Works</td>
+              <td class="px-3 py-2">❌ Within seconds</td>
+              <td class="px-3 py-2">❌ No API</td>
+              <td class="px-3 py-2">✅ Shows on return</td>
+            </tr>
+            <tr class="border-t border-graphite-soft/10">
+              <td class="px-3 py-2">Android Chrome (84+)</td>
+              <td class="px-3 py-2">✅ Works</td>
+              <td class="px-3 py-2">🟡 5s–5min grace</td>
+              <td class="px-3 py-2">✅ Phone buzzes</td>
+              <td class="px-3 py-2">✅ Shows on return</td>
+            </tr>
+            <tr class="border-t border-graphite-soft/10">
+              <td class="px-3 py-2">Desktop browsers</td>
+              <td class="px-3 py-2">✅ Display sleep prevented</td>
+              <td class="px-3 py-2">❌ on system sleep / 🟡 on display sleep</td>
+              <td class="px-3 py-2">❌ N/A</td>
+              <td class="px-3 py-2">✅ Shows on return</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <p class="text-xs leading-relaxed text-graphite-soft">
+        The honest takeaway: the only platform-independent guarantee is the gap warning that
+        surfaces on return. Wake Lock prevents accidental auto-lock everywhere. Vibration only
+        helps Android users notice the lock. Manual screen-lock during recording is unsupported
+        in browser environments — only a native shell can keep the mic alive past lock on iOS.
+      </p>
+    </div>
+  </body>
+</html>
