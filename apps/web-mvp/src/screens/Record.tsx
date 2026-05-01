@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Button, DotsMark } from '@brtlb/ui';
 import { useAppStore } from '../store';
 import { useRecorderStore } from '../lib/recorder-store';
@@ -160,27 +160,15 @@ interface LiveRecordingViewProps {
 /**
  * Recording UI tuned for the exam room. Ambient mode (patient in the room
  * watching the screen) is subtle by default — small status dot, modest
- * timer, no animated VU meter. Dictation mode (no patient) defaults to
- * the full meter since there's no audience to make uncomfortable.
+ * timer, calm breathing line. No animated VU meter unless the physician
+ * explicitly asks for it via the "Mic check" link.
  *
- * The "Mic check" toggle reveals the bouncy meter on demand for either
- * mode — useful at the start of a visit to confirm the mic is picking
- * up audio, then hide again so the screen stays calm.
+ * Dictation mode (no patient) defaults to the full meter since there's
+ * no audience to make uncomfortable.
  */
 function LiveRecordingView(props: LiveRecordingViewProps) {
   const isAmbient = props.mode === 'ambient';
   const [showMeter, setShowMeter] = useState(!isAmbient);
-
-  // Brief auto-show at the start of the recording so the physician gets
-  // a moment of mic confirmation before the UI settles into subtle mode.
-  // Only fires for ambient mode (dictation has the meter on by default).
-  useEffect(() => {
-    if (!isAmbient) return;
-    setShowMeter(true);
-    const t = setTimeout(() => setShowMeter(false), 4000);
-    return () => clearTimeout(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   return (
     <div className="w-full max-w-md space-y-6">
