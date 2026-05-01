@@ -63,6 +63,14 @@ interface RecorderStore {
    * this to surface a "lost X seconds of audio" warning post-stop.
    */
   totalInterruptedMs: number;
+  /**
+   * Set when the IndexedDB chunk-persistence write failed because the
+   * browser's storage quota is exhausted. The recording itself is still
+   * running in memory, but the safety net (chunk persistence) is gone — a
+   * tab crash from here on would lose audio. Components surface a warning
+   * so the user can stop now, free space, and re-record.
+   */
+  storageError: string | null;
   // Internals are stored on the store object but never trigger re-renders.
   _internals: RecorderInternals;
   start: (mode?: RecordingMode) => Promise<void>;
@@ -125,7 +133,8 @@ export const useRecorderStore = create<RecorderStore>((set, get) => {
     // iOS Safari exposes only webkitAudioContext until iOS ~14.5; keep the
     // fallback so the meter still works on older devices.
     const Ctor: typeof AudioContext | undefined =
-      window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+      window.AudioContext ??
+      (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
     if (!Ctor) return;
     const ctx = new Ctor();
     // iOS starts AudioContext in 'suspended' state; without resume() the
@@ -194,6 +203,7 @@ export const useRecorderStore = create<RecorderStore>((set, get) => {
     activeRecordingId: null,
     hasBeenInterrupted: false,
     totalInterruptedMs: 0,
+    storageError: null,
     _internals: internals,
 
     async start(mode = 'ambient') {
@@ -271,6 +281,18 @@ export const useRecorderStore = create<RecorderStore>((set, get) => {
           internals.seq += 1;
           appendAudioChunk(recordingId, seq, e.data).catch((err) => {
             console.warn('brtlb: chunk persistence failed', err);
+            // QuotaExceededError means the browser's storage quota is full.
+            // The recording still has the in-memory blob, but the safety net
+            // is gone. Surface it so the user can decide to stop and free space.
+            const isQuota =
+              (err instanceof DOMException && err.name === 'QuotaExceededError') ||
+              (err instanceof Error && /quota/i.test(err.message));
+            if (isQuota && !get().storageError) {
+              set({
+                storageError:
+                  'Device storage is full — chunk backup paused. The current recording still works in memory, but a tab crash from here on could lose audio. Stop and delete old recordings to free space.',
+              });
+            }
           });
         };
         recorder.start(1000);
@@ -294,7 +316,11 @@ export const useRecorderStore = create<RecorderStore>((set, get) => {
         // the recording. Granted when supported (iOS 16.4+, Android Chrome
         // 84+); silently no-ops elsewhere.
         if (typeof navigator !== 'undefined' && 'wakeLock' in navigator) {
-          (navigator as Navigator & { wakeLock: { request: (type: string) => Promise<WakeLockSentinel> } }).wakeLock
+          (
+            navigator as Navigator & {
+              wakeLock: { request: (type: string) => Promise<WakeLockSentinel> };
+            }
+          ).wakeLock
             .request('screen')
             .then((sentinel) => {
               internals.wakeLock = sentinel;
@@ -442,6 +468,7 @@ export const useRecorderStore = create<RecorderStore>((set, get) => {
         activeRecordingId: null,
         hasBeenInterrupted: false,
         totalInterruptedMs: 0,
+        storageError: null,
       });
     },
 

@@ -13,6 +13,17 @@ export interface ChangelogEntry {
 export const CHANGELOG: ReadonlyArray<ChangelogEntry> = [
   {
     date: '2026-05-01',
+    title: 'Bundle 1 hardening',
+    items: [
+      'Top-level error boundary — if React ever throws, you get a "Something broke" card with Reload and "Wipe local data and reload" buttons instead of a blank screen.',
+      'Browser capability check at boot — if your browser is missing IndexedDB, MediaRecorder, microphone access, or WebCrypto, brtlb explains exactly what is missing instead of failing opaquely later.',
+      "Device storage full warning — if your browser's storage quota is exhausted during recording (rare, but possible with 50+ stored recordings), you now get an amber banner instead of a silent failure.",
+      'Template-applied toast — after Regenerate, a quick "Generated as [Template Name]" toast confirms which template was actually used. Catches dropdown mis-picks before paste.',
+      'Dead-battery recovery — verified and locked in with a regression test. If your device dies mid-recording, the chunks reassemble into a recoverable recording on next launch.',
+    ],
+  },
+  {
+    date: '2026-05-01',
     title: 'Failure-mode hardening',
     items: [
       'Regenerate now confirms before discarding manual edits. If you tweaked the note in Edit mode and hit Regenerate, you get a "discard your edits?" dialog instead of silently losing them.',
@@ -76,7 +87,7 @@ export const CHANGELOG: ReadonlyArray<ChangelogEntry> = [
     items: [
       'New "Privacy & security" section in Settings: what stays on this device, what leaves and to where, your responsibilities, and a runbook for if you lose this device.',
       'Local audit log (last 200 actions) — timestamps and action types only, no PHI. Hidden inside the privacy panel; cleared by Wipe All.',
-      'Clear-clipboard button so PHI isn\'t left in the clipboard after pasting into the EHR.',
+      "Clear-clipboard button so PHI isn't left in the clipboard after pasting into the EHR.",
       'Granular retry: "Retry note only" reuses the existing transcript when generation fails, so you don\'t re-pay transcription cost.',
       'Fixed: AssemblyAI now requires speech_models on every request — was breaking transcription post-deploy.',
     ],

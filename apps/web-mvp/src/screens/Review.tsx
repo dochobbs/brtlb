@@ -183,8 +183,8 @@ function EmptyTranscriptState(props: {
     return (
       <div className="space-y-2">
         <p className="text-sm text-graphite-soft">
-          The transcription pass returned no speech. Common causes: very quiet audio, mic
-          permission denied mid-record, or a recording that happened to capture mostly silence.
+          The transcription pass returned no speech. Common causes: very quiet audio, mic permission
+          denied mid-record, or a recording that happened to capture mostly silence.
         </p>
         <button
           type="button"
@@ -227,6 +227,7 @@ export function Review() {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [showRegenConfirm, setShowRegenConfirm] = useState(false);
   const [regenerating, setRegenerating] = useState(false);
+  const [templateAppliedToast, setTemplateAppliedToast] = useState<string | null>(null);
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>('soap');
   const [speakerRoles, setSpeakerRoles] = useState<SpeakerRoleAssignment[]>([]);
   const [noteView, setNoteView] = useState<'edit' | 'preview'>('edit');
@@ -615,6 +616,14 @@ export function Review() {
       setEditedNote(out.note);
       setQaReview(null);
       setPearls(null);
+      // Surface which template was actually applied. Easy to mis-pick from
+      // the dropdown; this gives the physician a moment of "wait, that's
+      // not what I wanted" before they paste into the chart.
+      const builtIn = BUILTIN_TEMPLATES.find((t) => t.id === selectedTemplateId);
+      const custom = settings.customTemplates.find((t) => t.id === selectedTemplateId);
+      const name = builtIn?.name ?? custom?.name ?? selectedTemplateId;
+      setTemplateAppliedToast(`Generated as ${name}`);
+      setTimeout(() => setTemplateAppliedToast(null), 2500);
     } catch (err) {
       const msg = redactKeysInText(err instanceof Error ? err.message : 'regenerate failed');
       setError(msg);
@@ -781,19 +790,22 @@ export function Review() {
               const visitTypeLabel = s.visitType
                 .replace(/_/g, ' ')
                 .replace(/\b\w/g, (c) => c.toUpperCase());
-              const concerns =
-                s.acuteConcerns.length > 0 ? ` — ${s.acuteConcerns.join(', ')}` : '';
+              const concerns = s.acuteConcerns.length > 0 ? ` — ${s.acuteConcerns.join(', ')}` : '';
               return (
                 <li key={s.id}>
                   <span className="font-medium text-graphite">{s.patientLabel}</span>
-                  <span> · {visitTypeLabel}{concerns}</span>
+                  <span>
+                    {' '}
+                    · {visitTypeLabel}
+                    {concerns}
+                  </span>
                 </li>
               );
             })}
           </ul>
           <p className="mt-2 text-xs text-graphite-soft">
-            One section per patient appears in the note below, separated by a horizontal rule.
-            Copy the section you need into the matching chart.
+            One section per patient appears in the note below, separated by a horizontal rule. Copy
+            the section you need into the matching chart.
           </p>
         </div>
       ) : null}
@@ -1138,8 +1150,8 @@ export function Review() {
                   </button>
                   <p className="mt-2 text-[11px] text-graphite-soft">
                     Bold section headings keep the structure visible when pasted into a single
-                    field. Switch to <em>Pick</em> or <em>Walk through</em> if your EHR has
-                    separate fields per section.
+                    field. Switch to <em>Pick</em> or <em>Walk through</em> if your EHR has separate
+                    fields per section.
                   </p>
                 </div>
               )}
@@ -1194,11 +1206,13 @@ export function Review() {
             <ul className="mt-2 space-y-1.5 pl-1 leading-relaxed text-graphite-soft">
               <li>
                 <span className="font-medium text-graphite">AirDrop (lowest risk):</span> tap{' '}
-                <em>Share</em> → pick your laptop in the recipient list. Note arrives as a text
-                file on macOS. Peer-to-peer, never traverses any cloud.
+                <em>Share</em> → pick your laptop in the recipient list. Note arrives as a text file
+                on macOS. Peer-to-peer, never traverses any cloud.
               </li>
               <li>
-                <span className="font-medium text-graphite">Universal Clipboard (Apple to Apple):</span>{' '}
+                <span className="font-medium text-graphite">
+                  Universal Clipboard (Apple to Apple):
+                </span>{' '}
                 tap <em>Copy</em>, paste on your Mac/iPad. Convenient but transits Apple briefly —
                 Apple does not sign BAAs for iCloud.
               </li>
@@ -1209,10 +1223,10 @@ export function Review() {
               </li>
               <li>
                 <span className="font-medium text-graphite">iOS Notes (Apple to Apple):</span> tap{' '}
-                <em>Share</em> → pick <em>Notes</em>. The note lands in your Notes app and (if
-                you have iCloud-synced Notes) appears on Mac/iPad within seconds — same legal
-                profile as Universal Clipboard. For PHI, prefer <em>"On My iPhone"</em> Notes
-                accounts (no iCloud sync) over the iCloud account.
+                <em>Share</em> → pick <em>Notes</em>. The note lands in your Notes app and (if you
+                have iCloud-synced Notes) appears on Mac/iPad within seconds — same legal profile as
+                Universal Clipboard. For PHI, prefer <em>"On My iPhone"</em> Notes accounts (no
+                iCloud sync) over the iCloud account.
               </li>
               <li>
                 <span className="font-medium text-graphite">iOS Save to Files:</span> tap{' '}
@@ -1242,7 +1256,11 @@ export function Review() {
                   disabled={qaRunning}
                   className="rounded-md border border-graphite-soft/30 bg-white px-3 py-1.5 text-xs font-medium text-graphite hover:bg-mist disabled:opacity-50"
                 >
-                  {qaRunning ? 'Checking…' : meta.qaReviewMarkdown ? 'Re-run' : 'Check for warnings'}
+                  {qaRunning
+                    ? 'Checking…'
+                    : meta.qaReviewMarkdown
+                      ? 'Re-run'
+                      : 'Check for warnings'}
                 </button>
               </div>
               {qaError ? (
@@ -1308,7 +1326,11 @@ export function Review() {
                   disabled={pearlsRunning}
                   className="rounded-md border border-graphite-soft/30 bg-white px-3 py-1.5 text-xs font-medium text-graphite hover:bg-mist disabled:opacity-50"
                 >
-                  {pearlsRunning ? 'Generating…' : meta.pearlsMarkdown ? 'Re-generate' : 'Generate pearls'}
+                  {pearlsRunning
+                    ? 'Generating…'
+                    : meta.pearlsMarkdown
+                      ? 'Re-generate'
+                      : 'Generate pearls'}
                 </button>
               </div>
               {pearlsError ? (
@@ -1342,6 +1364,18 @@ export function Review() {
         onConfirm={runRegenerate}
         onCancel={() => setShowRegenConfirm(false)}
       />
+
+      {templateAppliedToast ? (
+        <div
+          role="status"
+          aria-live="polite"
+          className="pointer-events-none fixed inset-x-0 bottom-6 z-50 flex justify-center px-4"
+        >
+          <div className="rounded-full bg-graphite px-4 py-2 text-xs font-medium text-white shadow-lg">
+            {templateAppliedToast}
+          </div>
+        </div>
+      ) : null}
     </main>
   );
 }

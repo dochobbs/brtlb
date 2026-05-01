@@ -12,7 +12,6 @@ function formatElapsed(ms: number): string {
   return `${min}:${sec.toString().padStart(2, '0')}`;
 }
 
-
 export function Record() {
   const { setView, selectRecording } = useAppStore();
   const state = useRecorderStore((s) => s.state);
@@ -24,6 +23,7 @@ export function Record() {
   const activeRecordingId = useRecorderStore((s) => s.activeRecordingId);
   const hasBeenInterrupted = useRecorderStore((s) => s.hasBeenInterrupted);
   const totalInterruptedMs = useRecorderStore((s) => s.totalInterruptedMs);
+  const storageError = useRecorderStore((s) => s.storageError);
   const start = useRecorderStore((s) => s.start);
   const pause = useRecorderStore((s) => s.pause);
   const resume = useRecorderStore((s) => s.resume);
@@ -171,8 +171,8 @@ export function Record() {
           <p className="font-medium">Couldn't save the recording</p>
           <p className="font-mono text-xs break-all">{saveError}</p>
           <p className="text-xs text-red-700/90">
-            The audio chunks captured during recording are still on this device — they'll surface
-            as a "recovered" recording on the home screen next time you load brtlb.
+            The audio chunks captured during recording are still on this device — they'll surface as
+            a "recovered" recording on the home screen next time you load brtlb.
           </p>
           <div className="flex flex-wrap gap-2">
             <button
@@ -203,6 +203,7 @@ export function Record() {
           saving={saving}
           hasBeenInterrupted={hasBeenInterrupted}
           totalInterruptedMs={totalInterruptedMs}
+          storageError={storageError}
           onPause={pause}
           onResume={resume}
           onMark={addBookmark}
@@ -247,6 +248,7 @@ interface LiveRecordingViewProps {
   saving: boolean;
   hasBeenInterrupted: boolean;
   totalInterruptedMs: number;
+  storageError: string | null;
   onPause: () => void;
   onResume: () => void;
   onMark: () => void;
@@ -268,21 +270,27 @@ function LiveRecordingView(props: LiveRecordingViewProps) {
 
   return (
     <div className="w-full max-w-md space-y-6">
+      {props.storageError ? (
+        <div className="rounded-md border border-amber-300 bg-amber-50 p-2.5 text-left text-xs leading-relaxed text-amber-900">
+          <p className="font-semibold">Device storage full</p>
+          <p className="mt-1">{props.storageError}</p>
+        </div>
+      ) : null}
       {props.hasBeenInterrupted ? (
         <div className="rounded-md border border-amber-300 bg-amber-50 p-2.5 text-left text-xs leading-relaxed text-amber-900">
           <p className="font-semibold">
             Recording was interrupted — {Math.round(props.totalInterruptedMs / 1000)}s of audio lost
           </p>
           <p className="mt-1">
-            Audio captured before and after is intact. Keep the screen on for the rest of the
-            visit, or stop now and re-record.
+            Audio captured before and after is intact. Keep the screen on for the rest of the visit,
+            or stop now and re-record.
           </p>
         </div>
       ) : isAmbient ? (
         <div className="rounded-md border border-seafoam bg-seafoam/20 p-2.5 text-left text-xs leading-relaxed text-graphite">
           <p>
-            <span className="font-medium">Heads up:</span> keep the screen on for the whole visit
-            — recording stops if you lock the phone or switch apps.
+            <span className="font-medium">Heads up:</span> keep the screen on for the whole visit —
+            recording stops if you lock the phone or switch apps.
           </p>
         </div>
       ) : null}
@@ -293,9 +301,7 @@ function LiveRecordingView(props: LiveRecordingViewProps) {
             aria-hidden
             className={
               'inline-block h-2 w-2 rounded-full ' +
-              (props.state === 'paused'
-                ? 'bg-graphite-soft/40'
-                : 'animate-pulse bg-red-500')
+              (props.state === 'paused' ? 'bg-graphite-soft/40' : 'animate-pulse bg-red-500')
             }
           />
           {props.mode === 'ambient' ? 'Ambient' : 'Dictation'} ·{' '}

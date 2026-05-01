@@ -223,7 +223,7 @@ export function getDb(): Promise<IDBPDatabase<BrtlbSchema>> {
           // Use alert so the user can't miss it. The alternative is a stuck
           // page with no explanation.
           window.alert(
-            "brtlb is updating to a new version of its local database, but another brtlb tab is still open on the old version. Close any other brtlb tabs / windows and reload this page.",
+            'brtlb is updating to a new version of its local database, but another brtlb tab is still open on the old version. Close any other brtlb tabs / windows and reload this page.',
           );
         }
       },
@@ -384,9 +384,7 @@ export async function recoverOrphanedRecordings(): Promise<string[]> {
     );
     if (blob.size === 0) {
       // empty / corrupted — drop the chunks and move on
-      await Promise.all(
-        chunks.map((c) => db.delete('audio_chunks', [c.recordingId, c.seq])),
-      );
+      await Promise.all(chunks.map((c) => db.delete('audio_chunks', [c.recordingId, c.seq])));
       continue;
     }
     // Approximate duration from chunk count — recorder fires every 1s
@@ -408,9 +406,7 @@ export async function recoverOrphanedRecordings(): Promise<string[]> {
     };
     await db.put('audio', { id: recordingId, blob, mimeType });
     await db.put('recordings', meta);
-    await Promise.all(
-      chunks.map((c) => db.delete('audio_chunks', [c.recordingId, c.seq])),
-    );
+    await Promise.all(chunks.map((c) => db.delete('audio_chunks', [c.recordingId, c.seq])));
     recovered.push(recordingId);
   }
   return recovered;
@@ -447,6 +443,11 @@ export async function purgeStaleAudio(cutoffIso: string): Promise<string[]> {
  * generating} forever. Anything older than `cutoffMs` and still in a
  * transient stage gets flipped to `failed` with a clear message so the
  * existing Retry path can resume from audio.
+ *
+ * Note: the dead-battery case (tab died mid-capture before stop()) is
+ * covered by `recoverOrphanedRecordings`, not here. `putRecording` only
+ * runs after stop() resolves, so a tab that dies during recording leaves
+ * audio_chunks with no recordings entry — exactly the orphan case.
  */
 const TRANSIENT_STAGES: ReadonlySet<RecordingStage> = new Set([
   'uploading',
