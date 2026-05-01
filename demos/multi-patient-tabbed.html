@@ -59,12 +59,14 @@
       .prose strong {
         font-weight: 600;
       }
+      /* Active tab uses brand seafoam tint with a stronger border instead of
+         a full graphite inversion. Keeps the visit-type shorthand and patient
+         name in their normal colors so both stay legible. */
       .tab-active {
-        background: #1f2328;
-        color: white;
-      }
-      .tab-active span.tab-meta {
-        color: rgba(255, 255, 255, 0.65);
+        background: #e8faf3;
+        border-color: #1f2328 !important;
+        border-width: 1.5px;
+        font-weight: 600;
       }
     </style>
   </head>
