@@ -163,9 +163,7 @@ Each item is rated:
 
 ### 🟡 User keeps recording "live" by accident in the next room (mic still on)
 
-**Status:** 🟨 partial. Visible via the small recording indicator if the user looks at the phone. Idle auto-lock won't fire while recording.
-**Real risk:** moderate. Long-tail "stuck record" event captures unrelated audio.
-**Action:** add a max-recording-duration soft cap warning — at 60 min, show a banner "Still recording — confirm to continue another 30 min, or stop now." Also useful as a spend-control nudge for AssemblyAI cost.
+**Status:** ✅ **handled** (as of 2026-05-02). Voice-activity detection on the existing audio meter: 30 min with no level above threshold (0.05 on smoothed RMS — well below normal speech, well above HVAC) surfaces an amber banner "No voice detected for 30 minutes — auto-stopping in 60 seconds. [Keep recording] [Stop now]". Voice activity during the grace window silently dismisses. Otherwise the recorder auto-stops via `silenceAutoStopRequested` flag, which Record.tsx watches and routes through its normal save flow. Better than a wall-clock cap because long visits with continuous talk don't false-positive and short forgotten visits don't false-negative.
 
 ### 🟡 User runs out of AssemblyAI credit / billing fails
 

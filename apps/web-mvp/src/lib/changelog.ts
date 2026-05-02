@@ -12,6 +12,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ReadonlyArray<ChangelogEntry> = [
   {
+    date: '2026-05-02',
+    title: 'Auto-stop on silence',
+    items: [
+      'If brtlb hears no voice for 30 minutes, a warning banner appears: "No voice detected for 30 minutes — auto-stopping in 60 seconds." Tap Keep recording to continue, Stop now to finish, or do nothing — brtlb auto-stops and saves the audio captured up to that point.',
+      "Catches the most common 'forgot to stop' case (phone in a coat pocket after the visit ended) without false-positives during quiet exam moments. Voice activity during the 60-second window silently dismisses the banner.",
+      'AssemblyAI cost stays bounded — no more 4-hour recordings of an empty exam room.',
+    ],
+  },
+  {
     date: '2026-05-01',
     title: 'Better network error messages on iPhone',
     items: [

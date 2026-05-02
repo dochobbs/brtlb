@@ -31,12 +31,44 @@ interface RecorderInternals {
   totalHiddenMs: number;
   /** Hidden-event timestamps for post-stop reporting (start, end, ms each). */
   hiddenIntervals: { startMs: number; endMs: number }[];
+  /** Wall-clock ms of the most recent moment the audio level exceeded the
+   * voice-activity threshold. Used to detect "visit ended but recording is
+   * still on" — the dominant cause of forgotten-phone billing waste.
+   * Stored on internals (not store state) because the meter updates it
+   * every animation frame; we don't want to trigger React re-renders. */
+  lastVoiceActivityAt: number;
 }
 
 interface WakeLockSentinel extends EventTarget {
   released: boolean;
   release: () => Promise<void>;
 }
+
+/**
+ * Voice-activity threshold on the smoothed RMS level (0–1 scale). Real
+ * speech peaks at ~0.3–0.7 with valleys around 0.1; ambient HVAC, fan,
+ * and distant hum sit under 0.02. 0.05 is the "someone in the room is
+ * making noise" line — high enough to not trip on AC, low enough to
+ * register quiet conversation across the room.
+ */
+const VOICE_ACTIVITY_THRESHOLD = 0.05;
+
+/**
+ * After this many ms with no voice activity above threshold, surface the
+ * silence banner. Real visits don't have 30 min of total silence inside
+ * them; a forgotten phone in a pocket does. 30 min is also forgiving
+ * enough that quiet exam moments (fontanelle palpation, sleeping baby,
+ * provider charting briefly between encounters) don't false-positive.
+ */
+const IDLE_WARNING_AFTER_MS = 30 * 60_000;
+
+/**
+ * Once the banner is showing, give the user 60 s to react ("Keep
+ * recording" if the visit's still going, "Stop now" if it's over) before
+ * we auto-stop. Voice activity above threshold during this window also
+ * dismisses the banner silently — someone walked back in talking.
+ */
+const IDLE_AUTOSTOP_GRACE_MS = 60_000;
 
 interface RecorderStore {
   state: RecorderState;
@@ -71,6 +103,21 @@ interface RecorderStore {
    * so the user can stop now, free space, and re-record.
    */
   storageError: string | null;
+  /**
+   * Wall-clock ms when the silence banner first appeared. Components show
+   * a "no voice detected for 30 min — auto-stopping in 60 s" banner with
+   * Keep / Stop actions. Cleared on dismiss-by-voice or explicit Keep.
+   * The auto-stop fires after IDLE_AUTOSTOP_GRACE_MS more silence.
+   */
+  silenceWarningStartedAt: number | null;
+  /**
+   * Set to true when the grace period elapses with no further voice
+   * activity. The Record screen watches this flag and routes through its
+   * own save/redirect flow — the store itself can't safely save because
+   * IDB writes + view navigation live in the React tree. Reset on next
+   * start().
+   */
+  silenceAutoStopRequested: boolean;
   // Internals are stored on the store object but never trigger re-renders.
   _internals: RecorderInternals;
   start: (mode?: RecordingMode) => Promise<void>;
@@ -79,6 +126,10 @@ interface RecorderStore {
   stop: () => Promise<Blob | null>;
   reset: () => void;
   addBookmark: (label?: string) => void;
+  /** Dismiss the silence banner because the user said "Keep recording" —
+   * resets the voice-activity timer so the warning won't re-fire for
+   * another full IDLE_WARNING_AFTER_MS of silence. */
+  dismissSilenceWarning: () => void;
 }
 
 function generateRecordingId(): string {
@@ -112,6 +163,7 @@ export const useRecorderStore = create<RecorderStore>((set, get) => {
     lastHiddenAt: null,
     totalHiddenMs: 0,
     hiddenIntervals: [],
+    lastVoiceActivityAt: 0,
   };
 
   function stopMeter() {
@@ -173,6 +225,18 @@ export const useRecorderStore = create<RecorderStore>((set, get) => {
       // bars feel less jittery and reach high thresholds more readily.
       smoothed = smoothed * 0.6 + raw * 0.4;
       set({ level: smoothed });
+      // Voice-activity stamp for "visit ended but recording's still on"
+      // detection. We stamp here (in the meter loop, ~60Hz) rather than
+      // in the slower ticker so brief speech bursts (a single "yes")
+      // count. The ticker only checks elapsed silence.
+      if (smoothed > VOICE_ACTIVITY_THRESHOLD) {
+        internals.lastVoiceActivityAt = Date.now();
+        // If a silence warning was already showing and someone's now
+        // talking again, dismiss it — they walked back in.
+        if (get().silenceWarningStartedAt !== null) {
+          set({ silenceWarningStartedAt: null });
+        }
+      }
       internals.rafId = requestAnimationFrame(tick);
     };
     internals.rafId = requestAnimationFrame(tick);
@@ -190,6 +254,38 @@ export const useRecorderStore = create<RecorderStore>((set, get) => {
     internals.tickerId = window.setInterval(() => {
       const live = Date.now() - internals.startTs;
       set({ elapsedMs: internals.accumulatedMs + live });
+
+      // Silence detection — runs only when actively recording (not
+      // during paused state, where the user has explicitly chosen to
+      // freeze). We surface the banner first; auto-stop only fires
+      // after the grace window elapses with no further activity.
+      if (get().state !== 'recording') return;
+      const now = Date.now();
+      const silentFor = now - internals.lastVoiceActivityAt;
+      const warningStarted = get().silenceWarningStartedAt;
+
+      if (warningStarted === null) {
+        // No banner yet — show it once we cross the 30-min idle line.
+        if (silentFor >= IDLE_WARNING_AFTER_MS) {
+          set({ silenceWarningStartedAt: now });
+        }
+        return;
+      }
+
+      // Banner is showing. If the grace window has fully elapsed and
+      // there's been no voice activity since the warning fired, request
+      // an auto-stop. Voice activity during the grace period would have
+      // already cleared `silenceWarningStartedAt` from the meter loop.
+      if (now - warningStarted >= IDLE_AUTOSTOP_GRACE_MS) {
+        // The store can't safely save the recording — that lives in
+        // Record.tsx where IDB schema + view navigation are wired up.
+        // Flag the request; Record.tsx watches it and runs its normal
+        // handleStop flow (which persists audio + meta and routes to
+        // Review). Idempotent: extra ticks setting true are no-ops.
+        if (!get().silenceAutoStopRequested) {
+          set({ silenceAutoStopRequested: true, silenceWarningStartedAt: null });
+        }
+      }
     }, ACTIVITY_TICK_MS);
   }
 
@@ -204,6 +300,8 @@ export const useRecorderStore = create<RecorderStore>((set, get) => {
     hasBeenInterrupted: false,
     totalInterruptedMs: 0,
     storageError: null,
+    silenceWarningStartedAt: null,
+    silenceAutoStopRequested: false,
     _internals: internals,
 
     async start(mode = 'ambient') {
@@ -300,6 +398,9 @@ export const useRecorderStore = create<RecorderStore>((set, get) => {
         internals.lastHiddenAt = null;
         internals.totalHiddenMs = 0;
         internals.hiddenIntervals = [];
+        // Stamp voice activity at start so the silence timer doesn't fire
+        // immediately on a brand-new (and thus far silent) recording.
+        internals.lastVoiceActivityAt = Date.now();
         set({
           elapsedMs: 0,
           state: 'recording',
@@ -307,6 +408,8 @@ export const useRecorderStore = create<RecorderStore>((set, get) => {
           activeRecordingId: recordingId,
           hasBeenInterrupted: false,
           totalInterruptedMs: 0,
+          silenceWarningStartedAt: null,
+          silenceAutoStopRequested: false,
         });
         startTicker();
         startMeter(stream);
@@ -455,6 +558,7 @@ export const useRecorderStore = create<RecorderStore>((set, get) => {
       internals.lastHiddenAt = null;
       internals.totalHiddenMs = 0;
       internals.hiddenIntervals = [];
+      internals.lastVoiceActivityAt = 0;
       const previousId = get().activeRecordingId;
       if (previousId) {
         clearAudioChunks(previousId).catch(() => {});
@@ -469,7 +573,16 @@ export const useRecorderStore = create<RecorderStore>((set, get) => {
         hasBeenInterrupted: false,
         totalInterruptedMs: 0,
         storageError: null,
+        silenceWarningStartedAt: null,
+        silenceAutoStopRequested: false,
       });
+    },
+
+    dismissSilenceWarning() {
+      // User tapped "Keep recording" — reset the voice timer so the
+      // banner doesn't re-fire for another full IDLE_WARNING_AFTER_MS.
+      internals.lastVoiceActivityAt = Date.now();
+      set({ silenceWarningStartedAt: null });
     },
 
     addBookmark(label) {

@@ -24,12 +24,15 @@ export function Record() {
   const hasBeenInterrupted = useRecorderStore((s) => s.hasBeenInterrupted);
   const totalInterruptedMs = useRecorderStore((s) => s.totalInterruptedMs);
   const storageError = useRecorderStore((s) => s.storageError);
+  const silenceWarningStartedAt = useRecorderStore((s) => s.silenceWarningStartedAt);
+  const silenceAutoStopRequested = useRecorderStore((s) => s.silenceAutoStopRequested);
   const start = useRecorderStore((s) => s.start);
   const pause = useRecorderStore((s) => s.pause);
   const resume = useRecorderStore((s) => s.resume);
   const stop = useRecorderStore((s) => s.stop);
   const reset = useRecorderStore((s) => s.reset);
   const addBookmark = useRecorderStore((s) => s.addBookmark);
+  const dismissSilenceWarning = useRecorderStore((s) => s.dismissSilenceWarning);
 
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -113,6 +116,30 @@ export function Record() {
     reset();
     setView('home');
   }
+
+  // The store flags `silenceAutoStopRequested` when 30 min idle + 60 s
+  // grace expires. We can't auto-stop from inside the store because the
+  // save flow (putAudio + putRecording + setView) lives here. Watch the
+  // flag and route through handleStop, which already saves cleanly.
+  useEffect(() => {
+    if (!silenceAutoStopRequested) return;
+    if (state !== 'recording' && state !== 'paused') return;
+    void handleStop();
+    // handleStop is intentionally not in deps — it's a stable closure
+    // that captures the latest store getters via useRecorderStore.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [silenceAutoStopRequested, state]);
+
+  // Live-tick the grace-period countdown so the banner updates each
+  // second. Without this, the displayed seconds-remaining freezes until
+  // some other state change re-renders.
+  const [graceTickHack, setGraceTickHack] = useState(0);
+  useEffect(() => {
+    if (silenceWarningStartedAt === null) return;
+    const t = window.setInterval(() => setGraceTickHack((n) => n + 1), 1000);
+    return () => window.clearInterval(t);
+  }, [silenceWarningStartedAt]);
+  void graceTickHack; // referenced so React keeps the state binding
 
   const isLive = state === 'recording' || state === 'paused';
 
@@ -204,6 +231,9 @@ export function Record() {
           hasBeenInterrupted={hasBeenInterrupted}
           totalInterruptedMs={totalInterruptedMs}
           storageError={storageError}
+          silenceWarningStartedAt={silenceWarningStartedAt}
+          onKeepRecording={dismissSilenceWarning}
+          onStopFromSilence={handleStop}
           onPause={pause}
           onResume={resume}
           onMark={addBookmark}
@@ -249,6 +279,9 @@ interface LiveRecordingViewProps {
   hasBeenInterrupted: boolean;
   totalInterruptedMs: number;
   storageError: string | null;
+  silenceWarningStartedAt: number | null;
+  onKeepRecording: () => void;
+  onStopFromSilence: () => void;
   onPause: () => void;
   onResume: () => void;
   onMark: () => void;
@@ -268,8 +301,41 @@ function LiveRecordingView(props: LiveRecordingViewProps) {
   const isAmbient = props.mode === 'ambient';
   const [showMeter, setShowMeter] = useState(!isAmbient);
 
+  // Grace-window seconds remaining for the auto-stop countdown. Recomputed
+  // each render — Record.tsx's interval forces a re-render every second
+  // while the warning is active so this counts down visibly.
+  const silenceSecondsLeft =
+    props.silenceWarningStartedAt !== null
+      ? Math.max(0, 60 - Math.floor((Date.now() - props.silenceWarningStartedAt) / 1000))
+      : 0;
+
   return (
     <div className="w-full max-w-md space-y-6">
+      {props.silenceWarningStartedAt !== null ? (
+        <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-left text-xs leading-relaxed text-amber-900">
+          <p className="font-semibold">No voice detected for 30 minutes</p>
+          <p className="mt-1">
+            Looks like the visit ended. Auto-stopping in {silenceSecondsLeft} second
+            {silenceSecondsLeft === 1 ? '' : 's'}. The audio captured up to now will be saved.
+          </p>
+          <div className="mt-2 flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={props.onKeepRecording}
+              className="rounded-md border border-amber-400 bg-white px-3 py-1.5 text-xs font-medium text-amber-900 hover:bg-amber-100"
+            >
+              Keep recording
+            </button>
+            <button
+              type="button"
+              onClick={props.onStopFromSilence}
+              className="rounded-md bg-graphite px-3 py-1.5 text-xs font-medium text-white hover:bg-graphite-soft"
+            >
+              Stop now
+            </button>
+          </div>
+        </div>
+      ) : null}
       {props.storageError ? (
         <div className="rounded-md border border-amber-300 bg-amber-50 p-2.5 text-left text-xs leading-relaxed text-amber-900">
           <p className="font-semibold">Device storage full</p>
