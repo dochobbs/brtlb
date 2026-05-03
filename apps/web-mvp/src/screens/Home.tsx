@@ -438,7 +438,7 @@ export function Home() {
             className="inline-flex items-center gap-1 text-graphite-soft/80 hover:text-graphite"
           >
             <span aria-hidden>☕</span>
-            <span>Buy Dr. Hobbs a coffee</span>
+            <span>Built by Hobbs — consider buying me a coffee</span>
           </a>
         </p>
       </footer>

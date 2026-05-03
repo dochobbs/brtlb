@@ -867,9 +867,9 @@ function SupportPanel() {
     <section className="mb-6 rounded-xl bg-white p-6 shadow-sm">
       <h2 className="text-sm font-semibold text-graphite">Support brtlb</h2>
       <p className="mt-1 text-xs leading-relaxed text-graphite-soft">
-        brtlb is built and maintained by Dr. Hobbs in his spare time. There's no SaaS revenue — you
-        pay AssemblyAI and Gemini directly for the API calls. If you find brtlb useful and want to
-        help keep it going, a one-time coffee tip is appreciated but never expected.
+        brtlb is built and maintained by Hobbs in his spare time. There's no SaaS revenue — you pay
+        AssemblyAI and Gemini directly for the API calls. If you find brtlb useful and want to help
+        keep it going, consider buying me a coffee. Appreciated, never expected.
       </p>
       <a
         href="https://buymeacoffee.com/dochobbs"
@@ -878,7 +878,7 @@ function SupportPanel() {
         className="mt-3 inline-flex items-center gap-2 rounded-md bg-[#FFDD00] px-4 py-2 text-sm font-medium text-graphite hover:bg-[#FFE433]"
       >
         <span aria-hidden>☕</span>
-        Buy Dr. Hobbs a coffee
+        Buy me a coffee
       </a>
     </section>
   );
