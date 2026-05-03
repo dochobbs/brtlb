@@ -6,7 +6,8 @@ A pediatric-focused, BYO-keys AI scribe that runs entirely in your browser.
 
 - **Diarization-first** ambient documentation with multi-patient splitting
 - **BYO keys** — AssemblyAI for transcription, Gemini / OpenAI / Azure for note generation
-- **No backend** — PHI never leaves your device. brtlb itself has no server, database, or analytics
+- **No backend in your data path** — audio goes browser → AssemblyAI direct, transcript goes browser → Gemini direct. brtlb has no server holding your PHI. (Vercel Analytics counts cookieless page views; PHI never passes through it.)
+- **Open source (AGPL-3.0)** — fork it, audit every line that touches your data, self-host on any static host
 - **Pediatric-tuned** — 9 visit-type templates including behavioral health and developmental evaluations
 - **Long-visit ready** — chunk-save resilience, 90-min transcription budget, chapter markers for ≥30 min visits
 - **PWA** — installable on iOS, Android, desktop. Same code path everywhere
@@ -21,19 +22,19 @@ For the legal/BAA path, see `docs/BAAs.md`. For the slower manual key setup, see
 
 ## Repo layout
 
-| Path | Purpose |
-|---|---|
-| `apps/web-mvp` | The product. React 19 + Vite 6 + Tailwind v3 PWA. |
-| `apps/electron` | Desktop shell (paused) |
-| `apps/mobile` | Capacitor config (paused) |
-| `packages/pipeline` | LLM adapters, AssemblyAI client, prompt composer |
-| `packages/db` | Schema interface + SQLite impl (used by future native shells) |
-| `packages/ui` | Shared React components (Lockup, Button, marks) |
-| `packages/prompts` | Versioned visit-type templates and patterns |
-| `docs/SETUP.md` | Manual key setup walkthrough |
-| `docs/BAAs.md` | HIPAA/BAA decision tree |
-| `docs/USING_BRTLB.md` | Feature tour |
-| `CHECKPOINT.md` | Development log — read first if picking up work |
+| Path                  | Purpose                                                       |
+| --------------------- | ------------------------------------------------------------- |
+| `apps/web-mvp`        | The product. React 19 + Vite 6 + Tailwind v3 PWA.             |
+| `apps/electron`       | Desktop shell (paused)                                        |
+| `apps/mobile`         | Capacitor config (paused)                                     |
+| `packages/pipeline`   | LLM adapters, AssemblyAI client, prompt composer              |
+| `packages/db`         | Schema interface + SQLite impl (used by future native shells) |
+| `packages/ui`         | Shared React components (Lockup, Button, marks)               |
+| `packages/prompts`    | Versioned visit-type templates and patterns                   |
+| `docs/SETUP.md`       | Manual key setup walkthrough                                  |
+| `docs/BAAs.md`        | HIPAA/BAA decision tree                                       |
+| `docs/USING_BRTLB.md` | Feature tour                                                  |
+| `CHECKPOINT.md`       | Development log — read first if picking up work               |
 
 ## Local dev
 

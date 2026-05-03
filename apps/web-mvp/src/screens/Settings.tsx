@@ -639,8 +639,9 @@ function PrivacySecuritySection() {
             This is the only telemetry brtlb sends.
           </li>
           <li>
-            <span className="font-medium text-graphite">Nothing else.</span> brtlb has no backend of
-            its own. We don't see or log your data. Vercel hosts the static app code only.
+            <span className="font-medium text-graphite">Nothing else.</span> brtlb has no backend in
+            your data path — no server holds your audio, transcripts, notes, or keys. Vercel hosts
+            the static app code only, plus the page-view analytics above.
           </li>
         </ul>
       </details>
