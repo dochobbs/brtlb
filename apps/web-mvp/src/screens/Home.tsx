@@ -295,9 +295,13 @@ export function Home() {
                     : recordings.filter((r) => {
                         if (key === 'ready') return r.stage === 'ready_for_review';
                         if (key === 'failed') return r.stage === 'failed';
-                        return ['recording', 'recorded', 'uploading', 'transcribing', 'generating'].includes(
-                          r.stage,
-                        );
+                        return [
+                          'recording',
+                          'recorded',
+                          'uploading',
+                          'transcribing',
+                          'generating',
+                        ].includes(r.stage);
                       }).length;
                 if (count === 0 && key !== 'all') return null;
                 return (
@@ -426,6 +430,17 @@ export function Home() {
         <p>{tagline}</p>
         <p className="mt-2 italic">the Scrivener</p>
         <p className="italic">&ldquo;I would prefer not to&hellip; chart after hours.&rdquo;</p>
+        <p className="mt-4">
+          <a
+            href="https://buymeacoffee.com/dochobbs"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1 text-graphite-soft/80 hover:text-graphite"
+          >
+            <span aria-hidden>☕</span>
+            <span>Buy Dr. Hobbs a coffee</span>
+          </a>
+        </p>
       </footer>
 
       <ConfirmDialog

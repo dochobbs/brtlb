@@ -260,6 +260,8 @@ export function Settings() {
 
       <ChangelogPanel />
 
+      <SupportPanel />
+
       <section className="space-y-6 rounded-xl bg-white p-6 shadow-sm">
         <div>
           <h2 className="text-sm font-semibold text-graphite">Foundation model</h2>
@@ -851,6 +853,34 @@ function ThemeToggle() {
         </button>
       ))}
     </div>
+  );
+}
+
+function SupportPanel() {
+  // Plain anchor on purpose. NOT the Buy Me a Coffee <script> embed —
+  // that loads third-party JS on every page view and would conflict with
+  // the "no third-party scripts in your data path" privacy story (and
+  // would require loosening the CSP to allow cdnjs.buymeacoffee.com).
+  // Click opens the BMC page in a new tab on their domain; whatever
+  // tracking happens there happens in their context, not in brtlb.
+  return (
+    <section className="mb-6 rounded-xl bg-white p-6 shadow-sm">
+      <h2 className="text-sm font-semibold text-graphite">Support brtlb</h2>
+      <p className="mt-1 text-xs leading-relaxed text-graphite-soft">
+        brtlb is built and maintained by Dr. Hobbs in his spare time. There's no SaaS revenue — you
+        pay AssemblyAI and Gemini directly for the API calls. If you find brtlb useful and want to
+        help keep it going, a one-time coffee tip is appreciated but never expected.
+      </p>
+      <a
+        href="https://buymeacoffee.com/dochobbs"
+        target="_blank"
+        rel="noopener noreferrer"
+        className="mt-3 inline-flex items-center gap-2 rounded-md bg-[#FFDD00] px-4 py-2 text-sm font-medium text-graphite hover:bg-[#FFE433]"
+      >
+        <span aria-hidden>☕</span>
+        Buy Dr. Hobbs a coffee
+      </a>
+    </section>
   );
 }
 
