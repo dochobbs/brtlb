@@ -867,19 +867,34 @@ function SupportPanel() {
     <section className="mb-6 rounded-xl bg-white p-6 shadow-sm">
       <h2 className="text-sm font-semibold text-graphite">Support brtlb</h2>
       <p className="mt-1 text-xs leading-relaxed text-graphite-soft">
-        brtlb is built and maintained by Hobbs in his spare time. There's no SaaS revenue — you pay
-        AssemblyAI and Gemini directly for the API calls. If you find brtlb useful and want to help
-        keep it going, consider buying me a coffee. Appreciated, never expected.
+        brtlb is built and maintained by Hobbs in his spare time. You pay AssemblyAI and Gemini
+        directly for the API calls. If you find brtlb useful and want to help keep it going, a
+        one-time coffee or a monthly membership is appreciated. Never expected.
       </p>
-      <a
-        href="https://buymeacoffee.com/dochobbs"
-        target="_blank"
-        rel="noopener noreferrer"
-        className="mt-3 inline-flex items-center gap-2 rounded-md bg-[#FFDD00] px-4 py-2 text-sm font-medium text-graphite hover:bg-[#FFE433]"
-      >
-        <span aria-hidden>☕</span>
-        Buy me a coffee
-      </a>
+      <div className="mt-3 flex flex-wrap gap-2">
+        <a
+          href="https://buymeacoffee.com/dochobbs"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-2 rounded-md bg-[#FFDD00] px-4 py-2 text-sm font-medium text-graphite hover:bg-[#FFE433]"
+        >
+          <span aria-hidden>☕</span>
+          Buy me a coffee
+        </a>
+        <a
+          href="https://buymeacoffee.com/dochobbs/membership"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-2 rounded-md border border-[#FFDD00] bg-white px-4 py-2 text-sm font-medium text-graphite hover:bg-[#FFFCE8]"
+        >
+          <span aria-hidden>💛</span>
+          $5/month membership
+        </a>
+      </div>
+      <p className="mt-2 text-[11px] leading-relaxed text-graphite-soft">
+        Memberships unlock zero features. The whole product stays the same whether you support or
+        not — that's the point. The future Pro tier with hosted keys is a separate thing.
+      </p>
     </section>
   );
 }
