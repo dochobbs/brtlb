@@ -1,5 +1,6 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
+import { Analytics } from '@vercel/analytics/react';
 import { App } from './App';
 import { CapabilityGate } from './components/CapabilityGate';
 import { ErrorBoundary } from './components/ErrorBoundary';
@@ -14,5 +15,10 @@ createRoot(rootEl).render(
         <App />
       </CapabilityGate>
     </ErrorBoundary>
+    {/* Vercel Analytics — cookieless page-view counter. Sees route navigation
+        only; no PHI, no fingerprinting, no cross-site tracking. Privacy
+        disclosure lives in Settings → Privacy & security → "What leaves
+        this device". */}
+    <Analytics />
   </StrictMode>,
 );

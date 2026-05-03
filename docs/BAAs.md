@@ -6,9 +6,9 @@ that.
 
 ## TL;DR — recommended stack
 
-| Component | Vendor | What you need |
-|---|---|---|
-| **Transcription** | AssemblyAI | Sign the AssemblyAI BAA (DocuSign link below, ~5 min). |
+| Component           | Vendor                                                     | What you need                                                                                                                                                                                                                 |
+| ------------------- | ---------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Transcription**   | AssemblyAI                                                 | Sign the AssemblyAI BAA (DocuSign link below, ~5 min).                                                                                                                                                                        |
 | **Note generation** | **Google Gemini** via a key from your Google Cloud project | Have the **Google Cloud HIPAA BAA** accepted on your organization (most Workspace admins have this; check at admin.google.com → HIPAA agreement, or in Cloud Console). Create the API key in a billing-enabled Cloud project. |
 
 This is the path most users want: leverages the Google BAA you almost
@@ -58,6 +58,7 @@ admin.google.com → Account → Legal & compliance.
 ### 3. Get a Gemini API key in a billing-enabled Cloud project
 
 Per the **Workspace admin path** in `docs/SETUP.md`:
+
 - Cloud Console → APIs & Services → Credentials → Create Credentials →
   API key
 - Restrict to "Generative Language API"
@@ -69,6 +70,7 @@ Paste into brtlb Settings. Done.
 ### 4. Document the BAA decision
 
 For your own audit trail, save:
+
 - AssemblyAI BAA countersignature (PDF from DocuSign)
 - Screenshot of the Google HIPAA agreement acceptance in admin console
 - A note that Gemini API consumed via your Cloud project is being
@@ -82,6 +84,7 @@ For your own audit trail, save:
 ### OpenAI Enterprise / Azure OpenAI
 
 If your practice has these instead of (or in addition to) Google:
+
 - **OpenAI Enterprise** — BAA included with Enterprise contract.
   Contact https://openai.com/enterprise. Use the resulting `sk-...`
   key in brtlb's "OpenAI-compatible" provider with default Base URL.
@@ -103,6 +106,7 @@ path above for now.
 ### Why not Anthropic in the browser?
 
 BAA-org Anthropic keys hit a CORS wall:
+
 > "CORS requests are not allowed for this Organization"
 
 The BAA enables custom data retention on Anthropic's side, which
@@ -138,11 +142,34 @@ this path is covered when the GCP HIPAA BAA is accepted.
 
 ## Quick reference
 
-| Vendor | brtlb adapter | BAA status |
-|---|---|---|
-| AssemblyAI | ✅ Working | DocuSign link above; ~5 min |
-| Google Gemini API (via Cloud project, BAA accepted) | ✅ Working | Recommended default. Practical consensus is covered under GCP HIPAA BAA |
-| OpenAI (Enterprise) | ✅ Working | BAA via Enterprise contract |
-| Azure OpenAI | ✅ Working (set Base URL) | BAA built into Azure agreement |
-| Google Vertex AI | ⚠️ Scaffold only | Unambiguously covered; adapter not yet wired in |
-| Anthropic (Enterprise BAA) | ❌ Blocked by CORS in browser | Hidden from picker |
+| Vendor                                              | brtlb adapter                 | BAA status                                                              |
+| --------------------------------------------------- | ----------------------------- | ----------------------------------------------------------------------- |
+| AssemblyAI                                          | ✅ Working                    | DocuSign link above; ~5 min                                             |
+| Google Gemini API (via Cloud project, BAA accepted) | ✅ Working                    | Recommended default. Practical consensus is covered under GCP HIPAA BAA |
+| OpenAI (Enterprise)                                 | ✅ Working                    | BAA via Enterprise contract                                             |
+| Azure OpenAI                                        | ✅ Working (set Base URL)     | BAA built into Azure agreement                                          |
+| Google Vertex AI                                    | ⚠️ Scaffold only              | Unambiguously covered; adapter not yet wired in                         |
+| Anthropic (Enterprise BAA)                          | ❌ Blocked by CORS in browser | Hidden from picker                                                      |
+
+---
+
+## A note on Vercel Analytics
+
+brtlb runs Vercel Analytics on the static site at brtlb.vercel.app. It
+counts page views (Home / Wizard / Record / Review hits), country, and
+browser — cookieless, no fingerprinting, no cross-site tracking.
+Vercel never sees your audio, transcripts, notes, API keys, or any
+patient identifiers — those don't pass through Vercel at all (audio
+goes browser → AssemblyAI direct, transcript goes browser → Gemini
+direct).
+
+Page-view counts on a healthcare-information-management product are
+aggregate web traffic metadata, not PHI about individual patients.
+Vercel's data processing for Analytics is covered by their standard
+DPA (no separate BAA required for non-PHI analytics). If you'd rather
+brtlb send zero telemetry, the codebase is open-source — clone, drop
+the `<Analytics />` line in `apps/web-mvp/src/main.tsx`, and self-host
+on Cloudflare Pages or any other static host.
+
+The Settings → Privacy & security panel in the app discloses this in
+the same words.

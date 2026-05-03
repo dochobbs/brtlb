@@ -427,10 +427,9 @@ export function Settings() {
           <p className="font-medium">Couldn't save your settings</p>
           <p className="mt-1">{saveError}</p>
           <p className="mt-2 text-xs">
-            Common causes on iOS: Private Browsing is on, "Block All Cookies" is enabled in
-            Settings → Safari, or you're using a different mode than where the keys were last
-            saved (Safari tab vs. Add-to-Home-Screen PWA store keys separately). After fixing,
-            tap Save again.
+            Common causes on iOS: Private Browsing is on, "Block All Cookies" is enabled in Settings
+            → Safari, or you're using a different mode than where the keys were last saved (Safari
+            tab vs. Add-to-Home-Screen PWA store keys separately). After fixing, tap Save again.
           </p>
         </div>
       ) : null}
@@ -562,7 +561,9 @@ function PrivacySecuritySection() {
   const [clipboardStatus, setClipboardStatus] = useState<string | null>(null);
 
   function handleToggleAutoDelete(): void {
-    saveSettings({ deleteAssemblyAiAfterTranscription: !settings.deleteAssemblyAiAfterTranscription });
+    saveSettings({
+      deleteAssemblyAiAfterTranscription: !settings.deleteAssemblyAiAfterTranscription,
+    });
   }
 
   async function loadAuditOnExpand(): Promise<void> {
@@ -607,8 +608,8 @@ function PrivacySecuritySection() {
           <p className="mt-1">
             brtlb has no backend, so each device + browser is its own island. A recording made on
             your iPhone PWA won't appear on your laptop, on Android, or even in Safari on the same
-            iPhone (the "Add to Home Screen" PWA and the Safari tab are separate containers).
-            Use Copy or Download to move a note between devices manually.
+            iPhone (the "Add to Home Screen" PWA and the Safari tab are separate containers). Use
+            Copy or Download to move a note between devices manually.
           </p>
         </div>
       </details>
@@ -624,14 +625,22 @@ function PrivacySecuritySection() {
             Retention is governed by your AssemblyAI account; check their dashboard.
           </li>
           <li>
-            <span className="font-medium text-graphite">Transcript text → Google Gemini</span>{' '}
-            (US) for note generation. The note comes back. BAA-covered if your Google Workspace
-            HIPAA BAA is accepted and the key is from a billing-enabled Cloud project. Google
-            retains prompts/responses for ~24h for abuse review under their BAA.
+            <span className="font-medium text-graphite">Transcript text → Google Gemini</span> (US)
+            for note generation. The note comes back. BAA-covered if your Google Workspace HIPAA BAA
+            is accepted and the key is from a billing-enabled Cloud project. Google retains
+            prompts/responses for ~24h for abuse review under their BAA.
           </li>
           <li>
-            <span className="font-medium text-graphite">Nothing else.</span> brtlb has no backend.
-            We don't see or log your data. Vercel hosts the static app code only.
+            <span className="font-medium text-graphite">Anonymous page-view counts → Vercel.</span>{' '}
+            brtlb uses Vercel Analytics to count how many people open the site, which routes they
+            visit (Home / Wizard / Record / Review), and what country / browser they're on.
+            Cookieless, no fingerprinting, no cross-site tracking. Vercel never sees your audio,
+            transcripts, notes, API keys, or any other PHI — only that someone navigated to a URL.
+            This is the only telemetry brtlb sends.
+          </li>
+          <li>
+            <span className="font-medium text-graphite">Nothing else.</span> brtlb has no backend of
+            its own. We don't see or log your data. Vercel hosts the static app code only.
           </li>
         </ul>
       </details>
@@ -709,8 +718,7 @@ function PrivacySecuritySection() {
           </li>
           <li>
             Trigger an OS-level remote wipe if you can (Find My iPhone, Android Find My Device).
-            brtlb itself can't reach across to wipe data on a device that's no longer in your
-            hands.
+            brtlb itself can't reach across to wipe data on a device that's no longer in your hands.
           </li>
           <li>
             On your replacement device, sign in to brtlb and run the wizard with your new keys.
@@ -835,9 +843,7 @@ function ThemeToggle() {
           onClick={() => saveSettings({ theme: o.key })}
           className={
             'rounded-full px-3 py-1 font-medium transition ' +
-            (theme === o.key
-              ? 'bg-graphite text-white'
-              : 'text-graphite-soft hover:text-graphite')
+            (theme === o.key ? 'bg-graphite text-white' : 'text-graphite-soft hover:text-graphite')
           }
         >
           {o.label}

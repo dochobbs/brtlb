@@ -13,6 +13,15 @@ export interface ChangelogEntry {
 export const CHANGELOG: ReadonlyArray<ChangelogEntry> = [
   {
     date: '2026-05-02',
+    title: 'Anonymous page-view counts',
+    items: [
+      'brtlb now counts how many people open the site and which screens they visit (Home / Wizard / Record / Review). Cookieless, no fingerprinting, no cross-site tracking — and no audio, transcript, note, or key data ever leaves your browser to anyone except AssemblyAI and Gemini directly.',
+      'This is the only telemetry brtlb sends. Disclosed in Settings → Privacy & security → "What leaves this device".',
+      "Helps me see whether anyone is actually using brtlb so I know where to focus development. If you'd rather no telemetry at all, the project is open-source — clone, drop the analytics line, self-host anywhere.",
+    ],
+  },
+  {
+    date: '2026-05-02',
     title: 'Auto-stop on silence',
     items: [
       'If brtlb hears no voice for 30 minutes, a warning banner appears: "No voice detected for 30 minutes — auto-stopping in 60 seconds." Tap Keep recording to continue, Stop now to finish, or do nothing — brtlb auto-stops and saves the audio captured up to that point.',
