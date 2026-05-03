@@ -13,6 +13,15 @@ export interface ChangelogEntry {
 export const CHANGELOG: ReadonlyArray<ChangelogEntry> = [
   {
     date: '2026-05-02',
+    title: 'Deep-linkable URLs',
+    items: [
+      'Each screen now has a real URL: brtlb.vercel.app/wizard, /record, /review, /settings. Refresh stays where you are. Share a link to a specific screen ("brtlb.vercel.app/settings — your AssemblyAI key goes in the second field").',
+      "Browser back/forward navigates between screens like any normal site. The one exception: back is blocked while a recording is in progress so a swipe-back can't kill an in-progress visit. Use the Cancel or Stop button to leave Record.",
+      "Bonus: page-view analytics now break down by screen instead of lumping every visit into one '/' bucket. We can finally see how far new users get past the wizard.",
+    ],
+  },
+  {
+    date: '2026-05-02',
     title: 'Anonymous page-view counts',
     items: [
       'brtlb now counts how many people open the site and which screens they visit (Home / Wizard / Record / Review). Cookieless, no fingerprinting, no cross-site tracking — and no audio, transcript, note, or key data ever leaves your browser to anyone except AssemblyAI and Gemini directly.',

@@ -1,11 +1,9 @@
 import { useEffect } from 'react';
 import { useAppStore } from './store';
-import {
-  purgeStaleAudio,
-  recoverInterruptedRecordings,
-  recoverOrphanedRecordings,
-} from './lib/db';
+import { purgeStaleAudio, recoverInterruptedRecordings, recoverOrphanedRecordings } from './lib/db';
 import { useIdleLock } from './lib/useIdleLock';
+import { useRecorderStore } from './lib/recorder-store';
+import { pathForView, viewFromPath } from './lib/routing';
 import { Home } from './screens/Home';
 import { Settings } from './screens/Settings';
 import { Record } from './screens/Record';
@@ -21,8 +19,62 @@ export function App() {
   const wizardCompletedV1 = useAppStore((s) => s.settings.wizardCompletedV1);
   const hasRequiredKeys = useAppStore((s) => s.hasRequiredKeys);
   const theme = useAppStore((s) => s.settings.theme);
+  // Recording state read directly from the recorder store so the popstate
+  // guard always sees the latest value without re-subscribing.
+  const recorderState = useRecorderStore((s) => s.state);
 
   useIdleLock();
+
+  // Decide the initial view: honor the URL first (someone visiting
+  // /wizard, /record, /review, or /settings via direct link or refresh
+  // lands there), then fall back to auto-launching the wizard if the
+  // user landed on / and has never finished onboarding.
+  useEffect(() => {
+    const fromUrl = viewFromPath(window.location.pathname);
+    if (fromUrl !== 'home') {
+      setView(fromUrl);
+      return;
+    }
+    if (!wizardCompletedV1 && !hasRequiredKeys()) {
+      setView('wizard');
+    }
+    // Empty deps — only on initial mount. Re-running on every settings
+    // change would trap the user in the wizard after they "skip for now".
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Sync view -> URL whenever the view changes. Uses pushState so back
+  // button traverses view history. Only pushes if the URL doesn't already
+  // match (avoids duplicate history entries when popstate fires the view
+  // change itself).
+  useEffect(() => {
+    const targetPath = pathForView(view);
+    if (window.location.pathname !== targetPath) {
+      window.history.pushState({ view }, '', targetPath);
+    }
+  }, [view]);
+
+  // Sync URL -> view on browser back/forward. Guards against losing an
+  // active recording: if the user swipes back mid-recording, we re-pin the
+  // URL to /record instead of letting them navigate away. They have to use
+  // the explicit Cancel/Stop buttons to leave.
+  useEffect(() => {
+    function onPopState(): void {
+      if (recorderState === 'recording' || recorderState === 'paused') {
+        // Bounce them back to /record so the in-progress visit isn't
+        // accidentally killed by a swipe-back gesture.
+        const recordPath = pathForView('record');
+        if (window.location.pathname !== recordPath) {
+          window.history.pushState({ view: 'record' }, '', recordPath);
+        }
+        return;
+      }
+      const next = viewFromPath(window.location.pathname);
+      setView(next);
+    }
+    window.addEventListener('popstate', onPopState);
+    return () => window.removeEventListener('popstate', onPopState);
+  }, [recorderState, setView]);
 
   // Apply the user's theme preference to <html>. 'system' follows the OS
   // via prefers-color-scheme; 'light' / 'dark' force the choice. We use
@@ -44,18 +96,6 @@ export function App() {
     mq.addEventListener('change', applyTheme);
     return () => mq.removeEventListener('change', applyTheme);
   }, [theme]);
-
-  // First-run auto-launch: if the user has never finished the wizard AND has
-  // no keys yet, drop them into the wizard. Returning users with keys see
-  // their normal home screen.
-  useEffect(() => {
-    if (!wizardCompletedV1 && !hasRequiredKeys() && view === 'home') {
-      setView('wizard');
-    }
-    // Only run on initial mount — re-running on every view change would
-    // trap the user in the wizard when they "skip for now".
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   // Run audio auto-purge once on app load. The DB pass is cheap; we don't
   // need to schedule it more aggressively for a session-length use.
