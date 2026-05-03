@@ -7,7 +7,7 @@ A pediatric-focused, BYO-keys AI scribe that runs entirely in your browser.
 - **Diarization-first** ambient documentation with multi-patient splitting
 - **BYO keys** — AssemblyAI for transcription, Gemini / OpenAI / Azure for note generation
 - **No backend in your data path** — audio goes browser → AssemblyAI direct, transcript goes browser → Gemini direct. brtlb has no server holding your PHI. (Vercel Analytics counts cookieless page views; PHI never passes through it.)
-- **Open source (AGPL-3.0)** — fork it, audit every line that touches your data, self-host on any static host
+- **Private beta** — source is private during the beta. Want to audit the code that touches your patient data? Ask Dr. Hobbs and he'll add you to the repo.
 - **Pediatric-tuned** — 9 visit-type templates including behavioral health and developmental evaluations
 - **Long-visit ready** — chunk-save resilience, 90-min transcription budget, chapter markers for ≥30 min visits
 - **PWA** — installable on iOS, Android, desktop. Same code path everywhere

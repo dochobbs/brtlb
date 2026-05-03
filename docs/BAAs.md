@@ -167,9 +167,8 @@ Page-view counts on a healthcare-information-management product are
 aggregate web traffic metadata, not PHI about individual patients.
 Vercel's data processing for Analytics is covered by their standard
 DPA (no separate BAA required for non-PHI analytics). If you'd rather
-brtlb send zero telemetry, the codebase is open-source — clone, drop
-the `<Analytics />` line in `apps/web-mvp/src/main.tsx`, and self-host
-on Cloudflare Pages or any other static host.
+brtlb send zero telemetry — or want to audit the code that runs in
+your browser — ask Dr. Hobbs for repo access during the beta.
 
 The Settings → Privacy & security panel in the app discloses this in
 the same words.

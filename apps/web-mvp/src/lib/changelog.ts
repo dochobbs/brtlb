@@ -17,7 +17,7 @@ export const CHANGELOG: ReadonlyArray<ChangelogEntry> = [
     items: [
       'brtlb now counts how many people open the site and which screens they visit (Home / Wizard / Record / Review). Cookieless, no fingerprinting, no cross-site tracking — and no audio, transcript, note, or key data ever leaves your browser to anyone except AssemblyAI and Gemini directly.',
       'This is the only telemetry brtlb sends. Disclosed in Settings → Privacy & security → "What leaves this device".',
-      "Helps me see whether anyone is actually using brtlb so I know where to focus development. If you'd rather no telemetry at all, the project is open-source — clone, drop the analytics line, self-host anywhere.",
+      "Helps me see whether anyone is actually using brtlb so I know where to focus development. If you'd rather send zero telemetry — or want to audit the code that runs in your browser — ask me for repo access during the beta.",
     ],
   },
   {
