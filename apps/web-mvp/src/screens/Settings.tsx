@@ -262,6 +262,13 @@ export function Settings() {
 
       <SupportPanel />
 
+      <section className="mb-6 rounded-xl bg-white p-6 shadow-sm">
+        <CustomTemplateEditor
+          templates={draft.customTemplates}
+          onChange={(next) => update('customTemplates', next)}
+        />
+      </section>
+
       <section className="space-y-6 rounded-xl bg-white p-6 shadow-sm">
         <div>
           <h2 className="text-sm font-semibold text-graphite">Foundation model</h2>
@@ -447,13 +454,6 @@ export function Settings() {
         </button>
         <Button onClick={handleSave}>Save</Button>
       </div>
-
-      <section className="mt-6 rounded-xl bg-white p-6 shadow-sm">
-        <CustomTemplateEditor
-          templates={draft.customTemplates}
-          onChange={(next) => update('customTemplates', next)}
-        />
-      </section>
 
       <section className="mt-6 space-y-4 rounded-xl bg-white p-6 shadow-sm">
         <div>
