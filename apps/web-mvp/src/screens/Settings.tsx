@@ -891,10 +891,6 @@ function SupportPanel() {
           $5/month membership
         </a>
       </div>
-      <p className="mt-2 text-[11px] leading-relaxed text-graphite-soft">
-        Memberships unlock zero features. The whole product stays the same whether you support or
-        not — that's the point.
-      </p>
     </section>
   );
 }
