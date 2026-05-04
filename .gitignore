@@ -50,3 +50,9 @@ coverage/
 
 # OS
 Thumbs.db
+
+# Local-only eval fixtures — REAL PATIENT TRANSCRIPTS + NOTES (PHI).
+# Never commit. Used as regression cases for prompt changes; live only on
+# Dr. Hobbs's machine.
+eval-fixtures/
+
