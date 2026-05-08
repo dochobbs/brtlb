@@ -12,6 +12,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ReadonlyArray<ChangelogEntry> = [
   {
+    date: '2026-05-05',
+    title: 'Smarter sibling-visit splitting',
+    items: [
+      'Multi-patient (sibling) visits now use a two-stage split: brtlb first identifies which children are clinically addressed in the recording, then assigns utterances to each. Previously a single LLM call had to do both jobs at once, and on heavily-interleaved sibling conversations it sometimes produced a single combined note instead of one note per child.',
+      'When the splitter falls back to single-patient (because identification failed, the response failed to parse, or the LLM returned nothing usable), brtlb now logs the reason to the browser console so you can tell "split bailed" from "the recording really was about one child." Open DevTools → Console and look for [brtlb:split] entries.',
+      "If you've had a sibling visit collapse into one note before, try recording the next one — the new pipeline handles ambiguous sibling chatter much better.",
+    ],
+  },
+  {
     date: '2026-05-02',
     title: 'Deep-linkable URLs',
     items: [

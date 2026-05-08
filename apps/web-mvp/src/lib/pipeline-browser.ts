@@ -704,18 +704,51 @@ interface SplitResponse {
   }>;
 }
 
-const SPLIT_PROMPT = `You are a medical transcription assistant. Split this pediatric ambient recording transcript into segments BY PATIENT.
+// Stage 1: identify which children are clinically addressed in the visit.
+// Discovery only — no utterance assignment. Keeping this separate from the
+// split lets the splitter focus on assignment with a known roster, which is
+// significantly easier than discover-and-split in one pass.
+const IDENTIFY_PROMPT = `You are a medical transcription assistant. Identify the patient(s) being clinically seen in this pediatric visit recording.
 
-For each child clearly addressed in the visit, identify which utterances are relevant to them and determine the visit type.
+A "patient" is a child for whom the physician takes history, examines, counsels about, or plans care during this visit. Sibling visits are common and expected — when multiple children are clinically addressed in one recording, list each one.
 
-Watch for combined encounters where a child is here for a routine well visit AND also has an acute complaint — keep visit_type as "well_child", set includes_preventive_care=true, and put acute issues in acute_concerns.
-
-Visit types: sick, well_child, follow_up, phone, other.
+OUTPUT — JSON ONLY, no prose, no code fences:
+{
+  "patients": [
+    {"name": "Tommy", "confidence": 0.9, "note": "5yo well visit, vaccines given"},
+    {"name": "Sara", "confidence": 0.85, "note": "3yo well visit, in OT/speech"},
+    {"name": "Annie", "confidence": 0.95, "note": "2-month well visit"}
+  ]
+}
 
 PATIENT LABEL:
-- Use the patient's first name if mentioned in the transcript ("Tommy", "Lily").
-- If no name surfaces clearly, use an ordinal fallback ("Patient 1", "Patient 2") in the order they appear in the transcript.
-- Do NOT invent names. Do NOT use parent or sibling names as the patient label.
+- Use the child's first name when stated in the transcript.
+- If a name cannot be determined, use ordinal fallback ("Patient 1", "Patient 2") in the order they appear.
+- NEVER use parent or sibling names that aren't being clinically addressed as patient labels.
+
+INCLUDE A CHILD WHEN:
+- The physician takes history about them (interval history, symptoms, development).
+- The physician examines them (height, weight, looks at skin, checks ears, etc.).
+- The physician counsels about their specific care (behavior, feeding, therapy, plan).
+- They are receiving an intervention (vaccines, medication, therapy referral).
+
+DO NOT INCLUDE:
+- Children mentioned in passing but not addressed clinically (e.g., "my older son is at school today").
+- Parents, caregivers, or non-patient family members.
+- Children who are present in the room but only as bystanders (the physician interacts with them socially but does not address their care).
+
+CONFIDENCE:
+- 0.9+ when clearly addressed with history + exam OR clear plan.
+- 0.6–0.8 when partial (e.g., history only, or brief check-in).
+- Below 0.6 should usually be omitted.
+
+NOTE FIELD: One short phrase summarizing what was addressed. Helps downstream review.
+
+Output JSON ONLY — no markdown fences, no explanation.`;
+
+const SPLIT_PROMPT = `You are a medical transcription assistant. The patients being clinically seen in this visit have already been identified. Your job is to assign each transcript utterance to the patient it primarily concerns.
+
+Visit types: sick, well_child, follow_up, phone, other.
 
 OUTPUT — JSON ONLY, no prose, no code fences:
 {
@@ -731,13 +764,37 @@ OUTPUT — JSON ONLY, no prose, no code fences:
   ]
 }
 
-HARD RULES:
-- ONLY return a segment when there is a clear utterance cluster about that child's history, exam, counseling, or plan.
-- If only ONE patient is discussed, return exactly ONE segment containing all utterance indices.
-- If utterances are ambiguous between two children, OMIT them rather than contaminating the wrong segment.
-- Do not include sibling-only chatter or family anecdotes unless they directly affect the target patient's care.
-- chief_complaint must summarize the combined encounter when mixed (e.g., "well-child visit with left ear pain"), not just one half.
-- Output JSON ONLY — no markdown fences, no explanation.`;
+ASSIGNMENT RULES:
+- Return one segment per patient on the provided roster. Order segments to match the roster order.
+- Assign each utterance to the ONE patient it primarily informs:
+  - History, exam findings, counseling, or plan addressed to or about a specific child → that child.
+  - Behavioral or family-dynamics counseling primarily about one child (even when partly addressed to a parent or sibling) → the child being counseled-about.
+  - Shared anticipatory guidance that genuinely applies to all kids equally → assign to the youngest patient (their visit will carry it).
+  - General family chatter, social moments, or logistics that don't inform any specific child's care → omit (do not assign).
+- Best-effort. When an utterance could plausibly inform two children, pick the one it most directly applies to. Do not duplicate utterance indices across patients.
+- Every patient on the roster should normally have a populated segment. Only return an empty segment for a patient if the transcript truly has zero clinical content for them.
+
+VISIT TYPE RULES:
+- If a child is here for a routine well visit AND also has an acute complaint, set visit_type="well_child", includes_preventive_care=true, list acute issues in acute_concerns.
+- chief_complaint summarizes the combined encounter for that patient (e.g., "well-child visit with left ear pain"), not just one half.
+
+PATIENT LABEL: Use the exact name from the provided roster.
+
+Output JSON ONLY — no markdown fences, no explanation.`;
+
+interface IdentifyResponse {
+  patients?: Array<{
+    name?: string;
+    confidence?: number;
+    note?: string;
+  }>;
+}
+
+interface IdentifiedPatient {
+  name: string;
+  confidence: number;
+  note: string;
+}
 
 function extractJson(s: string): string {
   // Strip ```json ... ``` fences if the model added them anyway.
@@ -746,13 +803,19 @@ function extractJson(s: string): string {
   return s.trim();
 }
 
-async function splitByPatient(
+const SPLIT_LOG_PREFIX = '[brtlb:split]';
+
+/**
+ * Stage 1 of the multi-patient split. Asks the LLM to enumerate the children
+ * clinically addressed in the recording. Returns an empty array on any
+ * failure — the caller treats that as "single patient, fall back."
+ */
+async function identifyPatientsInTranscript(
   transcript: Transcript,
   settings: Settings,
-): Promise<PatientSegment[]> {
+): Promise<IdentifiedPatient[]> {
   if (transcript.utterances.length === 0) return [];
 
-  // Render utterances with leading [idx] so the LLM can refer to them by index.
   const numbered = transcript.utterances
     .map((u, idx) => {
       const speaker = u.speakerId ? `Speaker ${u.speakerId}` : 'Speaker';
@@ -760,32 +823,120 @@ async function splitByPatient(
     })
     .join('\n');
 
-  const splitTemplate: NoteTemplate = {
-    id: 'split-by-patient',
-    name: 'Split by Patient',
-    description: 'Internal — splits an ambient transcript into per-patient segments.',
-    promptBody: `${SPLIT_PROMPT}\n\nTRANSCRIPT (utterances numbered for reference):\n${numbered}`,
+  const identifyTemplate: NoteTemplate = {
+    id: 'identify-patients',
+    name: 'Identify Patients',
+    description: 'Internal — discovers patients addressed in an ambient transcript.',
+    promptBody: `${IDENTIFY_PROMPT}\n\nTRANSCRIPT (utterances numbered for reference):\n${numbered}`,
   };
 
   const { provider } = buildProvider(settings);
   let raw: string;
   try {
     raw = await provider.generateNote({
-      transcript: { ...transcript, utterances: [] }, // already embedded above
+      transcript: { ...transcript, utterances: [] },
+      template: identifyTemplate,
+      pattern: NEUTRAL_PATTERN,
+      mode: 'ambient',
+      speakerRoles: [],
+    });
+  } catch (err) {
+    console.warn(`${SPLIT_LOG_PREFIX} identify call failed, falling back to single-patient`, err);
+    return [];
+  }
+
+  let parsed: IdentifyResponse;
+  try {
+    parsed = JSON.parse(extractJson(raw)) as IdentifyResponse;
+  } catch (err) {
+    console.warn(`${SPLIT_LOG_PREFIX} identify response did not parse as JSON, falling back`, {
+      error: err,
+      raw,
+    });
+    return [];
+  }
+
+  const patients = (parsed.patients ?? [])
+    .map((p): IdentifiedPatient => ({
+      name: (p.name ?? '').trim(),
+      confidence: typeof p.confidence === 'number' ? p.confidence : 0,
+      note: (p.note ?? '').trim(),
+    }))
+    .filter((p) => p.name.length > 0 && p.confidence >= 0.6);
+
+  console.info(`${SPLIT_LOG_PREFIX} identified ${patients.length} patient(s)`, patients);
+  return patients;
+}
+
+/**
+ * Stage 2 of the multi-patient split. Given the patient roster from stage 1,
+ * assign each utterance to a patient. Falls back to single-patient on any
+ * failure (with a console warning so the fallback is observable).
+ */
+async function splitByPatient(
+  transcript: Transcript,
+  settings: Settings,
+): Promise<PatientSegment[]> {
+  if (transcript.utterances.length === 0) return [];
+
+  const identified = await identifyPatientsInTranscript(transcript, settings);
+
+  // Stage 1 found 0 or 1 patient → no split needed. Single-patient encounter
+  // OR identify failed; either way, treat as single-patient and let the
+  // standard note flow handle it.
+  if (identified.length <= 1) {
+    if (identified.length === 0) {
+      console.info(
+        `${SPLIT_LOG_PREFIX} stage 1 returned no patients — using all utterances as single segment`,
+      );
+    }
+    return [allUtterancesSingleSegment(transcript)];
+  }
+
+  const numbered = transcript.utterances
+    .map((u, idx) => {
+      const speaker = u.speakerId ? `Speaker ${u.speakerId}` : 'Speaker';
+      return `[${idx}] ${speaker}: ${u.text}`;
+    })
+    .join('\n');
+
+  const roster = identified
+    .map((p) => `- ${p.name}${p.note ? ` (${p.note})` : ''}`)
+    .join('\n');
+
+  const splitTemplate: NoteTemplate = {
+    id: 'split-by-patient',
+    name: 'Split by Patient',
+    description: 'Internal — assigns utterances to a known patient roster.',
+    promptBody: `${SPLIT_PROMPT}\n\nPATIENT ROSTER (assign utterances to these — one segment per patient, in this order):\n${roster}\n\nTRANSCRIPT (utterances numbered for reference):\n${numbered}`,
+  };
+
+  const { provider } = buildProvider(settings);
+  let raw: string;
+  try {
+    raw = await provider.generateNote({
+      transcript: { ...transcript, utterances: [] },
       template: splitTemplate,
       pattern: NEUTRAL_PATTERN,
       mode: 'ambient',
       speakerRoles: [],
     });
-  } catch {
-    // On failure, treat as single-patient so the pipeline still produces a note.
+  } catch (err) {
+    console.warn(
+      `${SPLIT_LOG_PREFIX} stage 2 split call failed, falling back to single-patient`,
+      err,
+    );
     return [allUtterancesSingleSegment(transcript)];
   }
 
   let parsed: SplitResponse;
   try {
     parsed = JSON.parse(extractJson(raw)) as SplitResponse;
-  } catch {
+  } catch (err) {
+    console.warn(
+      `${SPLIT_LOG_PREFIX} stage 2 response did not parse as JSON, falling back`,
+      { error: err, raw },
+    );
     return [allUtterancesSingleSegment(transcript)];
   }
   const segments = (parsed.patient_segments ?? [])
@@ -795,7 +946,7 @@ async function splitByPatient(
       );
       return {
         id: `p${idx}`,
-        patientLabel: s.patient?.trim() || `Patient ${idx + 1}`,
+        patientLabel: s.patient?.trim() || identified[idx]?.name || `Patient ${idx + 1}`,
         visitType: s.visit_type ?? 'other',
         includesPreventiveCare: Boolean(s.includes_preventive_care),
         acuteConcerns: Array.isArray(s.acute_concerns) ? s.acute_concerns : [],
@@ -805,7 +956,20 @@ async function splitByPatient(
     })
     .filter((s) => s.relevantUtteranceIndices.length > 0);
 
-  if (segments.length === 0) return [allUtterancesSingleSegment(transcript)];
+  if (segments.length === 0) {
+    console.warn(
+      `${SPLIT_LOG_PREFIX} stage 2 returned no usable segments despite ${identified.length} identified patients — falling back`,
+    );
+    return [allUtterancesSingleSegment(transcript)];
+  }
+  console.info(
+    `${SPLIT_LOG_PREFIX} stage 2 produced ${segments.length} segment(s)`,
+    segments.map((s) => ({
+      patient: s.patientLabel,
+      visitType: s.visitType,
+      utteranceCount: s.relevantUtteranceIndices.length,
+    })),
+  );
   return segments;
 }
 
