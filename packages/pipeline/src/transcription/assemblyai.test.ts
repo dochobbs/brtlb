@@ -75,6 +75,12 @@ describe('transcribeWithAssemblyAi', () => {
     // AssemblyAI requires speech_models on every request; we send the
     // current flagship + the prior-gen as a fallback list.
     expect(body.speech_models).toEqual(['universal-3-pro', 'universal-2']);
+    // Roci-parity request body: medical-domain priors, English-only,
+    // punctuation, formatted text. Always-on (no setting).
+    expect(body.domain).toBe('medical-v1');
+    expect(body.language_code).toBe('en');
+    expect(body.punctuate).toBe(true);
+    expect(body.format_text).toBe(true);
   });
 
   it('sends speaker_labels=false for dictation mode', async () => {
@@ -144,7 +150,7 @@ describe('transcribeWithAssemblyAi', () => {
     ).rejects.toThrow(/AssemblyAI upload: authentication failed.*HTTP 403/);
   });
 
-  it('passes word_boost when provided', async () => {
+  it('passes keyterms_prompt when provided', async () => {
     let transcribeBody: Record<string, unknown> | undefined;
     const httpClient = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
       const url = input.toString();
@@ -160,13 +166,66 @@ describe('transcribeWithAssemblyAi', () => {
       audioPath: await tempAudio(),
       mode: 'ambient',
       config: { apiKey: 'k' },
-      wordBoost: ['amoxicillin', 'tympanic membrane'],
+      keytermsPrompt: ['amoxicillin', 'tympanic membrane'],
       httpClient: httpClient as unknown as typeof fetch,
       pollIntervalMs: 1,
       sleep: () => Promise.resolve(),
     });
 
-    expect(transcribeBody?.word_boost).toEqual(['amoxicillin', 'tympanic membrane']);
+    expect(transcribeBody?.keyterms_prompt).toEqual(['amoxicillin', 'tympanic membrane']);
+    // word_boost is the legacy parameter; we should not be sending it.
+    expect(transcribeBody?.word_boost).toBeUndefined();
+  });
+
+  it('passes speakers_expected when provided in ambient mode', async () => {
+    let transcribeBody: Record<string, unknown> | undefined;
+    const httpClient = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+      const url = input.toString();
+      if (url.endsWith('/upload')) return jsonResponse({ upload_url: 'u' });
+      if (url === 'https://api.assemblyai.com/v2/transcript' && init?.method === 'POST') {
+        transcribeBody = JSON.parse(init.body as string);
+        return jsonResponse({ id: 'tr', status: 'queued' });
+      }
+      return jsonResponse({ id: 'tr', status: 'completed', text: '', utterances: [] });
+    });
+
+    await transcribeWithAssemblyAi({
+      audioPath: await tempAudio(),
+      mode: 'ambient',
+      config: { apiKey: 'k' },
+      speakersExpected: 4,
+      httpClient: httpClient as unknown as typeof fetch,
+      pollIntervalMs: 1,
+      sleep: () => Promise.resolve(),
+    });
+
+    expect(transcribeBody?.speakers_expected).toBe(4);
+  });
+
+  it('omits speakers_expected in dictation mode (speaker_labels=false)', async () => {
+    let transcribeBody: Record<string, unknown> | undefined;
+    const httpClient = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+      const url = input.toString();
+      if (url.endsWith('/upload')) return jsonResponse({ upload_url: 'u' });
+      if (url === 'https://api.assemblyai.com/v2/transcript' && init?.method === 'POST') {
+        transcribeBody = JSON.parse(init.body as string);
+        return jsonResponse({ id: 'tr', status: 'queued' });
+      }
+      return jsonResponse({ id: 'tr', status: 'completed', text: '', utterances: [] });
+    });
+
+    await transcribeWithAssemblyAi({
+      audioPath: await tempAudio(),
+      mode: 'dictation',
+      config: { apiKey: 'k' },
+      speakersExpected: 4,
+      httpClient: httpClient as unknown as typeof fetch,
+      pollIntervalMs: 1,
+      sleep: () => Promise.resolve(),
+    });
+
+    expect(transcribeBody?.speaker_labels).toBe(false);
+    expect(transcribeBody?.speakers_expected).toBeUndefined();
   });
 
   it('rejects when the audio file does not exist', async () => {

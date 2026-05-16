@@ -114,7 +114,18 @@ export interface TranscribeInput {
   audioPath: string;
   mode: RecordingMode;
   config: AssemblyAiConfig;
-  wordBoost?: string[];
+  /**
+   * Vocabulary hints sent as AssemblyAI's `keyterms_prompt`. Tuned for
+   * the Universal-3 model family and replaces the legacy `word_boost`.
+   */
+  keytermsPrompt?: string[];
+  /**
+   * Expected number of distinct speakers in the audio. Forwarded as
+   * `speakers_expected` to bias the diarizer. Ignored in dictation
+   * mode (where speaker_labels is false). For pediatric visits, 4
+   * (provider + 2 parents + child) is a reasonable upper bound.
+   */
+  speakersExpected?: number;
   httpClient?: typeof fetch;
 }
 
@@ -129,7 +140,8 @@ export interface RunPipelineInput {
   speakerRoles?: SpeakerRoleAssignment[];
   providerConfig: ProviderConfig;
   assemblyAi: AssemblyAiConfig;
-  wordBoost?: string[];
+  keytermsPrompt?: string[];
+  speakersExpected?: number;
 }
 
 export interface RunPipelineOutput {

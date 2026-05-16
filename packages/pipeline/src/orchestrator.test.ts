@@ -92,7 +92,7 @@ describe('runPipeline', () => {
     ]);
   });
 
-  it('passes wordBoost down to transcribe', async () => {
+  it('passes keytermsPrompt and speakersExpected down to transcribe', async () => {
     const transcribe = vi.fn().mockResolvedValue(fakeTranscript());
     const generateNote = vi.fn().mockResolvedValue('ok');
     const createProvider = vi.fn(() => ({ name: 'anthropic', generateNote }));
@@ -106,11 +106,13 @@ describe('runPipeline', () => {
         pattern: { id: 'p', name: 'P', description: '', promptModifier: 'p' },
         providerConfig: provConfig,
         assemblyAi: { apiKey: 'aai' },
-        wordBoost: ['amoxicillin'],
+        keytermsPrompt: ['amoxicillin'],
+        speakersExpected: 4,
       },
       { transcribe, createProvider },
     );
 
-    expect(transcribe.mock.calls[0]![0].wordBoost).toEqual(['amoxicillin']);
+    expect(transcribe.mock.calls[0]![0].keytermsPrompt).toEqual(['amoxicillin']);
+    expect(transcribe.mock.calls[0]![0].speakersExpected).toBe(4);
   });
 });

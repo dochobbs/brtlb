@@ -25,7 +25,8 @@ export async function runPipeline(
     audioPath: input.audioPath,
     mode: input.mode,
     config: input.assemblyAi,
-    wordBoost: input.wordBoost,
+    keytermsPrompt: input.keytermsPrompt,
+    speakersExpected: input.speakersExpected,
   });
   const transcript: Transcript = { ...transcribed, recordingId: input.recordingId };
 

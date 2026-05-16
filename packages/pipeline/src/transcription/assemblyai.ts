@@ -214,7 +214,10 @@ async function requestTranscript(
   apiKey: string,
   audioUrl: string,
   speakerLabels: boolean,
-  wordBoost?: string[],
+  options: {
+    speakersExpected?: number;
+    keytermsPrompt?: string[];
+  },
 ): Promise<string> {
   const body: Record<string, unknown> = {
     audio_url: audioUrl,
@@ -224,8 +227,28 @@ async function requestTranscript(
     // prior-gen fallback. Listing both lets AssemblyAI fall back if
     // pro is unavailable for some reason.
     speech_models: ['universal-3-pro', 'universal-2'],
+    // Clinical-speech acoustic priors. Improves both transcription
+    // accuracy on medical vocabulary and (indirectly) diarization
+    // quality by giving the model stronger conversational priors.
+    domain: 'medical-v1',
+    language_code: 'en',
+    punctuate: true,
+    format_text: true,
   };
-  if (wordBoost && wordBoost.length > 0) body.word_boost = wordBoost;
+  // Bias the diarizer toward the expected speaker count. Without this
+  // hint AssemblyAI auto-detects and frequently lands on 2 even for
+  // 4-speaker visits (provider + 2 parents + child), with multiple
+  // voices smeared across both clusters. Empirically confirmed on
+  // the Rowan 15-mo visit. Only meaningful when speaker_labels is on.
+  if (speakerLabels && options.speakersExpected && options.speakersExpected > 0) {
+    body.speakers_expected = options.speakersExpected;
+  }
+  // keyterms_prompt is the Universal-3 successor to word_boost. The
+  // newer family is tuned to use this parameter; passing the legacy
+  // word_boost would still work but yields weaker recognition gains.
+  if (options.keytermsPrompt && options.keytermsPrompt.length > 0) {
+    body.keyterms_prompt = options.keytermsPrompt;
+  }
 
   const t = withTimeout(REQUEST_TIMEOUT_MS);
   let res: Response;
@@ -338,20 +361,18 @@ async function runTranscription(
     http: typeof fetch;
     apiKey: string;
     mode: RecordingMode;
-    wordBoost?: string[];
+    keytermsPrompt?: string[];
+    speakersExpected?: number;
     intervalMs: number;
     sleep: (ms: number) => Promise<void>;
     deleteOnCompletion?: boolean;
   },
 ): Promise<Transcript> {
   const speakerLabels = options.mode === 'ambient';
-  const id = await requestTranscript(
-    options.http,
-    options.apiKey,
-    audioUrl,
-    speakerLabels,
-    options.wordBoost,
-  );
+  const id = await requestTranscript(options.http, options.apiKey, audioUrl, speakerLabels, {
+    speakersExpected: options.speakersExpected,
+    keytermsPrompt: options.keytermsPrompt,
+  });
   const final = await pollTranscript(
     options.http,
     options.apiKey,
@@ -403,7 +424,8 @@ export async function transcribeWithAssemblyAi(input: TranscribeOptions): Promis
     http,
     apiKey: input.config.apiKey,
     mode: input.mode,
-    wordBoost: input.wordBoost,
+    keytermsPrompt: input.keytermsPrompt,
+    speakersExpected: input.speakersExpected,
     intervalMs,
     sleep,
     deleteOnCompletion: input.config.deleteOnCompletion,
@@ -414,7 +436,8 @@ export interface TranscribeBlobOptions {
   audio: UploadBody;
   mode: RecordingMode;
   config: AssemblyAiConfig;
-  wordBoost?: string[];
+  keytermsPrompt?: string[];
+  speakersExpected?: number;
   httpClient?: typeof fetch;
   pollIntervalMs?: number;
   sleep?: (ms: number) => Promise<void>;
@@ -432,7 +455,8 @@ export async function transcribeBlobWithAssemblyAi(
     http,
     apiKey: input.config.apiKey,
     mode: input.mode,
-    wordBoost: input.wordBoost,
+    keytermsPrompt: input.keytermsPrompt,
+    speakersExpected: input.speakersExpected,
     intervalMs,
     sleep,
     deleteOnCompletion: input.config.deleteOnCompletion,

@@ -194,7 +194,12 @@ export async function runMvpPipeline(input: RunMvpPipelineInput): Promise<RunMvp
         apiKey: input.settings.assemblyAiKey,
         deleteOnCompletion: input.settings.deleteAssemblyAiAfterTranscription,
       },
-      wordBoost: [...PEDIATRIC_WORD_BOOST],
+      keytermsPrompt: [...PEDIATRIC_WORD_BOOST],
+      // Bias the diarizer toward the typical peds-visit upper bound:
+      // provider + up to 2 parents + child. Without this hint AssemblyAI
+      // routinely lands on 2 even when 4 voices are present. Dictation
+      // mode ignores this (speaker_labels is off there).
+      speakersExpected: 4,
     });
     input.onStage?.('transcribing');
   } catch (err) {
