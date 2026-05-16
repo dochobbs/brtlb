@@ -204,6 +204,31 @@ function EmptyTranscriptState(props: {
   return <p className="text-sm text-graphite-soft">No transcript yet.</p>;
 }
 
+/**
+ * Diagnostic-only export. Writes the stored transcriptJson to a .json
+ * file so the raw STT output (utterances, speaker labels, confidence)
+ * can be inspected outside the app — used to verify diarization quality
+ * against the rendered note. Intentionally subtle in the UI; not user-
+ * facing copy.
+ */
+function downloadTranscriptJson(meta: RecordingMeta): void {
+  if (!meta.transcriptJson) return;
+  const blob = new Blob([meta.transcriptJson], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  const labelSlug = (meta.label || meta.id)
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 40) || meta.id;
+  a.download = `transcript-${labelSlug}.json`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
 function renderTranscriptText(transcript: Transcript, roles: SpeakerRoleAssignment[]): string {
   const map = new Map(roles.map((r) => [r.speakerId, r.role]));
   return transcript.utterances
@@ -891,13 +916,25 @@ export function Review() {
         >
           ← All recordings
         </button>
-        <button
-          type="button"
-          onClick={handleDelete}
-          className="text-sm text-graphite-soft hover:text-red-700"
-        >
-          Delete
-        </button>
+        <div className="flex items-center gap-4">
+          {meta.transcriptJson ? (
+            <button
+              type="button"
+              onClick={() => downloadTranscriptJson(meta)}
+              title="Download the raw transcript JSON (for diagnostics)"
+              className="text-xs text-graphite-soft/60 hover:text-graphite-soft"
+            >
+              raw json
+            </button>
+          ) : null}
+          <button
+            type="button"
+            onClick={handleDelete}
+            className="text-sm text-graphite-soft hover:text-red-700"
+          >
+            Delete
+          </button>
+        </div>
       </header>
 
       <input
