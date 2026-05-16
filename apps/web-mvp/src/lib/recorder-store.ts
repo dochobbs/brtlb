@@ -3,6 +3,15 @@ import { appendAudioChunk, clearAudioChunks, logAudit } from './db';
 
 export type RecorderState = 'idle' | 'recording' | 'paused' | 'stopped';
 export type RecordingMode = 'ambient' | 'dictation';
+/**
+ * Why a recording ended. Persisted alongside RecordingMeta so we can
+ * triage "it stopped by itself" reports against actual cause.
+ * - `user`: physician pressed Stop.
+ * - `silence_autostop`: 30-min idle + 60-s grace window expired with no
+ *   voice activity above threshold.
+ * - `error`: mic track ended / recorder errored mid-recording.
+ */
+export type StopReason = 'user' | 'silence_autostop' | 'error';
 
 export interface Bookmark {
   ms: number;
@@ -118,6 +127,21 @@ interface RecorderStore {
    * start().
    */
   silenceAutoStopRequested: boolean;
+  /**
+   * Reason the most recent recording ended. Set the moment we decide to
+   * stop (user tap, silence grace, error). Read by Record.tsx when
+   * persisting RecordingMeta. Reset to null on next start().
+   */
+  stopReason: StopReason | null;
+  /**
+   * When true, the silence-detection ticker short-circuits before the
+   * 30-min-silence check. Set by the app shell while the idle-lock
+   * overlay is up — a locked screen means PHI is hidden, not that the
+   * physician walked away. Without this gate, silence accumulated
+   * behind the lock screen could fire auto-stop with the "Keep
+   * recording" banner unreachable.
+   */
+  silenceCheckPaused: boolean;
   // Internals are stored on the store object but never trigger re-renders.
   _internals: RecorderInternals;
   start: (mode?: RecordingMode) => Promise<void>;
@@ -130,6 +154,11 @@ interface RecorderStore {
    * resets the voice-activity timer so the warning won't re-fire for
    * another full IDLE_WARNING_AFTER_MS of silence. */
   dismissSilenceWarning: () => void;
+  /** Called by the app shell when the idle-lock overlay opens or
+   * closes. While paused, the silence ticker won't fire the banner or
+   * auto-stop. On resume, the voice-activity timer resets so the
+   * physician gets a fresh window. */
+  setSilenceCheckPaused: (paused: boolean) => void;
 }
 
 function generateRecordingId(): string {
@@ -260,6 +289,9 @@ export const useRecorderStore = create<RecorderStore>((set, get) => {
       // freeze). We surface the banner first; auto-stop only fires
       // after the grace window elapses with no further activity.
       if (get().state !== 'recording') return;
+      // Locked overlays hide the banner. While locked we don't run the
+      // silence math at all so the auto-stop can't fire silently.
+      if (get().silenceCheckPaused) return;
       const now = Date.now();
       const silentFor = now - internals.lastVoiceActivityAt;
       const warningStarted = get().silenceWarningStartedAt;
@@ -283,7 +315,11 @@ export const useRecorderStore = create<RecorderStore>((set, get) => {
         // handleStop flow (which persists audio + meta and routes to
         // Review). Idempotent: extra ticks setting true are no-ops.
         if (!get().silenceAutoStopRequested) {
-          set({ silenceAutoStopRequested: true, silenceWarningStartedAt: null });
+          set({
+            silenceAutoStopRequested: true,
+            silenceWarningStartedAt: null,
+            stopReason: 'silence_autostop',
+          });
         }
       }
     }, ACTIVITY_TICK_MS);
@@ -302,6 +338,8 @@ export const useRecorderStore = create<RecorderStore>((set, get) => {
     storageError: null,
     silenceWarningStartedAt: null,
     silenceAutoStopRequested: false,
+    stopReason: null,
+    silenceCheckPaused: false,
     _internals: internals,
 
     async start(mode = 'ambient') {
@@ -354,6 +392,7 @@ export const useRecorderStore = create<RecorderStore>((set, get) => {
               set({
                 error:
                   'The microphone became unavailable. Another app may have taken it, the device was unplugged, or permission was revoked. Stop and re-record when the mic is available again.',
+                stopReason: 'error',
               });
             }
           });
@@ -410,6 +449,7 @@ export const useRecorderStore = create<RecorderStore>((set, get) => {
           totalInterruptedMs: 0,
           silenceWarningStartedAt: null,
           silenceAutoStopRequested: false,
+          stopReason: null,
         });
         startTicker();
         startMeter(stream);
@@ -506,6 +546,11 @@ export const useRecorderStore = create<RecorderStore>((set, get) => {
     async stop(): Promise<Blob | null> {
       const recorder = internals.mediaRecorder;
       if (!recorder) return null;
+      // If no other code path has already claimed credit (silence autostop,
+      // error handler) then this stop was user-initiated.
+      if (get().stopReason === null) {
+        set({ stopReason: 'user' });
+      }
       return new Promise<Blob | null>((resolve) => {
         recorder.onstop = () => {
           const mimeType = recorder.mimeType || 'audio/webm';
@@ -575,7 +620,22 @@ export const useRecorderStore = create<RecorderStore>((set, get) => {
         storageError: null,
         silenceWarningStartedAt: null,
         silenceAutoStopRequested: false,
+        stopReason: null,
+        silenceCheckPaused: false,
       });
+    },
+
+    setSilenceCheckPaused(paused: boolean) {
+      const wasPaused = get().silenceCheckPaused;
+      if (wasPaused === paused) return;
+      if (!paused) {
+        // Coming out of pause: give a fresh window so we don't fire
+        // immediately on the first tick.
+        internals.lastVoiceActivityAt = Date.now();
+        set({ silenceCheckPaused: false, silenceWarningStartedAt: null });
+        return;
+      }
+      set({ silenceCheckPaused: true });
     },
 
     dismissSilenceWarning() {

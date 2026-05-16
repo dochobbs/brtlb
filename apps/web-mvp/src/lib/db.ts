@@ -63,6 +63,13 @@ export interface RecordingMeta {
   quotesMarkdown?: string | null;
   /** When quotes were last generated. */
   quotesAt?: string | null;
+  /**
+   * Why the recording ended. `user` = physician pressed Stop;
+   * `silence_autostop` = 30-min idle + 60-s grace fired; `error` = mic
+   * track ended / recorder error. Optional because legacy records
+   * pre-date the field.
+   */
+  stopReason?: 'user' | 'silence_autostop' | 'error' | null;
 }
 
 export interface TranscriptChapter {

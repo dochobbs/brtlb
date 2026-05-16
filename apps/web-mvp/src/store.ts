@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { useRecorderStore } from './lib/recorder-store';
 
 export type ProviderKind = 'anthropic' | 'openai-compatible' | 'gemini-api-key';
 
@@ -158,8 +159,14 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
   lock() {
     set({ locked: true });
+    // Freeze silence-detection while the lock screen is up — the "Keep
+    // recording" banner is unreachable behind the z-50 overlay, so an
+    // ongoing recording could silently auto-stop without the physician
+    // ever seeing the prompt.
+    useRecorderStore.getState().setSilenceCheckPaused(true);
   },
   unlock() {
     set({ locked: false });
+    useRecorderStore.getState().setSilenceCheckPaused(false);
   },
 }));

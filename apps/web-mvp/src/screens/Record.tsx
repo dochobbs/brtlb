@@ -59,6 +59,9 @@ export function Record() {
     setSaving(true);
     setSaveError(null);
     try {
+      // Capture stopReason BEFORE awaiting stop() — the recorder clears
+      // it on the next start() and we want the value set during this stop.
+      const stopReason = useRecorderStore.getState().stopReason ?? 'user';
       const blob = await withTimeout(stop(), 'recorder.stop');
       if (!blob) {
         setSaving(false);
@@ -83,6 +86,7 @@ export function Record() {
         providerUsed: null,
         label: null,
         bookmarks: bookmarks.length > 0 ? [...bookmarks] : undefined,
+        stopReason,
       };
       await withTimeout(putAudio(id, blob), 'putAudio');
       await withTimeout(putRecording(meta), 'putRecording');
