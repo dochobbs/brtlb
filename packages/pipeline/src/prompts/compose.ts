@@ -89,7 +89,8 @@ const FABRICATION_DISCIPLINE_RULES = `DOCUMENTATION DISCIPLINE:
 - ROS: pertinent positives and negatives only. Use "denies/reports/endorses" only when the transcript shows an explicit question-and-answer. For clinician observations without a question, use observation language ("no work of breathing observed"). Do not invent denials from silence.
 - Apply staging adjectives (intermittent, mild, well-controlled) when the clinician uses them or when the transcript clearly supports the classification by use pattern.
 - Preserve conditional plans as conditional. "If X works, then Y" is not the same as "Y will be done."
-- When the clinician explicitly disagrees with a prior diagnosis, test, or family assumption, capture both the prior framing and the clinician's reasoning.`;
+- When the clinician explicitly disagrees with a prior diagnosis, test, or family assumption, capture both the prior framing and the clinician's reasoning.
+- Counseling specificity (Plan / Anticipatory Guidance only — does NOT modify the Exam rule above): when the clinician's specific teaching content or rationale appears in the transcript, document it rather than a generic confirmation. "Reviewed back-sleep, firm surface, no blankets" is stronger than "safe-sleep counseling provided." Use generic phrasing only when the transcript truly lacks specifics. Never invent counseling content. Exam findings continue to follow the rule above — do not add specific abnormality rule-outs ("no wheezing") unless the clinician named them.`;
 
 export function composeNotePrompt(input: GenerateNoteInput): string {
   const roleMap = buildRoleMap(input.speakerRoles);
