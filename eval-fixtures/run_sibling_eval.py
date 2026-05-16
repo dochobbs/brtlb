@@ -102,8 +102,8 @@ ASSIGNMENT RULES:
 - Assign each utterance to the ONE patient it primarily informs:
   - History, exam findings, counseling, or plan addressed to or about a specific child → that child.
   - Behavioral or family-dynamics counseling primarily about one child (even when partly addressed to a parent or sibling) → the child being counseled-about.
-  - Shared anticipatory guidance that genuinely applies to all kids equally → assign to the youngest patient (their visit will carry it).
-  - General family chatter, social moments, or logistics that don't inform any specific child's care → omit (do not assign).
+  - Shared clinical advice that applies across the children (return precautions, contagion guidance, household sick measures, when-to-call thresholds, school/daycare exclusion rules) → assign to the youngest patient (their visit will carry it). When in doubt between assigning shared clinical content and omitting it, prefer assignment — these instructions need a home in someone's note.
+  - General family chatter, social moments, or logistics with no clinical signal for any child (small talk, scheduling, off-topic asides) → omit (do not assign).
 - Best-effort. When an utterance could plausibly inform two children, pick the one it most directly applies to. Do not duplicate utterance indices across patients.
 - Every patient on the roster should normally have a populated segment. Only return an empty segment for a patient if the transcript truly has zero clinical content for them.
 

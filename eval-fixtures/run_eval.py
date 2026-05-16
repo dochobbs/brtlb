@@ -20,11 +20,15 @@ FIXTURES_DIR = Path(__file__).parent
 REPO_ROOT = FIXTURES_DIR.parent
 TEMPLATES_DIR = REPO_ROOT / "packages/prompts/src/templates"
 
-# Map fixture slug -> visit-type template id
+# Map fixture slug -> visit-type template id. PHI dirs are gitignored; the
+# `synthetic-*` dirs are safe-to-commit and exercise the same prompts.
 FIXTURE_TEMPLATES = {
     "2026-05-04-wcv-multi-concerns": "well-child",
     "2026-05-04-asthma-cough-flare": "sick-visit",
     "2026-05-04-wcv-cough-allergies": "well-child",
+    "synthetic-2026-05-16-wcv-multi-concern": "well-child",
+    "synthetic-2026-05-16-adhd-med-check": "adhd-med-check",
+    "synthetic-2026-05-16-behavioral-anxiety": "behavioral-health",
 }
 
 ADAPTIVE_LENGTH_RULE = """NOTE LENGTH:
@@ -40,10 +44,11 @@ DISCIPLINE_RULES_V3 = """DOCUMENTATION DISCIPLINE:
 - Preserve conditional plans as conditional. "If X works, then Y" is not the same as "Y will be done."
 - When the clinician explicitly disagrees with a prior diagnosis, test, or family assumption, capture both the prior framing and the clinician's reasoning."""
 
-# === v4 ROCI-PARITY (adds counseling-specificity bullet, scoped to Plan/AG) ===
+# === v4 ROCI-PARITY (counseling specificity + authority-citation guardrail) ===
 # Mirrors the current compose.ts FABRICATION_DISCIPLINE_RULES (2026-05-16).
 DISCIPLINE_RULES_V4 = DISCIPLINE_RULES_V3 + """
-- Counseling specificity (Plan / Anticipatory Guidance only — does NOT modify the Exam rule above): when the clinician's specific teaching content or rationale appears in the transcript, document it rather than a generic confirmation. "Reviewed back-sleep, firm surface, no blankets" is stronger than "safe-sleep counseling provided." Use generic phrasing only when the transcript truly lacks specifics. Never invent counseling content. Exam findings continue to follow the rule above — do not add specific abnormality rule-outs ("no wheezing") unless the clinician named them."""
+- Counseling specificity (Plan / Anticipatory Guidance only — does NOT modify the Exam rule above): when the clinician's specific teaching content or rationale appears in the transcript, document it rather than a generic confirmation. "Reviewed back-sleep, firm surface, no blankets" is stronger than "safe-sleep counseling provided." Use generic phrasing only when the transcript truly lacks specifics. Never invent counseling content. Exam findings continue to follow the rule above — do not add specific abnormality rule-outs ("no wheezing") unless the clinician named them.
+- Do not cite guidelines, organizations, or authorities the clinician did not name. "Per AAFP guidelines," "AAP recommends," "per CDC," "based on Bright Futures," and similar attributions must appear in the transcript before they appear in the note. Plain clinical rationale ("watchful waiting given age, no fever, no perforation") is fine; rationale dressed up as a citation is not."""
 
 # Default to the current production rules. Override via --discipline v3
 # to compare against the previous baseline before the Roci-parity change.
