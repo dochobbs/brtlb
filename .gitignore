@@ -54,5 +54,17 @@ Thumbs.db
 # Local-only eval fixtures — REAL PATIENT TRANSCRIPTS + NOTES (PHI).
 # Never commit. Used as regression cases for prompt changes; live only on
 # Dr. Hobbs's machine.
-eval-fixtures/
+#
+# Real PHI fixture dirs are date-prefixed (YYYY-MM-DD-*) and remain ignored.
+# Synthetic fixture dirs must be prefixed `synthetic-` and are tracked, since
+# they contain no real patient data. Runner harnesses + README are tracked.
+# Use `eval-fixtures/*` (not `eval-fixtures/`) so negations can re-include
+# specific children — git won't recurse into a fully-ignored directory.
+eval-fixtures/*
+!eval-fixtures/synthetic-*/
+!eval-fixtures/synthetic-*/**
+!eval-fixtures/run_eval.py
+!eval-fixtures/run_sibling_eval.py
+!eval-fixtures/README.md
+eval-fixtures/__pycache__/
 
