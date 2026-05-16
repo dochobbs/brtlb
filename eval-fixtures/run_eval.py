@@ -61,6 +61,7 @@ def load_template(template_id: str) -> dict:
 
 
 def build_prompt(template: dict, transcript_text: str, discipline_rules: str) -> str:
+    """Single-user-message prompt — matches current production composeNotePrompt."""
     return "\n\n".join([
         template["promptBody"],
         ADAPTIVE_LENGTH_RULE,
@@ -71,15 +72,39 @@ def build_prompt(template: dict, transcript_text: str, discipline_rules: str) ->
     ])
 
 
-def call_gemini(prompt: str, model: str = "gemini-2.5-pro") -> str:
+def build_split_prompt(
+    template: dict, transcript_text: str, discipline_rules: str
+) -> tuple[str, str]:
+    """System + user split — what Roci does. Returns (system, user).
+
+    Instructions (template body, length rule, discipline rules) go in the
+    system slot; the transcript and mode label stay in the user slot.
+    """
+    system = "\n\n".join(
+        [template["promptBody"], ADAPTIVE_LENGTH_RULE, discipline_rules]
+    )
+    user = "\n\n".join(
+        ["Recording mode: dictation", "Transcript:", transcript_text.strip()]
+    )
+    return system, user
+
+
+def call_gemini(
+    prompt: str,
+    model: str = "gemini-2.5-pro",
+    *,
+    system_instruction: str | None = None,
+) -> str:
     api_key = os.environ.get("GEMINI_API_KEY")
     if not api_key:
         raise RuntimeError("GEMINI_API_KEY not set")
     url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
-    body = {
+    body: dict = {
         "contents": [{"role": "user", "parts": [{"text": prompt}]}],
         "generationConfig": {"temperature": 0.2, "maxOutputTokens": 8192},
     }
+    if system_instruction is not None:
+        body["systemInstruction"] = {"parts": [{"text": system_instruction}]}
     req = urllib.request.Request(
         url,
         data=json.dumps(body).encode("utf-8"),
@@ -109,6 +134,11 @@ def main() -> None:
                         help="Run only this fixture slug (default: all)")
     parser.add_argument("--discipline", default="v4", choices=["v3", "v4"],
                         help="Discipline rules version (v4 = current; v3 = previous baseline)")
+    parser.add_argument(
+        "--system-split",
+        action="store_true",
+        help="Send instructions in Gemini's systemInstruction slot instead of a single user message. Experimental — Roci does this; brtlb's production currently does not.",
+    )
     args = parser.parse_args()
 
     discipline_rules = DISCIPLINE_RULES_BY_LABEL[args.discipline]
@@ -119,11 +149,20 @@ def main() -> None:
         fdir = FIXTURES_DIR / slug
         transcript = (fdir / "transcript.txt").read_text()
         template = load_template(FIXTURE_TEMPLATES[slug])
-        prompt = build_prompt(template, transcript, discipline_rules)
         out_path = fdir / f"note.{args.label}.md"
-        print(f"[{slug}] template={template['id']} model={args.model} discipline={args.discipline}", flush=True)
+        msg_mode = "system+user" if args.system_split else "single-user"
+        print(
+            f"[{slug}] template={template['id']} model={args.model} "
+            f"discipline={args.discipline} msg={msg_mode}",
+            flush=True,
+        )
         try:
-            note = call_gemini(prompt, model=args.model)
+            if args.system_split:
+                system, user = build_split_prompt(template, transcript, discipline_rules)
+                note = call_gemini(user, model=args.model, system_instruction=system)
+            else:
+                prompt = build_prompt(template, transcript, discipline_rules)
+                note = call_gemini(prompt, model=args.model)
         except Exception as e:
             print(f"  FAILED: {e}", flush=True)
             continue
