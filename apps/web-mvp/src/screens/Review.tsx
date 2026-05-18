@@ -29,6 +29,7 @@ import { SpeakerChips } from '../components/SpeakerChips';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import {
   copyNoteRich,
+  detectMultiPatientStructureFromNote,
   mailtoForNote,
   markdownToPlainText as exportMarkdownToPlainText,
   spliceMultiPatientNote,
@@ -304,11 +305,19 @@ export function Review() {
       // recording — the per-tab scope is the load-bearing UX, putting the
       // user on 'all' first hides it. Single-patient stays on 'all' (which
       // is just the whole note since there are no tabs).
-      const firstSegId = m.patientSegments?.[0]?.id;
-      if ((m.patientSegments?.length ?? 0) > 1 && firstSegId) {
-        setActiveTab(firstSegId);
+      // Two paths: canonical metadata wins; otherwise try the self-recovery
+      // detector on the rendered note (catches the case where the splitter
+      // dropped a patient but the LLM emitted labeled sections itself).
+      const canonicalFirstId = m.patientSegments?.[0]?.id;
+      if ((m.patientSegments?.length ?? 0) > 1 && canonicalFirstId) {
+        setActiveTab(canonicalFirstId);
       } else {
-        setActiveTab('all');
+        const recovered = detectMultiPatientStructureFromNote(m.noteMarkdown ?? '');
+        if (recovered && recovered.chunks.length > 1) {
+          setActiveTab(recovered.chunks[0]!.id);
+        } else {
+          setActiveTab('all');
+        }
       }
       // Hydrate the error banner + retry buttons from the persisted state so
       // a failed recording reopened later (refresh, navigation back) still
@@ -355,18 +364,55 @@ export function Review() {
     return meta?.transcriptText ?? '';
   }, [transcript, speakerRoles, meta?.transcriptText]);
 
-  // Multi-patient tabs derived at render time by splitting the concatenated
-  // note on the '\n\n---\n\n' separator the pipeline emits. No data model
-  // change: notes still stored as one string. Tabs disappear automatically
-  // for single-patient recordings or when the chunk count doesn't match
-  // the segment count (rare; could happen if the user manually deleted a
-  // separator while editing).
-  const segments = useMemo(() => meta?.patientSegments ?? [], [meta?.patientSegments]);
-  const isMultiPatient = segments.length > 1;
+  // Multi-patient tabs derived at render time. Two paths:
+  //   1. Canonical: meta.patientSegments has >1 entry and the note is
+  //      joined on '\n\n---\n\n' — the pipeline's normal multi-patient
+  //      flow. Split via splitConcatenatedMultiPatientNote.
+  //   2. Self-recovery: the splitter fell back to single-patient (often
+  //      because diarization collapsed speakers, so stage-1 identify
+  //      could only find one child) but the note-generation LLM noticed
+  //      multiple patients in the transcript and emitted labeled
+  //      sections itself. Detect that from the rendered note text via
+  //      detectMultiPatientStructureFromNote, which handles both
+  //      header styles ('## Name · Visit' and '**Patient: Name**') and
+  //      both separator styles ('---' and '***').
+  // Tabs disappear automatically for single-patient recordings.
+  const canonicalSegments = useMemo(
+    () => meta?.patientSegments ?? [],
+    [meta?.patientSegments],
+  );
+  const recoveredChunks = useMemo<PatientNoteChunk[] | null>(() => {
+    // Only attempt recovery if canonical metadata says single-patient —
+    // we trust the pipeline's own segmentation when it ran cleanly.
+    if (canonicalSegments.length > 1) return null;
+    return detectMultiPatientStructureFromNote(editedNote)?.chunks ?? null;
+  }, [canonicalSegments.length, editedNote]);
   const noteChunks: PatientNoteChunk[] = useMemo(() => {
-    if (!isMultiPatient) return [];
-    return splitConcatenatedMultiPatientNote(editedNote, segments);
-  }, [editedNote, segments, isMultiPatient]);
+    if (canonicalSegments.length > 1) {
+      return splitConcatenatedMultiPatientNote(editedNote, canonicalSegments);
+    }
+    return recoveredChunks ?? [];
+  }, [editedNote, canonicalSegments, recoveredChunks]);
+  const isMultiPatient = noteChunks.length > 1;
+  // Tabs use the canonical segments when available (so per-patient regenerate
+  // can use real PatientSegment metadata); otherwise we synthesize a
+  // minimal segment shape from the recovered chunk so the tab UI still
+  // labels and routes correctly.
+  const segments = useMemo(() => {
+    if (canonicalSegments.length > 1) return canonicalSegments;
+    if (recoveredChunks && recoveredChunks.length > 1) {
+      return recoveredChunks.map((c) => ({
+        id: c.id,
+        patientLabel: c.label,
+        visitType: c.visitType,
+        includesPreventiveCare: false,
+        acuteConcerns: [] as string[],
+        chiefComplaint: '',
+        relevantUtteranceIndices: [] as number[],
+      }));
+    }
+    return canonicalSegments;
+  }, [canonicalSegments, recoveredChunks]);
   const activeChunkIdx =
     isMultiPatient && activeTab !== 'all' ? noteChunks.findIndex((c) => c.id === activeTab) : -1;
   const activeChunk = activeChunkIdx >= 0 ? noteChunks[activeChunkIdx] : null;

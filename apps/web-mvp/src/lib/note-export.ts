@@ -48,6 +48,70 @@ export function splitConcatenatedMultiPatientNote(
 }
 
 /**
+ * Recovery / fallback: detect multi-patient structure from the rendered
+ * note text alone, without relying on RecordingMeta.patientSegments.
+ *
+ * This activates the per-patient tab UI in cases where the splitter
+ * fell back to single-patient (typically because diarization collapsed
+ * speakers, so stage-1 identify-patients only saw one child) but the
+ * note-generation LLM noticed multiple patients in the transcript and
+ * self-recovered by emitting labeled sections.
+ *
+ * Handles both header styles:
+ *   - Canonical `## <Patient Label> · <Visit Type>` (with optional
+ *     `— <acute concerns>` tail) emitted by `patientHeader()` in the
+ *     pipeline's per-segment flow.
+ *   - LLM-emitted `**Patient: <Name>**` variant produced by the model
+ *     when it self-recovers without the pipeline's hand.
+ *
+ * And both separator styles between sections:
+ *   - Canonical `---` markdown horizontal rule.
+ *   - LLM-emitted `***` variant.
+ *
+ * Returns null when the note doesn't have at least two parseable
+ * patient sections — callers fall back to single-patient view.
+ */
+const HORIZONTAL_RULE_SPLIT_RE = /\n\s*[*\-_]{3,}\s*\n/;
+const CANONICAL_HEADER_RE = /^##\s+(.+?)\s*·\s*([^—\n]+?)(?:\s+—.*)?$/m;
+const LLM_HEADER_RE = /\*\*Patient:\s*([^*\n]+?)\s*\*\*/;
+
+export function detectMultiPatientStructureFromNote(
+  note: string,
+): { chunks: PatientNoteChunk[] } | null {
+  if (!note.trim()) return null;
+  const parts = note
+    .split(HORIZONTAL_RULE_SPLIT_RE)
+    .map((p) => p.trim())
+    .filter((p) => p.length > 0);
+  if (parts.length < 2) return null;
+
+  const chunks: PatientNoteChunk[] = [];
+  for (let i = 0; i < parts.length; i++) {
+    const part = parts[i]!;
+    let label: string | null = null;
+    let visitType = 'other';
+
+    const canonical = part.match(CANONICAL_HEADER_RE);
+    if (canonical) {
+      label = canonical[1]!.trim();
+      visitType = canonical[2]!.trim().toLowerCase().replace(/\s+/g, '_');
+    } else {
+      const llm = part.match(LLM_HEADER_RE);
+      if (llm) label = llm[1]!.trim();
+    }
+
+    // If any single chunk lacks an identifiable patient label, refuse —
+    // we can't confidently re-derive structure if part of the note is
+    // unlabeled. Better to fall back to the combined view than mis-attribute.
+    if (!label) return null;
+    chunks.push({ id: `p${i}`, label, visitType, body: part });
+  }
+
+  if (chunks.length < 2) return null;
+  return { chunks };
+}
+
+/**
  * Splice a new body for one segment back into the full concatenated note.
  * If the segment index is out of range or the note isn't actually multi-
  * patient (no separator found), returns the new body as-is — single-patient

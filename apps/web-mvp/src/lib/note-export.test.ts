@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   MULTI_PATIENT_SEPARATOR,
+  detectMultiPatientStructureFromNote,
   splitConcatenatedMultiPatientNote,
   spliceMultiPatientNote,
   splitNoteIntoSections,
@@ -90,5 +91,58 @@ describe('spliceMultiPatientNote', () => {
   it('is a no-op for out-of-range index', () => {
     expect(spliceMultiPatientNote(note, 99, 'oops')).toBe(note);
     expect(spliceMultiPatientNote(note, -1, 'oops')).toBe(note);
+  });
+});
+
+describe('detectMultiPatientStructureFromNote', () => {
+  it('returns null for empty input', () => {
+    expect(detectMultiPatientStructureFromNote('')).toBeNull();
+    expect(detectMultiPatientStructureFromNote('   ')).toBeNull();
+  });
+
+  it('returns null for single-patient notes (no separator)', () => {
+    expect(
+      detectMultiPatientStructureFromNote('**HPI**\n4yo with cough\n\n**Plan**\nrest'),
+    ).toBeNull();
+  });
+
+  it('detects LLM-emitted **Patient: X** headers with *** separators (self-recovery case)', () => {
+    const note =
+      '**Patient: Anthony**\n\n**HPI**\nWalking pneumonia, azithro started.\n\n***\n\n**Patient: Oliver**\n\n**HPI**\nPharyngitis, swab pending.';
+    const result = detectMultiPatientStructureFromNote(note);
+    expect(result).not.toBeNull();
+    expect(result!.chunks).toHaveLength(2);
+    expect(result!.chunks[0]?.label).toBe('Anthony');
+    expect(result!.chunks[0]?.id).toBe('p0');
+    expect(result!.chunks[0]?.body).toContain('Walking pneumonia');
+    expect(result!.chunks[1]?.label).toBe('Oliver');
+    expect(result!.chunks[1]?.body).toContain('Pharyngitis');
+  });
+
+  it('detects canonical ## Name · Visit Type headers with --- separators', () => {
+    const note =
+      '## Anthony · Sick Visit — cough\n\nbody1\n\n---\n\n## Oliver · Sick Visit — sore throat\n\nbody2';
+    const result = detectMultiPatientStructureFromNote(note);
+    expect(result).not.toBeNull();
+    expect(result!.chunks).toHaveLength(2);
+    expect(result!.chunks[0]?.label).toBe('Anthony');
+    expect(result!.chunks[0]?.visitType).toBe('sick_visit');
+    expect(result!.chunks[1]?.label).toBe('Oliver');
+  });
+
+  it('returns null when any chunk lacks an identifiable patient header', () => {
+    // Two parts separated by ***, but only the first has a recognizable
+    // patient header — refuse to misattribute the second.
+    const note = '**Patient: Anthony**\n\nbody1\n\n***\n\n**Some Random Header**\n\nbody2';
+    expect(detectMultiPatientStructureFromNote(note)).toBeNull();
+  });
+
+  it('handles three-patient notes with mixed separator widths', () => {
+    const note =
+      '**Patient: A**\n\nx\n\n***\n\n**Patient: B**\n\ny\n\n----\n\n**Patient: C**\n\nz';
+    const result = detectMultiPatientStructureFromNote(note);
+    expect(result).not.toBeNull();
+    expect(result!.chunks).toHaveLength(3);
+    expect(result!.chunks.map((c) => c.label)).toEqual(['A', 'B', 'C']);
   });
 });
