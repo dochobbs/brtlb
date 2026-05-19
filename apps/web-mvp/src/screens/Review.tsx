@@ -464,15 +464,26 @@ export function Review() {
             ? out.suggestedLabel
             : (m.label ?? null);
 
+      // Seed speakerRoles from stage 1 auto-detection unless the user has
+      // already assigned chips manually (in which case their assignments
+      // win). This means the first-pass note has proper attribution
+      // ("Provider:", "Parent:", "Patient:") without the user having to
+      // tag chips and regenerate.
+      const userHasManualRoles = (m.speakerRoles?.length ?? 0) > 0;
+      const mergedSpeakerRoles = userHasManualRoles
+        ? (m.speakerRoles ?? [])
+        : out.speakerRoles;
+
       const updated: RecordingMeta = {
         ...m,
         stage: 'ready_for_review',
         label: newLabel,
-        transcriptText: renderTranscriptText(out.transcript, m.speakerRoles ?? []),
+        transcriptText: renderTranscriptText(out.transcript, mergedSpeakerRoles),
         transcriptJson: JSON.stringify(out.transcript),
         noteMarkdown: out.note,
         providerUsed: out.providerUsed,
         templateId: out.templateId,
+        speakerRoles: mergedSpeakerRoles,
         patientSegments: out.patientSegments.map((s) => ({
           id: s.id,
           patientLabel: s.patientLabel,
@@ -489,6 +500,9 @@ export function Review() {
       setMeta(updated);
       setSelectedTemplateId(out.templateId);
       setEditedNote(out.note);
+      // Sync the chip UI to whatever roles the recording now carries
+      // (auto-detected on first pass; user-edited on retry).
+      setSpeakerRoles(mergedSpeakerRoles);
       // If the auto-label was applied, mirror it into the editable label
       // field so the user sees it populated rather than empty.
       if (newLabel && (!existingLabel || existingLabel.length === 0)) {

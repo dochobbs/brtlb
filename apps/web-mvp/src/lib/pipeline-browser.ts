@@ -41,6 +41,11 @@ export interface RunMvpPipelineOutput {
   transcriptChapters: TranscriptChapter[];
   /** Auto-generated short label, or null if the transcript was too short / ambiguous. */
   suggestedLabel: string | null;
+  /** Speaker-role mapping inferred during stage 1 patient identification.
+   * Empty for dictation mode or when the LLM couldn't confidently map. The
+   * Review UI seeds the manual chips with these so the first-pass note has
+   * proper attribution without user intervention. */
+  speakerRoles: SpeakerRoleAssignment[];
 }
 
 const LONG_VISIT_CHAPTER_THRESHOLD_MS = 30 * 60_000; // 30 min
@@ -212,12 +217,21 @@ export async function runMvpPipeline(input: RunMvpPipelineInput): Promise<RunMvp
 
   // Multi-patient split — only runs in ambient mode. Dictation is by
   // definition single-patient (the physician is narrating).
+  // Stage 1 of the splitter also surfaces per-speaker role mapping, which
+  // we use as the initial speakerRoles so the note generation gets proper
+  // attribution from the first pass (without the user having to tag chips
+  // manually). User-supplied roles still win.
   let patientSegments: PatientSegment[];
+  let detectedSpeakerRoles: SpeakerRoleAssignment[] = [];
   if (input.mode === 'ambient') {
-    patientSegments = await splitByPatient(transcript, input.settings);
+    const splitResult = await splitByPatient(transcript, input.settings);
+    patientSegments = splitResult.segments;
+    detectedSpeakerRoles = splitResult.speakerRoles;
   } else {
     patientSegments = [allUtterancesSingleSegment(transcript)];
   }
+  const effectiveSpeakerRoles =
+    input.speakerRoles && input.speakerRoles.length > 0 ? input.speakerRoles : detectedSpeakerRoles;
   const isMultiPatient = patientSegments.length > 1;
 
   // Auto-detect visit type only when caller used the default 'soap' AND we
@@ -250,7 +264,7 @@ export async function runMvpPipeline(input: RunMvpPipelineInput): Promise<RunMvp
           promptModifier: pattern.promptModifier,
         },
         mode: input.mode,
-        speakerRoles: input.speakerRoles ?? [],
+        speakerRoles: effectiveSpeakerRoles,
         bookmarks: input.bookmarks ?? [],
       };
       note = await provider.generateNote(noteInput);
@@ -281,7 +295,7 @@ export async function runMvpPipeline(input: RunMvpPipelineInput): Promise<RunMvp
             promptModifier: pattern.promptModifier,
           },
           mode: input.mode,
-          speakerRoles: input.speakerRoles ?? [],
+          speakerRoles: effectiveSpeakerRoles,
           bookmarks: input.bookmarks ?? [],
         });
         sections.push(`${patientHeader(seg)}\n\n${segNote.trim()}`);
@@ -326,6 +340,7 @@ export async function runMvpPipeline(input: RunMvpPipelineInput): Promise<RunMvp
     patientSegments,
     transcriptChapters,
     suggestedLabel,
+    speakerRoles: effectiveSpeakerRoles,
   };
 }
 
@@ -713,7 +728,7 @@ interface SplitResponse {
 // Discovery only — no utterance assignment. Keeping this separate from the
 // split lets the splitter focus on assignment with a known roster, which is
 // significantly easier than discover-and-split in one pass.
-const IDENTIFY_PROMPT = `You are a medical transcription assistant. Identify the patient(s) being clinically seen in this pediatric visit recording.
+const IDENTIFY_PROMPT = `You are a medical transcription assistant. Identify the patient(s) being clinically seen in this pediatric visit recording AND map each speaker label to a role.
 
 A "patient" is a child for whom the physician takes history, examines, counsels about, or plans care during this visit. Sibling visits are common and expected — when multiple children are clinically addressed in one recording, list each one.
 
@@ -723,6 +738,11 @@ OUTPUT — JSON ONLY, no prose, no code fences:
     {"name": "Tommy", "confidence": 0.9, "note": "5yo well visit, vaccines given"},
     {"name": "Sara", "confidence": 0.85, "note": "3yo well visit, in OT/speech"},
     {"name": "Annie", "confidence": 0.95, "note": "2-month well visit"}
+  ],
+  "speakers": [
+    {"speakerId": "A", "role": "provider", "confidence": 0.95},
+    {"speakerId": "B", "role": "parent", "confidence": 0.9},
+    {"speakerId": "C", "role": "patient", "confidence": 0.7}
   ]
 }
 
@@ -742,12 +762,18 @@ DO NOT INCLUDE:
 - Parents, caregivers, or non-patient family members.
 - Children who are present in the room but only as bystanders (the physician interacts with them socially but does not address their care).
 
-CONFIDENCE:
+CONFIDENCE (patients):
 - 0.9+ when clearly addressed with history + exam OR clear plan.
 - 0.6–0.8 when partial (e.g., history only, or brief check-in).
 - Below 0.6 should usually be omitted.
 
 NOTE FIELD: One short phrase summarizing what was addressed. Helps downstream review.
+
+SPEAKER ROLES:
+- Map every distinct speakerId (A, B, C, D, …) that appears in the transcript to one of: "provider" (the physician), "parent" (caregiver), "patient" (the child being seen — usable when the child speaks for themselves), "sibling" (a non-patient child in the room), "other" (front desk, MA, unidentified).
+- Use cues: clinical vocabulary + exam-driving language → provider. Speaking on behalf of a child, asking questions about a child's care → parent. Direct first-person symptom descriptions from a child → patient. Side comments from a child not being clinically addressed → sibling.
+- Confidence 0.0–1.0. Lower (≤0.5) when a single speaker label clearly contains multiple voices (diarization collapse) — omit that speaker from the array if you cannot confidently pick a single role.
+- Speaker labels with only filler / chatter / two or three utterances total and no clear role signal: omit.
 
 Output JSON ONLY — no markdown fences, no explanation.`;
 
@@ -793,6 +819,11 @@ interface IdentifyResponse {
     confidence?: number;
     note?: string;
   }>;
+  speakers?: Array<{
+    speakerId?: string;
+    role?: string;
+    confidence?: number;
+  }>;
 }
 
 interface IdentifiedPatient {
@@ -811,15 +842,37 @@ function extractJson(s: string): string {
 const SPLIT_LOG_PREFIX = '[brtlb:split]';
 
 /**
+ * Stage 1 output: the patient roster plus per-speaker role mapping. Speaker
+ * roles let the note-generation prompt see "Provider: ..." and "Parent: ..."
+ * instead of "Speaker A: ..." without the user manually tagging chips first.
+ * Empty arrays mean either no patients identified or identify failed — the
+ * caller treats both as "fall back to single-patient with no role hints."
+ */
+interface IdentifyStageResult {
+  patients: IdentifiedPatient[];
+  speakerRoles: SpeakerRoleAssignment[];
+}
+
+const VALID_SPEAKER_ROLES: ReadonlyArray<SpeakerRoleAssignment['role']> = [
+  'provider',
+  'parent',
+  'patient',
+  'sibling',
+  'other',
+];
+
+const EMPTY_IDENTIFY_RESULT: IdentifyStageResult = { patients: [], speakerRoles: [] };
+
+/**
  * Stage 1 of the multi-patient split. Asks the LLM to enumerate the children
- * clinically addressed in the recording. Returns an empty array on any
- * failure — the caller treats that as "single patient, fall back."
+ * clinically addressed in the recording AND map speaker labels to roles.
+ * Returns an empty result on any failure.
  */
 async function identifyPatientsInTranscript(
   transcript: Transcript,
   settings: Settings,
-): Promise<IdentifiedPatient[]> {
-  if (transcript.utterances.length === 0) return [];
+): Promise<IdentifyStageResult> {
+  if (transcript.utterances.length === 0) return EMPTY_IDENTIFY_RESULT;
 
   const numbered = transcript.utterances
     .map((u, idx) => {
@@ -847,7 +900,7 @@ async function identifyPatientsInTranscript(
     });
   } catch (err) {
     console.warn(`${SPLIT_LOG_PREFIX} identify call failed, falling back to single-patient`, err);
-    return [];
+    return EMPTY_IDENTIFY_RESULT;
   }
 
   let parsed: IdentifyResponse;
@@ -858,7 +911,7 @@ async function identifyPatientsInTranscript(
       error: err,
       raw,
     });
-    return [];
+    return EMPTY_IDENTIFY_RESULT;
   }
 
   const patients = (parsed.patients ?? [])
@@ -869,22 +922,64 @@ async function identifyPatientsInTranscript(
     }))
     .filter((p) => p.name.length > 0 && p.confidence >= 0.6);
 
-  console.info(`${SPLIT_LOG_PREFIX} identified ${patients.length} patient(s)`, patients);
-  return patients;
+  // Only keep speaker-role entries that match a known role and a speaker that
+  // actually appears in the transcript. Confidence floor 0.6 — same threshold
+  // as the patient filter; below that the model is probably hedging on a
+  // collapsed-diarization mash where one speaker label contains multiple
+  // voices, and using the wrong role would mis-attribute the whole note.
+  const transcriptSpeakerIds = new Set(
+    transcript.utterances.map((u) => u.speakerId).filter((id): id is string => Boolean(id)),
+  );
+  const speakerRoles: SpeakerRoleAssignment[] = (parsed.speakers ?? [])
+    .map((s) => ({
+      speakerId: (s.speakerId ?? '').trim(),
+      role: (s.role ?? '').trim().toLowerCase() as SpeakerRoleAssignment['role'],
+      confidence: typeof s.confidence === 'number' ? s.confidence : 0,
+    }))
+    .filter(
+      (s) =>
+        s.speakerId.length > 0 &&
+        transcriptSpeakerIds.has(s.speakerId) &&
+        (VALID_SPEAKER_ROLES as readonly string[]).includes(s.role) &&
+        s.confidence >= 0.6,
+    )
+    .map(({ speakerId, role }) => ({ speakerId, role }));
+
+  console.info(
+    `${SPLIT_LOG_PREFIX} identified ${patients.length} patient(s), ${speakerRoles.length} speaker role(s)`,
+    { patients, speakerRoles },
+  );
+  return { patients, speakerRoles };
+}
+
+/**
+ * Stage 2 output: the per-patient segments plus the speaker-role mapping
+ * surfaced by stage 1. Even when the splitter falls back to single-patient,
+ * the speaker roles are still useful for note generation, so they come
+ * along regardless.
+ */
+export interface SplitByPatientResult {
+  segments: PatientSegment[];
+  speakerRoles: SpeakerRoleAssignment[];
 }
 
 /**
  * Stage 2 of the multi-patient split. Given the patient roster from stage 1,
  * assign each utterance to a patient. Falls back to single-patient on any
- * failure (with a console warning so the fallback is observable).
+ * failure (with a console warning so the fallback is observable). Speaker
+ * roles from stage 1 are returned alongside the segments.
  */
 async function splitByPatient(
   transcript: Transcript,
   settings: Settings,
-): Promise<PatientSegment[]> {
-  if (transcript.utterances.length === 0) return [];
+): Promise<SplitByPatientResult> {
+  if (transcript.utterances.length === 0) {
+    return { segments: [], speakerRoles: [] };
+  }
 
-  const identified = await identifyPatientsInTranscript(transcript, settings);
+  const identifyResult = await identifyPatientsInTranscript(transcript, settings);
+  const identified = identifyResult.patients;
+  const speakerRoles = identifyResult.speakerRoles;
 
   // Stage 1 found 0 or 1 patient → no split needed. Single-patient encounter
   // OR identify failed; either way, treat as single-patient and let the
@@ -895,7 +990,10 @@ async function splitByPatient(
         `${SPLIT_LOG_PREFIX} stage 1 returned no patients — using all utterances as single segment`,
       );
     }
-    return [allUtterancesSingleSegment(transcript)];
+    return {
+      segments: [allUtterancesSingleSegment(transcript)],
+      speakerRoles,
+    };
   }
 
   const numbered = transcript.utterances
@@ -931,7 +1029,7 @@ async function splitByPatient(
       `${SPLIT_LOG_PREFIX} stage 2 split call failed, falling back to single-patient`,
       err,
     );
-    return [allUtterancesSingleSegment(transcript)];
+    return { segments: [allUtterancesSingleSegment(transcript)], speakerRoles };
   }
 
   let parsed: SplitResponse;
@@ -942,7 +1040,7 @@ async function splitByPatient(
       `${SPLIT_LOG_PREFIX} stage 2 response did not parse as JSON, falling back`,
       { error: err, raw },
     );
-    return [allUtterancesSingleSegment(transcript)];
+    return { segments: [allUtterancesSingleSegment(transcript)], speakerRoles };
   }
   const segments = (parsed.patient_segments ?? [])
     .map((s, idx): PatientSegment => {
@@ -965,7 +1063,7 @@ async function splitByPatient(
     console.warn(
       `${SPLIT_LOG_PREFIX} stage 2 returned no usable segments despite ${identified.length} identified patients — falling back`,
     );
-    return [allUtterancesSingleSegment(transcript)];
+    return { segments: [allUtterancesSingleSegment(transcript)], speakerRoles };
   }
   console.info(
     `${SPLIT_LOG_PREFIX} stage 2 produced ${segments.length} segment(s)`,
@@ -975,7 +1073,7 @@ async function splitByPatient(
       utteranceCount: s.relevantUtteranceIndices.length,
     })),
   );
-  return segments;
+  return { segments, speakerRoles };
 }
 
 function allUtterancesSingleSegment(transcript: Transcript): PatientSegment {
