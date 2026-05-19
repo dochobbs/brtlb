@@ -30,11 +30,13 @@ import { ConfirmDialog } from '../components/ConfirmDialog';
 import {
   copyNoteRich,
   detectMultiPatientStructureFromNote,
+  extractExpectedSections,
   mailtoForNote,
   markdownToPlainText as exportMarkdownToPlainText,
   spliceMultiPatientNote,
   splitConcatenatedMultiPatientNote,
   splitNoteIntoSections,
+  validateNoteCoverage,
   type PatientNoteChunk,
 } from '../lib/note-export';
 
@@ -47,6 +49,32 @@ const STAGE_LABEL: Record<PipelineStage, string> = {
 };
 
 const BUILTIN_TEMPLATES = listTemplates();
+
+/** Mirrors templateForVisitType in pipeline-browser.ts. Kept local here to
+ * avoid pulling pipeline-browser into Review just for this lookup — the
+ * Review screen only needs it for the coverage banner. If this map drifts
+ * from the pipeline's version, that's a tagging issue, not a correctness
+ * one — the banner is best-effort anyway. */
+function templateIdForVisitType(visitType: string): string {
+  switch (visitType) {
+    case 'well_child':
+      return 'well-child';
+    case 'sick':
+      return 'sick-visit';
+    case 'follow_up':
+      return 'follow-up';
+    case 'behavioral_health':
+    case 'mental_health':
+      return 'behavioral-health';
+    case 'developmental_eval':
+    case 'autism_eval':
+      return 'developmental-eval';
+    case 'phone':
+      return 'follow-up';
+    default:
+      return 'soap';
+  }
+}
 
 const ROLE_DISPLAY: Record<string, string> = {
   parent: 'Parent',
@@ -427,6 +455,35 @@ export function Review() {
   const effectiveNote = activeChunk ? activeChunk.body : editedNote;
 
   const noteSections = useMemo(() => splitNoteIntoSections(effectiveNote), [effectiveNote]);
+
+  // Coverage banner: validate the active note view (single-patient = whole
+  // note; multi-patient = the active patient's chunk) against the section
+  // list its template promised. Best-effort — when the template doesn't
+  // follow the canonical "RETURN MARKDOWN with these sections" pattern or
+  // the note has no parseable headings, the report is empty and the
+  // banner stays hidden.
+  const coverageTemplateId = useMemo(() => {
+    if (activeSegment) return templateIdForVisitType(activeSegment.visitType);
+    return selectedTemplateId || meta?.templateId || 'soap';
+  }, [activeSegment, selectedTemplateId, meta?.templateId]);
+  const coverageTemplate = useMemo(() => {
+    const all = [...BUILTIN_TEMPLATES, ...settings.customTemplates];
+    return all.find((t) => t.id === coverageTemplateId) ?? null;
+  }, [coverageTemplateId, settings.customTemplates]);
+  const expectedSections = useMemo(
+    () => (coverageTemplate ? extractExpectedSections(coverageTemplate.promptBody) : []),
+    [coverageTemplate],
+  );
+  const coverageReport = useMemo(
+    () => validateNoteCoverage(effectiveNote, expectedSections),
+    [effectiveNote, expectedSections],
+  );
+  const [coverageBannerDismissed, setCoverageBannerDismissed] = useState(false);
+  // Re-show the banner whenever the effective note changes (e.g., after
+  // regenerate, retry, or switching patient tabs).
+  useEffect(() => {
+    setCoverageBannerDismissed(false);
+  }, [effectiveNote]);
 
   async function runPipelineForRecording(m: RecordingMeta): Promise<void> {
     setError(null);
@@ -987,6 +1044,12 @@ export function Review() {
   const templateChanged = selectedTemplateId !== meta.templateId;
   const rolesChanged = JSON.stringify(speakerRoles) !== JSON.stringify(meta.speakerRoles ?? []);
   const showRegenerate = templateChanged || rolesChanged;
+  const showCoverageBanner =
+    !coverageBannerDismissed &&
+    !isProcessing &&
+    !regenerating &&
+    !!effectiveNote.trim() &&
+    (coverageReport.missingSections.length > 0 || coverageReport.potentialTruncation);
 
   return (
     <main className="mx-auto max-w-5xl px-3 py-6 sm:px-6 sm:py-12">
@@ -1044,6 +1107,52 @@ export function Review() {
             The "All combined" tab shows every patient's note for one-shot copy. The active tab
             decides what Tweak, Regenerate, and the export buttons apply to.
           </p>
+        </div>
+      ) : null}
+
+      {showCoverageBanner ? (
+        <div className="mb-4 flex items-start gap-3 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 sm:mb-6 sm:p-4">
+          <div className="flex-1 space-y-1">
+            {coverageReport.missingSections.length > 0 ? (
+              <>
+                <p className="font-medium">
+                  Heads up — the template expected{' '}
+                  {coverageReport.missingSections.length === 1
+                    ? '1 section'
+                    : `${coverageReport.missingSections.length} sections`}{' '}
+                  that aren't in the note:
+                </p>
+                <p className="text-xs">
+                  {coverageReport.missingSections.join(', ')}.{' '}
+                  <span className="text-amber-800/80">
+                    Was any of this discussed? If yes, regenerating may pick it up. If no, you can
+                    dismiss.
+                  </span>
+                </p>
+              </>
+            ) : null}
+            {coverageReport.potentialTruncation ? (
+              <p
+                className={
+                  coverageReport.missingSections.length > 0
+                    ? 'text-xs text-amber-800/80'
+                    : 'text-xs'
+                }
+              >
+                The last section ends without final punctuation — the model may have been cut off.
+                Consider regenerating if it looks incomplete.
+              </p>
+            ) : null}
+          </div>
+          <button
+            type="button"
+            onClick={() => setCoverageBannerDismissed(true)}
+            className="rounded text-amber-700/70 hover:text-amber-900"
+            title="Dismiss"
+            aria-label="Dismiss coverage warning"
+          >
+            ✕
+          </button>
         </div>
       ) : null}
 

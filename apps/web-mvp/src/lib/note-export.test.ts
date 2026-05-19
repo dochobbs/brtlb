@@ -2,9 +2,11 @@ import { describe, expect, it } from 'vitest';
 import {
   MULTI_PATIENT_SEPARATOR,
   detectMultiPatientStructureFromNote,
+  extractExpectedSections,
   splitConcatenatedMultiPatientNote,
   spliceMultiPatientNote,
   splitNoteIntoSections,
+  validateNoteCoverage,
 } from './note-export';
 
 describe('splitNoteIntoSections', () => {
@@ -144,5 +146,75 @@ describe('detectMultiPatientStructureFromNote', () => {
     expect(result).not.toBeNull();
     expect(result!.chunks).toHaveLength(3);
     expect(result!.chunks.map((c) => c.label)).toEqual(['A', 'B', 'C']);
+  });
+});
+
+describe('extractExpectedSections', () => {
+  it('parses the canonical section list block from a template', () => {
+    const body = `Some instructions.\n\nRETURN MARKDOWN with these sections (omit any not addressed):\n- Chief Complaint\n- HPI\n- ROS\n- Plan\n- Follow-up\n\nMore text after.`;
+    expect(extractExpectedSections(body)).toEqual([
+      'Chief Complaint',
+      'HPI',
+      'ROS',
+      'Plan',
+      'Follow-up',
+    ]);
+  });
+
+  it('strips parenthetical clarifications', () => {
+    const body = `RETURN MARKDOWN with these sections:\n- HPI\n- Anticipatory Guidance (if discussed)\n`;
+    expect(extractExpectedSections(body)).toEqual(['HPI', 'Anticipatory Guidance']);
+  });
+
+  it('returns [] when template lacks the convention', () => {
+    expect(extractExpectedSections('no section block here')).toEqual([]);
+  });
+});
+
+describe('validateNoteCoverage', () => {
+  it('reports no missing sections when the note has them all', () => {
+    const note = '**Chief Complaint**\nCough\n\n**HPI**\nThree days of cough.\n\n**Plan**\nSupportive care.';
+    const result = validateNoteCoverage(note, ['Chief Complaint', 'HPI', 'Plan']);
+    expect(result.missingSections).toEqual([]);
+    expect(result.potentialTruncation).toBe(false);
+  });
+
+  it('flags a section the template promised but the note dropped', () => {
+    const note = '**HPI**\nThree days of cough.\n\n**Plan**\nSupportive care.';
+    const result = validateNoteCoverage(note, ['Chief Complaint', 'HPI', 'Plan']);
+    expect(result.missingSections).toEqual(['Chief Complaint']);
+  });
+
+  it('treats Subjective as covering HPI (behavioral-health alias)', () => {
+    const note = '**Subjective**\nAnxiety follow-up.\n\n**Plan**\nContinue therapy.';
+    const result = validateNoteCoverage(note, ['HPI', 'Plan']);
+    expect(result.missingSections).toEqual([]);
+  });
+
+  it('flags potential truncation when last section ends without terminal punctuation', () => {
+    const note = '**HPI**\nThree days of cough.\n\n**Plan**\nStart amoxicillin 80 mg/kg/day';
+    const result = validateNoteCoverage(note, ['HPI', 'Plan']);
+    expect(result.potentialTruncation).toBe(true);
+  });
+
+  it('returns empty report on empty input', () => {
+    expect(validateNoteCoverage('', ['HPI', 'Plan'])).toEqual({
+      missingSections: [],
+      potentialTruncation: false,
+    });
+  });
+
+  it('returns empty report when no expected sections supplied', () => {
+    expect(validateNoteCoverage('**HPI**\nbody.', [])).toEqual({
+      missingSections: [],
+      potentialTruncation: false,
+    });
+  });
+
+  it('skips truncation check and missing-section check when the note has no headings', () => {
+    const note = 'just a freeform paragraph with no section structure';
+    const result = validateNoteCoverage(note, ['HPI', 'Plan']);
+    expect(result.missingSections).toEqual([]);
+    expect(result.potentialTruncation).toBe(false);
   });
 });

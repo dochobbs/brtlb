@@ -163,6 +163,86 @@ export function splitNoteIntoSections(md: string): NoteSection[] {
 }
 
 /**
+ * Look at the rendered note and the template's expected section list
+ * and surface coverage gaps that may indicate a quiet failure mode:
+ *
+ * - **Missing sections**: the template told the model to produce a
+ *   section and the model never emitted it. Templates explicitly say
+ *   "omit any not addressed" so this is a soft signal — the banner
+ *   asks "was this discussed?" rather than declaring an error.
+ * - **Truncation suspicion**: the last section body ends without
+ *   terminal punctuation. Models that hit max-token caps mid-output
+ *   produce notes that look structurally complete but trail off.
+ *
+ * Returns an empty report when the template doesn't follow the
+ * conventional "RETURN MARKDOWN with these sections" pattern or the
+ * note has no parseable sections — better to skip than false-positive.
+ */
+export interface NoteCoverageReport {
+  /** Section labels the template promised that aren't in the note. */
+  missingSections: string[];
+  /** True when the note ends abruptly (no terminal punctuation). */
+  potentialTruncation: boolean;
+}
+
+const SECTION_LIST_BLOCK_RE =
+  /RETURN MARKDOWN with these sections[^:\n]*:(?:[^\n]*\n)?((?:[ \t]*[-*][^\n]+\n?)+)/i;
+
+export function extractExpectedSections(templatePromptBody: string): string[] {
+  const match = SECTION_LIST_BLOCK_RE.exec(templatePromptBody);
+  if (!match) return [];
+  return match[1]!
+    .split('\n')
+    .map((line) => line.replace(/^[ \t]*[-*]\s*/, '').trim())
+    .filter((s) => s.length > 0 && s.length < 80)
+    // "Anticipatory Guidance (if discussed)" → strip parenthetical for matching.
+    .map((s) => s.replace(/\s*\([^)]*\)\s*$/, '').trim());
+}
+
+function normalizeLabel(s: string): string {
+  return s.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+}
+
+export function validateNoteCoverage(
+  noteMarkdown: string,
+  expectedSectionLabels: ReadonlyArray<string>,
+): NoteCoverageReport {
+  if (!noteMarkdown.trim() || expectedSectionLabels.length === 0) {
+    return { missingSections: [], potentialTruncation: false };
+  }
+
+  const sections = splitNoteIntoSections(noteMarkdown);
+  if (sections.length === 0) {
+    return { missingSections: [], potentialTruncation: false };
+  }
+
+  const presentNormalized = new Set(sections.map((s) => normalizeLabel(s.label)));
+  const missingSections = expectedSectionLabels
+    .filter((label) => !presentNormalized.has(normalizeLabel(label)))
+    .filter((label) => {
+      // Treat label aliases — Subjective vs HPI vs Interim History,
+      // Follow-up rolled into Plan, etc. — to suppress false positives.
+      const n = normalizeLabel(label);
+      if (n === 'follow up' && presentNormalized.has('plan')) return false;
+      if (n === 'hpi' && presentNormalized.has('subjective')) return false;
+      if (n === 'hpi' && presentNormalized.has('interim history')) return false;
+      if (n === 'subjective interval history' && presentNormalized.has('subjective')) return false;
+      return true;
+    });
+
+  const lastBody = sections[sections.length - 1]!.body.trimEnd();
+  const lastChar = lastBody.slice(-1);
+  const potentialTruncation =
+    lastBody.length > 0 &&
+    lastChar !== '.' &&
+    lastChar !== '!' &&
+    lastChar !== '?' &&
+    lastChar !== ')';
+
+  return { missingSections, potentialTruncation };
+}
+
+/**
  * Lightweight markdown to HTML for clipboard rich-text. Subset only:
  * bold, italic, lists, headings, line breaks. Enough to preserve bolded
  * abnormal exam findings when pasted into rich-text-aware destinations.
