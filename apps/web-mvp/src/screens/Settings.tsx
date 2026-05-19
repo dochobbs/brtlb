@@ -96,11 +96,17 @@ export function Settings() {
             : 'API returned 0 models. Project may need billing enabled at console.cloud.google.com/billing/linkedaccount',
         );
       }
-      setGeminiModels(generateCapable);
-      // Auto-select the first if the current draft model isn't in the list
-      if (!generateCapable.includes(draft.geminiModel)) {
-        update('geminiModel', generateCapable[0] ?? draft.geminiModel);
-      }
+      // Merge with the curated defaults rather than replacing. Some Google
+      // Cloud projects don't surface all Gemini models via the list endpoint
+      // (e.g., 3-pro-preview is missing for some keys even though the model
+      // works when called directly). Keeping the defaults visible means
+      // users can always pick the recommended models from the dropdown.
+      const merged = Array.from(
+        new Set([...generateCapable, ...GEMINI_MODELS_DEFAULT]),
+      ).sort();
+      setGeminiModels(merged);
+      // Don't auto-switch the user's model — they may have picked one
+      // intentionally that the list endpoint doesn't surface.
     } catch (err) {
       setGeminiModelsError(err instanceof Error ? err.message : 'unknown error');
     } finally {
@@ -367,8 +373,14 @@ export function Settings() {
                 <p className="mt-1 text-xs text-red-700">{geminiModelsError}</p>
               ) : (
                 <p className="mt-1 text-xs text-graphite-soft">
-                  Click "List my models" to populate the dropdown with what your key actually has
-                  access to.
+                  Type any model name directly or pick from suggestions.{' '}
+                  <span className="text-graphite-soft/80">
+                    Click "List my models" to add models your key surfaces (merged with the curated
+                    list — your key may not list every model it can actually call).
+                  </span>{' '}
+                  <span className="text-graphite-soft/80">
+                    Currently recommended: <code className="font-mono">gemini-3-pro-preview</code>.
+                  </span>
                 </p>
               )}
             </div>
