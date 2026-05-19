@@ -14,12 +14,17 @@ import {
 } from '@brtlb/pipeline';
 
 const ANTHROPIC_MODELS = ['claude-sonnet-4-6', 'claude-opus-4-7', 'claude-haiku-4-5'];
-const OPENAI_MODELS = ['gpt-4o', 'gpt-4o-mini', 'gpt-4-turbo'];
+const OPENAI_MODELS = ['gpt-5', 'gpt-5.1', 'gpt-5-pro', 'gpt-4o', 'gpt-4o-mini'];
 // Starter list of recent Gemini models. The "List my models" button replaces
 // this with whatever the user's key actually has access to. Newer keys may
-// not have 3.x in their listing — typing a model name into the field directly
-// works even when List my models doesn't surface it.
+// not surface 3.x in their listing — typing a model name into the field
+// directly works even when List my models doesn't show it.
+//
+// gemini-3-pro-preview is listed first because it tested cleanest of all
+// 8 candidates on brtlb's eval fixtures (2026-05-19): no fabrications,
+// no MSE over-expansion, no diagnostic narrowing, tight notes.
 const GEMINI_MODELS_DEFAULT = [
+  'gemini-3-pro-preview',
   'gemini-3-flash-preview',
   'gemini-3.1-pro-preview',
   'gemini-2.5-flash',

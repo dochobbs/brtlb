@@ -50,7 +50,7 @@ const DEFAULT_SETTINGS: Settings = {
   openaiBaseUrl: '',
   openaiModel: 'gpt-4o',
   geminiApiKey: '',
-  geminiModel: 'gemini-3-flash-preview',
+  geminiModel: 'gemini-3-pro-preview',
   assemblyAiKey: '',
   audioPurgeDays: 7,
   idleLockMinutes: 5,
