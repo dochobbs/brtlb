@@ -32,7 +32,12 @@ export function createAnthropicProvider(
       const c = await ensureClient();
       const response = await c.messages.create({
         model: config.model,
-        max_tokens: config.maxTokens ?? 4096,
+        // Default raised from 4096 to 16384 (2026-05-18) for parity with
+        // the Gemini adapter. The splitter's stage-2 emits a long JSON
+        // response when there are 3+ patients, and long visits produce
+        // long notes; 4096 was occasionally clipping output on Sonnet
+        // and Opus too. Callers can override per-request.
+        max_tokens: config.maxTokens ?? 16384,
         messages: [{ role: 'user', content: prompt }],
       });
 

@@ -101,7 +101,11 @@ def call_gemini(
     url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
     body: dict = {
         "contents": [{"role": "user", "parts": [{"text": prompt}]}],
-        "generationConfig": {"temperature": 0.2, "maxOutputTokens": 8192},
+        # 16384 matches the production gemini-api-key adapter default
+        # (2026-05-18 bump). Gemini 2.5 Pro uses thinking tokens that
+        # count toward this cap; less than ~10K starves the output for
+        # structured-response tasks like the splitter.
+        "generationConfig": {"temperature": 0.2, "maxOutputTokens": 16384},
     }
     if system_instruction is not None:
         body["systemInstruction"] = {"parts": [{"text": system_instruction}]}

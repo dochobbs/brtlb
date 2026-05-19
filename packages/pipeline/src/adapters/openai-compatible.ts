@@ -32,7 +32,11 @@ export function createOpenAiCompatibleProvider(
       const c = await ensureClient();
       const response = await c.chat.completions.create({
         model: config.model,
-        max_tokens: config.maxTokens ?? 4096,
+        // Default raised from 4096 to 16384 (2026-05-18) for parity
+        // with the other adapters — splitter stage-2 + long visits
+        // benefit from headroom; over-allocation is free since the
+        // OpenAI-style APIs bill on actual usage, not the cap.
+        max_tokens: config.maxTokens ?? 16384,
         messages: [{ role: 'user', content: prompt }],
       });
       const first = response.choices[0]?.message?.content;

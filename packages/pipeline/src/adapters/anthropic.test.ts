@@ -83,13 +83,13 @@ describe('createAnthropicProvider', () => {
     expect(note).toBe('Part one. Part two.');
   });
 
-  it('uses default maxTokens of 4096 when not specified', async () => {
+  it('uses default maxTokens of 16384 when not specified', async () => {
     const create = vi.fn().mockResolvedValue({ content: [{ type: 'text', text: 'ok' }] });
     const provider = createAnthropicProvider(
       { kind: 'anthropic', apiKey: 'k', model: 'm' },
       { client: { messages: { create } } as never },
     );
     await provider.generateNote(input());
-    expect(create.mock.calls[0]![0].max_tokens).toBe(4096);
+    expect(create.mock.calls[0]![0].max_tokens).toBe(16384);
   });
 });

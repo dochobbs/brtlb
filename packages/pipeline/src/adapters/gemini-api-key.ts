@@ -65,7 +65,17 @@ export function createGeminiApiKeyProvider(
           },
           body: JSON.stringify({
             contents: [{ role: 'user', parts: [{ text: prompt }] }],
-            generationConfig: { maxOutputTokens: config.maxOutputTokens ?? 4096 },
+            // Default raised from 4096 to 16384 (2026-05-18). Gemini 2.5
+            // Pro uses extended-thinking tokens that count toward this
+            // cap; on long sibling-visit splitter prompts the model can
+            // burn ~8K tokens on hidden reasoning before producing any
+            // output text. 4096 left zero room and the response came
+            // back empty (finishReason: MAX_TOKENS, parts: []), which
+            // the splitter logged as a JSON parse error and fell back
+            // to single-patient — silently losing siblings. 16384
+            // leaves headroom for thinking + a long structured-output
+            // response. Callers can override per-request.
+            generationConfig: { maxOutputTokens: config.maxOutputTokens ?? 16384 },
           }),
           signal: controller.signal,
         });

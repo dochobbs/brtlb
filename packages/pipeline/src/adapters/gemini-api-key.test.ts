@@ -68,7 +68,7 @@ describe('createGeminiApiKeyProvider', () => {
     expect(receivedHeaders['x-goog-api-key']).toBe('AIza-fake');
     expect(receivedBody).toEqual({
       contents: [{ role: 'user', parts: [{ text: expect.stringContaining('rash') }] }],
-      generationConfig: { maxOutputTokens: 4096 },
+      generationConfig: { maxOutputTokens: 16384 },
     });
   });
 
