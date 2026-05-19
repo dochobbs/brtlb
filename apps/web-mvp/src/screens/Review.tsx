@@ -257,6 +257,7 @@ export function Review() {
   const [pasteMode, setPasteMode] = useState<'chips' | 'guided' | 'combined'>('combined');
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [showRegenConfirm, setShowRegenConfirm] = useState(false);
+  const [showReprocessConfirm, setShowReprocessConfirm] = useState(false);
   const [regenerating, setRegenerating] = useState(false);
   const [templateAppliedToast, setTemplateAppliedToast] = useState<string | null>(null);
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>('soap');
@@ -707,6 +708,27 @@ export function Review() {
     if (!meta) return;
     setStage('uploading');
     await runPipelineForRecording({ ...meta, stage: 'recorded' });
+  }
+
+  /** Reprocess a successful recording from audio — re-runs transcription
+   * AND the splitter AND note generation. Used to recover sibling visits
+   * where the splitter dropped a patient (e.g., the pre-2026-05-18
+   * Gemini max-tokens bug) without manually flipping IDB state. Replaces
+   * the existing note + transcript + segments; not reversible. */
+  function handleReprocessFromAudio(): void {
+    if (!meta) return;
+    if (meta.audioPurgedAt) {
+      setError(
+        `Audio was auto-purged on ${new Date(meta.audioPurgedAt).toLocaleString()} (privacy retention). Cannot reprocess.`,
+      );
+      return;
+    }
+    setShowReprocessConfirm(true);
+  }
+
+  async function runReprocess(): Promise<void> {
+    setShowReprocessConfirm(false);
+    await handleRetry();
   }
 
   /** True if the user has manually edited the note since it was generated. */
@@ -1240,6 +1262,19 @@ export function Review() {
             >
               {regenerating ? 'Regenerating…' : 'Regenerate'}
             </button>
+            <button
+              type="button"
+              onClick={handleReprocessFromAudio}
+              disabled={isProcessing || regenerating || Boolean(meta.audioPurgedAt)}
+              className="rounded-md border border-graphite-soft/30 bg-white px-3 py-1 text-xs font-medium text-graphite-soft hover:bg-mist hover:text-graphite disabled:opacity-50"
+              title={
+                meta.audioPurgedAt
+                  ? 'Audio has been auto-purged — cannot reprocess'
+                  : 'Re-transcribe and re-split from the saved audio. Use this to recover a sibling visit where the splitter dropped a patient.'
+              }
+            >
+              Reprocess from audio
+            </button>
             <div className="ml-auto inline-flex rounded-md border border-graphite-soft/30 p-0.5">
               {(
                 [
@@ -1637,6 +1672,16 @@ export function Review() {
         confirmLabel="Regenerate anyway"
         onConfirm={runRegenerate}
         onCancel={() => setShowRegenConfirm(false)}
+      />
+
+      <ConfirmDialog
+        open={showReprocessConfirm}
+        title="Reprocess this visit from audio?"
+        message="This will re-transcribe the audio, re-run the multi-patient splitter, and regenerate the note(s). The existing note, transcript, and any per-patient segments will be replaced. There's no undo."
+        tone="danger"
+        confirmLabel="Reprocess"
+        onConfirm={runReprocess}
+        onCancel={() => setShowReprocessConfirm(false)}
       />
 
       {templateAppliedToast ? (
