@@ -485,6 +485,13 @@ export function Review() {
     setCoverageBannerDismissed(false);
   }, [effectiveNote]);
 
+  // Diarization banners — independent of coverage so dismissing one doesn't
+  // hide the other. Re-show on any new pipeline run (transcript change).
+  const [diarizationBannerDismissed, setDiarizationBannerDismissed] = useState(false);
+  useEffect(() => {
+    setDiarizationBannerDismissed(false);
+  }, [meta?.transcriptJson]);
+
   async function runPipelineForRecording(m: RecordingMeta): Promise<void> {
     setError(null);
     const audio = await getAudio(m.id);
@@ -551,6 +558,7 @@ export function Review() {
           relevantUtteranceIndices: s.relevantUtteranceIndices,
         })),
         transcriptChapters: out.transcriptChapters,
+        diarizationHints: out.diarizationHints,
       };
       await putRecording(updated);
       void logAudit('generate_completed', { recordingId: m.id });
@@ -1051,6 +1059,25 @@ export function Review() {
     !!effectiveNote.trim() &&
     (coverageReport.missingSections.length > 0 || coverageReport.potentialTruncation);
 
+  // Diarization banner derived from persisted pipeline output. We render
+  // it independently of the coverage banner — the failure modes are
+  // distinct (note completeness vs. speaker attribution).
+  const diarizationHints = meta.diarizationHints;
+  const collapseSuspects = diarizationHints?.collapseSuspected ?? [];
+  const showLowSpeakerCountBanner =
+    !diarizationBannerDismissed &&
+    !isProcessing &&
+    !regenerating &&
+    !!effectiveNote.trim() &&
+    Boolean(diarizationHints?.lowSpeakerCount);
+  const showCollapseBanner =
+    !diarizationBannerDismissed &&
+    !isProcessing &&
+    !regenerating &&
+    !!effectiveNote.trim() &&
+    collapseSuspects.length > 0;
+  const showDiarizationBanner = showLowSpeakerCountBanner || showCollapseBanner;
+
   return (
     <main className="mx-auto max-w-5xl px-3 py-6 sm:px-6 sm:py-12">
       <header className="mb-4 flex items-center justify-between gap-3 sm:mb-6">
@@ -1107,6 +1134,51 @@ export function Review() {
             The "All combined" tab shows every patient's note for one-shot copy. The active tab
             decides what Tweak, Regenerate, and the export buttons apply to.
           </p>
+        </div>
+      ) : null}
+
+      {showDiarizationBanner ? (
+        <div className="mb-4 flex items-start gap-3 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 sm:mb-6 sm:p-4">
+          <div className="flex-1 space-y-1">
+            {showLowSpeakerCountBanner ? (
+              <>
+                <p className="font-medium">
+                  Heads up — the transcription returned fewer distinct speakers than this visit
+                  likely had.
+                </p>
+                <p className="text-xs text-amber-800/80">
+                  Some utterances may be attributed to the wrong person, which can mis-attribute
+                  history or counseling in the note. Use{' '}
+                  <span className="font-medium">raw json</span> (top right) to inspect the
+                  transcript, or tag the speaker chips manually before regenerating.
+                </p>
+              </>
+            ) : null}
+            {showCollapseBanner ? (
+              <p
+                className={
+                  showLowSpeakerCountBanner ? 'text-xs text-amber-800/80' : 'text-xs'
+                }
+              >
+                {showLowSpeakerCountBanner ? 'Additionally, ' : ''}
+                {collapseSuspects.length === 1
+                  ? `Speaker ${collapseSuspects[0]?.speakerId ?? ''} may contain more than one voice`
+                  : `Speakers ${collapseSuspects.map((s) => s.speakerId).join(', ')} may each contain more than one voice`}
+                {' '}— the assistant couldn't confidently assign{' '}
+                {collapseSuspects.length === 1 ? 'a single role' : 'single roles'}. Review the
+                transcript and tag manually before generating.
+              </p>
+            ) : null}
+          </div>
+          <button
+            type="button"
+            onClick={() => setDiarizationBannerDismissed(true)}
+            className="rounded text-amber-700/70 hover:text-amber-900"
+            title="Dismiss"
+            aria-label="Dismiss diarization warning"
+          >
+            ✕
+          </button>
         </div>
       ) : null}
 

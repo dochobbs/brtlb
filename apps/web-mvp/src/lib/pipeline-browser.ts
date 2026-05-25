@@ -15,6 +15,20 @@ import {
 import { getPattern, getTemplate } from '@brtlb/prompts';
 import type { ProviderKind, Settings } from '../store';
 import { PEDIATRIC_WORD_BOOST } from './peds-vocabulary';
+import {
+  computeDiarizationHints,
+  EMPTY_DIARIZATION_HINTS,
+  summarizeTranscriptSpeakers,
+  type DiarizationHints,
+  type RawIdentifySpeaker,
+} from './diarization-hints';
+
+/** Hardcoded `speakers_expected` hint sent to AssemblyAI. The diarization-
+ * hints layer compares detected speakers against this value to flag the
+ * "AAI returned far fewer speakers than we asked for" failure mode. Bumping
+ * this value would tighten Banner 1's hint-gap trigger; see
+ * docs/design-diarization-banners.md. */
+const SPEAKERS_EXPECTED_HINT = 4;
 
 export type PipelineStage = 'uploading' | 'transcribing' | 'generating' | 'done' | 'failed';
 
@@ -46,6 +60,10 @@ export interface RunMvpPipelineOutput {
    * Review UI seeds the manual chips with these so the first-pass note has
    * proper attribution without user intervention. */
   speakerRoles: SpeakerRoleAssignment[];
+  /** Diarization quality hints derived from the transcript + identify
+   * stage. Drives the Review-screen banners that surface silent AAI
+   * diarization failures. See diarization-hints.ts. */
+  diarizationHints: DiarizationHints;
 }
 
 const LONG_VISIT_CHAPTER_THRESHOLD_MS = 30 * 60_000; // 30 min
@@ -204,7 +222,7 @@ export async function runMvpPipeline(input: RunMvpPipelineInput): Promise<RunMvp
       // provider + up to 2 parents + child. Without this hint AssemblyAI
       // routinely lands on 2 even when 4 voices are present. Dictation
       // mode ignores this (speaker_labels is off there).
-      speakersExpected: 4,
+      speakersExpected: SPEAKERS_EXPECTED_HINT,
     });
     input.onStage?.('transcribing');
   } catch (err) {
@@ -223,10 +241,14 @@ export async function runMvpPipeline(input: RunMvpPipelineInput): Promise<RunMvp
   // manually). User-supplied roles still win.
   let patientSegments: PatientSegment[];
   let detectedSpeakerRoles: SpeakerRoleAssignment[] = [];
+  let identifyRawSpeakers: RawIdentifySpeaker[] = [];
+  let identifyPatientCount = 0;
   if (input.mode === 'ambient') {
     const splitResult = await splitByPatient(transcript, input.settings);
     patientSegments = splitResult.segments;
     detectedSpeakerRoles = splitResult.speakerRoles;
+    identifyRawSpeakers = splitResult.identifyContext.rawSpeakers;
+    identifyPatientCount = splitResult.identifyContext.patientCount;
   } else {
     patientSegments = [allUtterancesSingleSegment(transcript)];
   }
@@ -331,6 +353,26 @@ export async function runMvpPipeline(input: RunMvpPipelineInput): Promise<RunMvp
     }
   }
 
+  // Diarization hints — derived from STT output + identify-stage context.
+  // Dictation mode skips this entirely (no diarization to evaluate).
+  let diarizationHints: DiarizationHints = EMPTY_DIARIZATION_HINTS;
+  if (input.mode === 'ambient' && transcript.utterances.length > 0) {
+    const { transcriptSpeakerIds, utteranceCountBySpeaker } = summarizeTranscriptSpeakers(
+      transcript.utterances,
+    );
+    diarizationHints = computeDiarizationHints({
+      transcriptSpeakerIds,
+      utteranceCountBySpeaker,
+      speakersExpectedHint: SPEAKERS_EXPECTED_HINT,
+      identifiedPatientCount: identifyPatientCount,
+      keptSpeakers: detectedSpeakerRoles.map((r) => ({ speakerId: r.speakerId, role: r.role })),
+      rawIdentifySpeakers: identifyRawSpeakers,
+    });
+    if (diarizationHints.lowSpeakerCount || diarizationHints.collapseSuspected.length > 0) {
+      console.info(`${SPLIT_LOG_PREFIX} diarization hints`, diarizationHints);
+    }
+  }
+
   input.onStage?.('done');
   return {
     transcript,
@@ -341,6 +383,7 @@ export async function runMvpPipeline(input: RunMvpPipelineInput): Promise<RunMvp
     transcriptChapters,
     suggestedLabel,
     speakerRoles: effectiveSpeakerRoles,
+    diarizationHints,
   };
 }
 
@@ -847,10 +890,15 @@ const SPLIT_LOG_PREFIX = '[brtlb:split]';
  * instead of "Speaker A: ..." without the user manually tagging chips first.
  * Empty arrays mean either no patients identified or identify failed — the
  * caller treats both as "fall back to single-patient with no role hints."
+ *
+ * `rawSpeakers` carries the LLM's pre-filter speaker array so downstream
+ * diarization-hint logic can see entries that got dropped for low confidence
+ * (collapse-suspected) or omitted entirely.
  */
 interface IdentifyStageResult {
   patients: IdentifiedPatient[];
   speakerRoles: SpeakerRoleAssignment[];
+  rawSpeakers: RawIdentifySpeaker[];
 }
 
 const VALID_SPEAKER_ROLES: ReadonlyArray<SpeakerRoleAssignment['role']> = [
@@ -861,7 +909,11 @@ const VALID_SPEAKER_ROLES: ReadonlyArray<SpeakerRoleAssignment['role']> = [
   'other',
 ];
 
-const EMPTY_IDENTIFY_RESULT: IdentifyStageResult = { patients: [], speakerRoles: [] };
+const EMPTY_IDENTIFY_RESULT: IdentifyStageResult = {
+  patients: [],
+  speakerRoles: [],
+  rawSpeakers: [],
+};
 
 /**
  * Stage 1 of the multi-patient split. Asks the LLM to enumerate the children
@@ -922,20 +974,23 @@ async function identifyPatientsInTranscript(
     }))
     .filter((p) => p.name.length > 0 && p.confidence >= 0.6);
 
-  // Only keep speaker-role entries that match a known role and a speaker that
-  // actually appears in the transcript. Confidence floor 0.6 — same threshold
-  // as the patient filter; below that the model is probably hedging on a
-  // collapsed-diarization mash where one speaker label contains multiple
-  // voices, and using the wrong role would mis-attribute the whole note.
+  // Normalize the raw LLM speaker array before filtering. We keep this around
+  // separately so the diarization-hints layer can detect collapse signatures
+  // (low-confidence drops, "other"-role mash, silent omissions). The filter
+  // logic below mirrors what the production pipeline has always done.
   const transcriptSpeakerIds = new Set(
     transcript.utterances.map((u) => u.speakerId).filter((id): id is string => Boolean(id)),
   );
-  const speakerRoles: SpeakerRoleAssignment[] = (parsed.speakers ?? [])
-    .map((s) => ({
-      speakerId: (s.speakerId ?? '').trim(),
-      role: (s.role ?? '').trim().toLowerCase() as SpeakerRoleAssignment['role'],
-      confidence: typeof s.confidence === 'number' ? s.confidence : 0,
-    }))
+  const normalizedRaw = (parsed.speakers ?? []).map((s) => ({
+    speakerId: (s.speakerId ?? '').trim(),
+    role: (s.role ?? '').trim().toLowerCase(),
+    confidence: typeof s.confidence === 'number' ? s.confidence : 0,
+  }));
+  // Confidence floor 0.6 — same threshold as the patient filter; below that
+  // the model is probably hedging on a collapsed-diarization mash where one
+  // speaker label contains multiple voices, and using the wrong role would
+  // mis-attribute the whole note.
+  const speakerRoles: SpeakerRoleAssignment[] = normalizedRaw
     .filter(
       (s) =>
         s.speakerId.length > 0 &&
@@ -943,13 +998,19 @@ async function identifyPatientsInTranscript(
         (VALID_SPEAKER_ROLES as readonly string[]).includes(s.role) &&
         s.confidence >= 0.6,
     )
-    .map(({ speakerId, role }) => ({ speakerId, role }));
+    .map(({ speakerId, role }) => ({
+      speakerId,
+      role: role as SpeakerRoleAssignment['role'],
+    }));
+  // rawSpeakers keeps unfiltered entries (only the obvious garbage — empty
+  // speakerId — is removed) for the diarization-hints derivation.
+  const rawSpeakers: RawIdentifySpeaker[] = normalizedRaw.filter((s) => s.speakerId.length > 0);
 
   console.info(
     `${SPLIT_LOG_PREFIX} identified ${patients.length} patient(s), ${speakerRoles.length} speaker role(s)`,
-    { patients, speakerRoles },
+    { patients, speakerRoles, rawSpeakerCount: rawSpeakers.length },
   );
-  return { patients, speakerRoles };
+  return { patients, speakerRoles, rawSpeakers };
 }
 
 /**
@@ -961,6 +1022,12 @@ async function identifyPatientsInTranscript(
 export interface SplitByPatientResult {
   segments: PatientSegment[];
   speakerRoles: SpeakerRoleAssignment[];
+  /** Carried up so runMvpPipeline can derive diarization hints alongside
+   * the existing splitter outputs without an extra LLM call. */
+  identifyContext: {
+    patientCount: number;
+    rawSpeakers: RawIdentifySpeaker[];
+  };
 }
 
 /**
@@ -974,12 +1041,20 @@ async function splitByPatient(
   settings: Settings,
 ): Promise<SplitByPatientResult> {
   if (transcript.utterances.length === 0) {
-    return { segments: [], speakerRoles: [] };
+    return {
+      segments: [],
+      speakerRoles: [],
+      identifyContext: { patientCount: 0, rawSpeakers: [] },
+    };
   }
 
   const identifyResult = await identifyPatientsInTranscript(transcript, settings);
   const identified = identifyResult.patients;
   const speakerRoles = identifyResult.speakerRoles;
+  const identifyContext = {
+    patientCount: identified.length,
+    rawSpeakers: identifyResult.rawSpeakers,
+  };
 
   // Stage 1 found 0 or 1 patient → no split needed. Single-patient encounter
   // OR identify failed; either way, treat as single-patient and let the
@@ -993,6 +1068,7 @@ async function splitByPatient(
     return {
       segments: [allUtterancesSingleSegment(transcript)],
       speakerRoles,
+      identifyContext,
     };
   }
 
@@ -1029,7 +1105,7 @@ async function splitByPatient(
       `${SPLIT_LOG_PREFIX} stage 2 split call failed, falling back to single-patient`,
       err,
     );
-    return { segments: [allUtterancesSingleSegment(transcript)], speakerRoles };
+    return { segments: [allUtterancesSingleSegment(transcript)], speakerRoles, identifyContext };
   }
 
   let parsed: SplitResponse;
@@ -1040,7 +1116,7 @@ async function splitByPatient(
       `${SPLIT_LOG_PREFIX} stage 2 response did not parse as JSON, falling back`,
       { error: err, raw },
     );
-    return { segments: [allUtterancesSingleSegment(transcript)], speakerRoles };
+    return { segments: [allUtterancesSingleSegment(transcript)], speakerRoles, identifyContext };
   }
   const segments = (parsed.patient_segments ?? [])
     .map((s, idx): PatientSegment => {
@@ -1063,7 +1139,7 @@ async function splitByPatient(
     console.warn(
       `${SPLIT_LOG_PREFIX} stage 2 returned no usable segments despite ${identified.length} identified patients — falling back`,
     );
-    return { segments: [allUtterancesSingleSegment(transcript)], speakerRoles };
+    return { segments: [allUtterancesSingleSegment(transcript)], speakerRoles, identifyContext };
   }
   console.info(
     `${SPLIT_LOG_PREFIX} stage 2 produced ${segments.length} segment(s)`,
@@ -1073,7 +1149,7 @@ async function splitByPatient(
       utteranceCount: s.relevantUtteranceIndices.length,
     })),
   );
-  return { segments, speakerRoles };
+  return { segments, speakerRoles, identifyContext };
 }
 
 function allUtterancesSingleSegment(transcript: Transcript): PatientSegment {

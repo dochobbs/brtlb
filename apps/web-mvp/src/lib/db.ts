@@ -43,6 +43,11 @@ export interface RecordingMeta {
   label?: string | null;
   /** Speaker → role assignments fed into regenerate prompts. */
   speakerRoles?: SpeakerRoleAssignment[];
+  /** Diarization quality hints from the pipeline — drives Review banners
+   * for suspected speaker-count collapse / within-count merge. Optional
+   * for backward compatibility with recordings made before the hints
+   * landed. See diarization-hints.ts. */
+  diarizationHints?: StoredDiarizationHints;
   /** Markdown output from the Roci-style QA review pass; null if not run. */
   qaReviewMarkdown?: string | null;
   /** When QA review was last run. */
@@ -89,6 +94,16 @@ export interface StoredPatientSegment {
   acuteConcerns: string[];
   chiefComplaint: string;
   relevantUtteranceIndices: number[];
+}
+
+/** Persisted form of DiarizationHints (string union narrowed to literals here
+ * so this module stays self-contained — kept in sync with diarization-hints.ts). */
+export interface StoredDiarizationHints {
+  lowSpeakerCount: boolean;
+  collapseSuspected: Array<{
+    speakerId: string;
+    reason: 'low_conf' | 'omitted' | 'other_role_substantive';
+  }>;
 }
 
 interface BrtlbSchema extends DBSchema {
