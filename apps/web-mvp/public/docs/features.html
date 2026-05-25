@@ -1,0 +1,312 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>brtlb features — full tour</title>
+  <meta name="description" content="Every feature in brtlb, in the order you'll discover them during a real visit." />
+  <link rel="stylesheet" href="/docs/brand.css" />
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+</head>
+<body>
+  <nav class="topnav" aria-label="Primary">
+    <a href="/docs/" class="topnav-brand">
+      <svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <circle cx="14" cy="32" r="6" fill="var(--brtlb-seafoam)" />
+        <circle cx="32" cy="32" r="6" fill="var(--brtlb-seafoam)" />
+        <circle cx="50" cy="32" r="6" fill="var(--brtlb-seafoam)" />
+      </svg>
+      <span>brtlb docs</span>
+    </a>
+    <div class="topnav-links">
+      <a href="/docs/features.html" aria-current="page">Features</a>
+      <a href="/docs/customize.html">Customize</a>
+      <a href="/docs/troubleshoot.html">Troubleshoot</a>
+      <a href="/docs/why.html">Why brtlb</a>
+      <a href="/">App</a>
+    </div>
+  </nav>
+
+  <main class="shell">
+    <h1>Features — full tour</h1>
+    <p style="margin-top: 0.625rem; font-size: 1.0625rem;">
+      Every piece of brtlb, in the order you'll meet it. Skim the headers; dive into whichever section is relevant.
+    </p>
+
+    <aside class="toc" aria-label="On this page">
+      <h3>On this page</h3>
+      <ul>
+        <li><a href="#recording">Recording a visit</a></li>
+        <li><a href="#review">The Review screen</a></li>
+        <li><a href="#tweak">Tweak with AI</a></li>
+        <li><a href="#speaker-roles">Speaker chips &amp; roles</a></li>
+        <li><a href="#multi-patient">Multi-patient visits</a></li>
+        <li><a href="#templates">Auto template detection</a></li>
+        <li><a href="#length">Adaptive note length</a></li>
+        <li><a href="#chapters">Visit chapters</a></li>
+        <li><a href="#warnings">Review warnings</a></li>
+        <li><a href="#sensitive">Sensitive content flag</a></li>
+        <li><a href="#quotes">Quotes captured</a></li>
+        <li><a href="#pearls">Clinical pearls</a></li>
+        <li><a href="#sharing">Sharing the note</a></li>
+        <li><a href="#privacy">Privacy controls</a></li>
+      </ul>
+    </aside>
+
+    <h2 id="recording">Recording a visit</h2>
+    <p>
+      The Home screen has one giant graphite button: <span class="chip">Record visit</span>. Tap it. Mic permission prompts (once). brtlb is recording.
+    </p>
+    <p>
+      That's the whole flow. No new-visit form, no patient picker, no template selection up front. By default brtlb is in <strong>ambient mode</strong> — captures the whole room with speaker separation. If you'd rather narrate the note yourself, tap the small <em>or dictate instead</em> link below the Record button for classic dictation (no diarization).
+    </p>
+
+    <h3>While you're recording</h3>
+    <p>The recording UI is deliberately subtle in ambient mode — designed for the patient sitting across from you to barely notice it:</p>
+    <ul>
+      <li>A small <strong>pulsing red dot</strong> with status text ("Ambient · Recording") — universal "recording" indicator at calm size.</li>
+      <li>A modest <strong>timer</strong> counting elapsed time.</li>
+      <li>A <strong>breathing line</strong> below the timer that gently widens with audio level — conveys "mic is alive" without VU-meter drama.</li>
+      <li>For the first <strong>4 seconds</strong> after start, a full 24-bar meter appears so you can confirm the mic is picking up audio, then it auto-collapses. Tap <span class="chip">Mic check</span> any time to bring it back.</li>
+      <li>Dictation mode keeps the full meter on — no audience to perform for.</li>
+    </ul>
+
+    <h3>Action buttons</h3>
+    <ul>
+      <li><span class="chip">Pause / Resume</span> — when the visit hits a pause (parent steps out, you go examine an ear). Pauses don't count against transcription time.</li>
+      <li><span class="chip">Mark moment</span> — tap any time you want brtlb to pay extra attention to what's happening <em>right now</em>. The button flashes seafoam; later, when the note is generated, brtlb is told "the physician marked these moments as important." Useful for nuanced findings, a worried-parent moment, the part where the kid said something quotable. No pop-up, no label entry — single discrete tap. Mark as many as you want.</li>
+      <li><span class="chip">Stop</span> — when you're done. brtlb saves the audio and immediately starts the pipeline.</li>
+    </ul>
+
+    <h3>After Stop</h3>
+    <p>You land on the <strong>Review screen</strong>. The pipeline runs automatically:</p>
+    <pre><code>uploading → transcribing → generating → ready</code></pre>
+    <p>A small status banner at the top tells you which stage you're in. Total time is usually under 30 seconds for a 15-minute visit. Long visits take proportionally longer; brtlb waits up to <strong>90 minutes</strong> for AssemblyAI to finish transcribing — covers any realistic visit (most 60-min recordings finish in 3–5 min of processing, 90-min autism evals in 5–8 min).</p>
+
+    <h2 id="review">The Review screen</h2>
+    <p>Two big panels side by side (or stacked on mobile):</p>
+
+    <div class="card-grid">
+      <div class="feature-card">
+        <h3>Left: Transcript</h3>
+        <p>Collapsed by default — tap <em>Show transcript</em> to read the raw output. Above the collapse: <strong>speaker chips</strong>. Tap each one to assign a role. If you marked moments during the visit, they show up here with timestamps.</p>
+      </div>
+      <div class="feature-card">
+        <h3>Right: Note</h3>
+        <p>The auto-generated markdown note. Defaults to a sensible template — see <a href="#templates">Auto template detection</a>. Toggle between <strong>Edit</strong> (raw markdown source) and <strong>Formatted</strong> (rendered prose). Below the note: the magic <span class="chip">✨ box</span> — see Tweak with AI.</p>
+      </div>
+    </div>
+
+    <h2 id="tweak">Tweak with AI</h2>
+    <p>The hero of the note screen. A textarea that takes plain English:</p>
+    <div class="card">
+<pre style="margin: 0;"><code>"Shorten the assessment"
+"Rewrite the plan as a numbered list"
+"Add return precautions for fever"
+"Patient is 8mo, not 8yo — fix throughout"
+"Include that mom is a peds nurse and we discussed
+ home Tylenol dosing"</code></pre>
+    </div>
+    <p>
+      Type your instruction. <span class="chip">⌘+Enter</span> (Mac) or <span class="chip">Ctrl+Enter</span> (Windows) to send, or click <span class="chip">Revise note</span>. brtlb returns the COMPLETE revised note — not a diff. The transcript still gates fabrication, so changes are grounded in what was actually said.
+    </p>
+    <p>
+      This is how most physicians will edit. Faster than direct markdown editing, and you don't need to remember any conventions. Just tell it what's off.
+    </p>
+
+    <h2 id="speaker-roles">Speaker chips &amp; roles</h2>
+    <p>
+      Above the transcript, brtlb shows a chip for each detected speaker label (A, B, C, …). Tap any chip to assign a role: <em>Parent</em>, <em>Patient</em>, <em>Provider</em>, <em>Sibling</em>, or <em>Other</em>. The transcript and any future regenerate use those labels.
+    </p>
+    <p>
+      brtlb auto-detects roles on the first pass — provider vs. parent vs. patient — so most visits don't need manual chip tagging. When auto-detection misfires (a kid not speaking up much, an unusual role distribution), the chips are the fastest fix.
+    </p>
+    <div class="callout">
+      <strong>When the diarization itself fails,</strong> not just the role mapping, brtlb shows an amber banner with a one-click <em>Apply split</em> option. See <a href="/docs/troubleshoot.html#diarization">Troubleshoot → diarization</a>.
+    </div>
+
+    <h2 id="multi-patient">Multiple patients in one recording</h2>
+    <p>
+      brtlb handles back-to-back encounters in a single ambient recording. If you record two well-checks in a row, or a sick visit then a sibling's quick check, brtlb keeps them separate automatically.
+    </p>
+    <p>
+      After transcription, brtlb runs a <strong>split-by-patient</strong> pass that reads the diarized transcript and identifies which utterances belong to which child. Patient labels come from names actually mentioned in the visit ("Tommy", "Lily") with an ordinal fallback ("Patient 1") if names don't surface.
+    </p>
+    <p>
+      For each patient, brtlb generates a <strong>separate</strong> note with the visit type the splitter detected and only that patient's relevant utterances. A patient tab strip on the Review screen lets you view, copy, or tweak each note independently. Use the <em>All combined</em> tab for one-shot copy of everything.
+    </p>
+    <p>
+      The split is purely transcript-based — brtlb has no schedule access, no EHR connection, no list of who's coming today. It just listens to who's being talked to and about.
+    </p>
+    <p>
+      <strong>Mixed visits</strong> (well-child + acute complaint on the same kid) are preserved correctly — the splitter keeps it as a single segment with <code>visit_type: well_child</code>, <code>includes_preventive_care: true</code>, and the acute concern in the segment metadata.
+    </p>
+
+    <h2 id="templates">Auto template detection</h2>
+    <p>brtlb watches the transcript and picks the best template without you having to. The nine built-ins:</p>
+    <div class="card-grid">
+      <div class="feature-card">
+        <h3>soap</h3>
+        <p>Generic fallback, handles mixed visits.</p>
+      </div>
+      <div class="feature-card">
+        <h3>well-child</h3>
+        <p>Preventive visit — vaccines, milestones, anticipatory guidance dominate.</p>
+      </div>
+      <div class="feature-card">
+        <h3>sick-visit</h3>
+        <p>Acute illness or injury (URI, ear pain, rash, fever, GI, asthma).</p>
+      </div>
+      <div class="feature-card">
+        <h3>follow-up</h3>
+        <p>Interim check on a known problem.</p>
+      </div>
+      <div class="feature-card">
+        <h3>adhd-med-check</h3>
+        <p>ADHD medication visit — response, side effects, vitals on stimulant.</p>
+      </div>
+      <div class="feature-card">
+        <h3>procedure</h3>
+        <p>In-office procedure (laceration, I&amp;D, ear curettage).</p>
+      </div>
+      <div class="feature-card">
+        <h3>behavioral-health</h3>
+        <p>Pediatric mental health — mood, anxiety, suicidality screen, trauma, ADHD diagnostic intake, family conflict, substance use, eating disorders. Captures verbatim quotes for the medicolegal record.</p>
+      </div>
+      <div class="feature-card">
+        <h3>developmental-eval</h3>
+        <p>Long-form autism / developmental evaluation — M-CHAT, ADOS-style observation, parent interview, diagnostic feedback. Accepts 1–2 page notes.</p>
+      </div>
+      <div class="feature-card">
+        <h3>dictation</h3>
+        <p>Physician-narrated. Used automatically in dictation mode.</p>
+      </div>
+    </div>
+    <p>
+      Ambient mode auto-routes after transcription. The picked template shows up in the Template dropdown on the right panel. Don't like the pick? Change the dropdown and click <span class="chip">Regenerate</span> — brtlb re-runs the LLM with your chosen template (no re-transcription).
+    </p>
+    <p>Want your own? <a href="/docs/customize.html#templates">Custom templates →</a></p>
+
+    <h2 id="length">Adaptive note length</h2>
+    <p>
+      brtlb sizes the note to the visit. A 5-minute URI gets a focused note; a 60-minute mental-health follow-up or 90-minute autism eval gets a longer, richer one. No template "default length" override — length is a function of clinical content density.
+    </p>
+    <p>
+      You can always steer manually with <em>Tweak with AI</em>: "shorten the assessment," "expand the plan with return precautions."
+    </p>
+
+    <h2 id="chapters">Visit chapters (long visits)</h2>
+    <p>
+      For ambient recordings ≥30 min, brtlb generates a small chapter map above the transcript: 3–7 named segments with timestamps and a one-sentence summary. Examples:
+    </p>
+    <div class="card">
+<pre style="margin: 0;"><code>0:00   Parent interview — 6-month history of social withdrawal
+12:35  Child observation — play, communication, response to name
+32:10  Discussion of findings</code></pre>
+    </div>
+    <p>
+      Lets you scan a 90-minute autism eval transcript at a glance instead of scrolling. The chapter detector runs automatically when the recording qualifies; short visits skip it.
+    </p>
+
+    <h2 id="warnings">Review warnings — the safety net</h2>
+    <p>
+      Below the note, the <strong>Review warnings</strong> panel runs an independent LLM pass that hunts for two failure modes:
+    </p>
+    <ul>
+      <li><strong>Hallucination</strong> — note says something the transcript doesn't support.</li>
+      <li><strong>Omission</strong> — transcript discusses something the note misses.</li>
+    </ul>
+    <p>Plus three secondary checks: mixed-visit collapse (well-child + acute reduced to one), assessment/plan mismatch, and wrong-patient risk (sibling contamination, name drift).</p>
+    <p>
+      The reviewer is told the transcript may have STT errors and to interpret charitably — the goal is flagging real safety issues, not nitpicking phonetic transcription mistakes.
+    </p>
+    <p>Output is a small markdown bullet list with severity icons:</p>
+    <ul>
+      <li>🔴 <strong>Critical</strong> — safety-relevant</li>
+      <li>🟡 <strong>Warning</strong> — clinically meaningful but not unsafe</li>
+      <li>⚪ <strong>Info</strong> — minor</li>
+    </ul>
+    <p>Click <span class="chip">Check for warnings</span> when you want a second look. Re-run after edits to see if you've cleaned up the issues.</p>
+
+    <h2 id="sensitive">Sensitive content flag</h2>
+    <p>
+      The Review warnings panel runs an extra check: if the transcript touches suicidality, self-harm, abuse, substance use, sexual activity, eating-disorder behaviors, custody conflicts, or intimate partner violence — brtlb adds a 🟡 <em>(sensitive content)</em> line naming the topic.
+    </p>
+    <p>
+      Doesn't redact, doesn't block sharing. Just a heads-up to <strong>review before pasting to a shared chart</strong> so adolescent or sensitive disclosures don't accidentally end up in a parent-visible note.
+    </p>
+
+    <h2 id="quotes">Quotes captured</h2>
+    <p>
+      Below the note, the <strong>Quotes captured</strong> panel pulls up to 5 verbatim parent/patient quotes from the transcript on demand. Useful for:
+    </p>
+    <ul>
+      <li>HPI ("My son has been saying 'I don't want to be alive' for two weeks").</li>
+      <li>Safety screens — verbatim language matters medicolegally.</li>
+      <li>Pediatric phrasing that's clinically meaningful in its specificity.</li>
+      <li>Cases where what was said exactly is the documentation.</li>
+    </ul>
+    <p>
+      Strict guardrails: no paraphrase, attribution required (Parent / Patient / Sibling), STT-garbled quotes are dropped rather than guessed. Returns "No quotes captured." when nothing qualifies.
+    </p>
+
+    <h2 id="pearls">Clinical pearls — the collegial layer</h2>
+    <p>
+      A separate on-demand pass that surfaces 0–3 short clinical observations about <em>this</em> visit — patterns, subtle differentials, family dynamics worth noting. Like a senior colleague leaning over after you wrap up.
+    </p>
+    <p>Examples:</p>
+    <div class="card">
+      <ul>
+        <li>"Mother is a physician — easy to default to her framing; worth confirming the child's symptoms in your own words to avoid co-option."</li>
+        <li>"5-day amox for AOM in a 2yo with recurrent OM may be undertreatment; current AAP guidance favors 10 days under age 2."</li>
+        <li>"Episodes cluster between Concerta peak and unstructured school time — worth distinguishing pharmacologic activation from environmental triggers."</li>
+      </ul>
+    </div>
+    <p>
+      Pearls are NOT generic safety advice and NOT restatements of your plan. If brtlb doesn't have anything genuinely useful to add, it returns "No pearls."
+    </p>
+
+    <h2 id="sharing">Sharing the note</h2>
+    <p>Three section-paste modes plus four global export buttons.</p>
+
+    <h3>Section paste modes</h3>
+    <div class="card-grid">
+      <div class="feature-card">
+        <h3>All-in-one (default)</h3>
+        <p>Single button copies the whole note. Bold section headings keep structure visible when pasted into a single notes field. Best for EHRs with one big "visit note" textarea.</p>
+      </div>
+      <div class="feature-card">
+        <h3>Pick</h3>
+        <p>One chip per section (HPI, Exam, Plan, etc.). Tap to copy just that section into the matching EHR field. Sections you've copied stay marked with ✓ so you can track progress.</p>
+      </div>
+      <div class="feature-card">
+        <h3>Walk through</h3>
+        <p>Guided one-at-a-time mode. Big primary button: "Copy HPI →." Tap, paste, come back, button advances to "Copy ROS →." Linear, low cognitive load. Includes word counts.</p>
+      </div>
+    </div>
+
+    <h3>Export buttons</h3>
+    <ul>
+      <li><span class="chip">Share</span> — native share sheet (AirDrop on Apple, Android Share). Falls back to copy on desktop.</li>
+      <li><span class="chip">Copy</span> — copies the whole note with <strong>bold formatting preserved</strong> when the destination accepts rich text (Elation, Word, most rich-text fields). Plain-text fallback for everything else.</li>
+      <li><span class="chip">Email…</span> — opens your mail app with the visit label as subject and note as body. Only safe if your email provider is HIPAA-BAA-covered.</li>
+      <li><span class="chip">Download</span> — saves a <code>.txt</code> file with the visit label as the filename.</li>
+    </ul>
+    <p>There's no "post to EHR" button. brtlb is BYO-EHR — you copy or share into wherever your charts live.</p>
+
+    <h2 id="privacy">Privacy controls</h2>
+    <p>Settings → <span class="chip">Privacy &amp; Security</span> has the levers that matter:</p>
+    <ul>
+      <li><strong>Audio purge.</strong> 7 / 30 / 90 days or "never." Old audio blobs auto-delete after the window; transcript and note metadata stay.</li>
+      <li><strong>AssemblyAI auto-delete on completion</strong> (default on). brtlb fires <code>DELETE /v2/transcript/{id}</code> seconds after the transcript returns. Toggle off only if your practice policy needs longer vendor-side retention.</li>
+      <li><strong>Idle lock.</strong> Lock the UI after N minutes of inactivity. Ongoing recordings keep recording behind the lock screen — silence auto-stop is paused while locked so a hidden banner can't kill your visit.</li>
+      <li><strong>Raw transcript JSON export</strong> — diagnostic link on every Review screen header. Downloads the stored AAI output for offline review (no PHI leaves your device).</li>
+    </ul>
+    <p>Want the full design story? <a href="/docs/why.html">Why brtlb works this way →</a></p>
+  </main>
+
+  <footer>
+    brtlb docs · <a href="/docs/">home</a> · <a href="/docs/features.html">features</a> · <a href="/docs/customize.html">customize</a> · <a href="/docs/troubleshoot.html">troubleshoot</a> · <a href="/docs/why.html">why</a> · <a href="/docs/faq.html">faq</a> · <a href="/">app</a>
+  </footer>
+</body>
+</html>

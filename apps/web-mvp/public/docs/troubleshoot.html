@@ -1,0 +1,253 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>brtlb troubleshooting</title>
+  <meta name="description" content="Common failures and how to recover. Banners explained, network issues, browser quirks." />
+  <link rel="stylesheet" href="/docs/brand.css" />
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+</head>
+<body>
+  <nav class="topnav" aria-label="Primary">
+    <a href="/docs/" class="topnav-brand">
+      <svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <circle cx="14" cy="32" r="6" fill="var(--brtlb-seafoam)" />
+        <circle cx="32" cy="32" r="6" fill="var(--brtlb-seafoam)" />
+        <circle cx="50" cy="32" r="6" fill="var(--brtlb-seafoam)" />
+      </svg>
+      <span>brtlb docs</span>
+    </a>
+    <div class="topnav-links">
+      <a href="/docs/features.html">Features</a>
+      <a href="/docs/customize.html">Customize</a>
+      <a href="/docs/troubleshoot.html" aria-current="page">Troubleshoot</a>
+      <a href="/docs/why.html">Why brtlb</a>
+      <a href="/">App</a>
+    </div>
+  </nav>
+
+  <main class="shell">
+    <h1>Troubleshooting</h1>
+    <p style="margin-top: 0.625rem; font-size: 1.0625rem;">
+      What the banners mean, what to do when something looks off, and the recovery paths for the failure modes brtlb actually sees in the wild.
+    </p>
+
+    <aside class="toc" aria-label="On this page">
+      <h3>On this page</h3>
+      <ul>
+        <li><a href="#diarization">Diarization banner</a></li>
+        <li><a href="#coverage">Coverage banner</a></li>
+        <li><a href="#stuck">Stuck on a stage</a></li>
+        <li><a href="#network">Network drops / iOS suspend</a></li>
+        <li><a href="#audio-storage">Audio storage issues</a></li>
+        <li><a href="#mid-recording">Lost audio mid-recording</a></li>
+        <li><a href="#mic">Mic disappeared</a></li>
+        <li><a href="#api-keys">API key errors</a></li>
+        <li><a href="#wrong-template">Wrong template auto-picked</a></li>
+        <li><a href="#missing-content">Note is missing detail</a></li>
+        <li><a href="#browser">Browser compatibility</a></li>
+        <li><a href="#reset">Nuclear option — reset</a></li>
+      </ul>
+    </aside>
+
+    <h2 id="diarization">Diarization banner</h2>
+    <p>
+      Amber banner above the note that says one of two things, sometimes both:
+    </p>
+    <div class="card">
+      <p style="font-style: italic;">"Heads up — the transcription returned fewer distinct speakers than this visit likely had."</p>
+    </div>
+    <p>
+      Means AssemblyAI collapsed multiple voices into one cluster. Symptom: a parent's history-taking and a child's first-person answers end up under the same speaker label. The note may attribute the wrong person.
+    </p>
+    <div class="card">
+      <p style="font-style: italic;">"Speaker B may contain more than one voice — the assistant couldn't confidently assign a single role."</p>
+    </div>
+    <p>Means brtlb's own analysis found register shifts within one cluster (adult clinical vocabulary mixed with child one-word answers, etc.). Often correlates with the count issue above.</p>
+
+    <h3>What to do</h3>
+    <ol>
+      <li>If brtlb proposes an <strong>Apply split</strong> button right there in the banner, that's the fastest fix. Tap it. brtlb renames the merged speaker (e.g., <code>B</code> → <code>B1</code> + <code>B2</code>) and seeds role chips. Click <span class="chip">Regenerate</span> after to get a fresh note with the new attribution.</li>
+      <li>If there's no Apply split button (recovery couldn't find a confident partition), open <span class="chip">raw json</span> in the top-right of the Review screen. Scan the transcript for the suspect speaker. Tag the speaker chips manually if needed, then Regenerate.</li>
+      <li>If both fail, the cleanest fix is to re-record with the kid sitting on the parent's lap rather than across the room, or with the mic closer to the child. Same-gender voices at similar age tiers are AAI's hardest case.</li>
+    </ol>
+    <div class="callout">
+      <strong>When the banner stays quiet,</strong> diarization is healthy. The banner is a warning system, not a constant fixture.
+    </div>
+
+    <h2 id="coverage">Coverage banner</h2>
+    <p>Amber banner that says something like:</p>
+    <div class="card">
+      <p style="font-style: italic;">"Heads up — the template expected 2 sections that aren't in the note: Anticipatory Guidance, Follow-up. Was any of this discussed?"</p>
+    </div>
+    <p>
+      Or alternatively: <em>"The last section ends without final punctuation — the model may have been cut off."</em>
+    </p>
+    <p>
+      The first variant flags a structural gap: your template asked for sections the note doesn't contain. Sometimes that's correct (you didn't discuss them), sometimes the LLM dropped them.
+    </p>
+    <p>The second variant flags a likely token-cap truncation — the model ran out of room and stopped mid-sentence.</p>
+
+    <h3>What to do</h3>
+    <ul>
+      <li><strong>If the missing content was actually discussed:</strong> click <span class="chip">Regenerate</span>. Often the model picks it up on the second pass.</li>
+      <li><strong>If it wasn't discussed:</strong> dismiss the banner. Empty sections are not a bug; brtlb's discipline rules prefer omission to fabrication.</li>
+      <li><strong>If it's a truncation flag:</strong> regenerate. brtlb's output cap is 16K tokens — long visits sometimes need a second pass. If it keeps truncating, simplify your template (drop a section, switch from narrative to focused pattern).</li>
+    </ul>
+
+    <h2 id="stuck">Stuck on a stage</h2>
+    <p>The Review screen shows a stage banner: <em>uploading → transcribing → generating → ready</em>. If it's stuck:</p>
+
+    <h3>Stuck on "uploading"</h3>
+    <p>Your connection dropped during the audio upload to AssemblyAI. brtlb auto-retries once. If it's still stuck after a minute:</p>
+    <ul>
+      <li>Check Wi-Fi / cellular. Switch networks if possible.</li>
+      <li>Click <span class="chip">Reprocess from audio</span> (or whatever the retry button is). brtlb starts the pipeline over from the stored audio blob — no re-recording needed.</li>
+    </ul>
+
+    <h3>Stuck on "transcribing"</h3>
+    <p>
+      brtlb polls AssemblyAI every 5 seconds and waits up to 90 minutes. Most visits finish in 30 seconds to 5 minutes. If the bar's been spinning for &gt;15 minutes on a normal-length recording:
+    </p>
+    <ul>
+      <li>Check <a href="https://status.assemblyai.com" target="_blank" rel="noopener noreferrer">AssemblyAI status</a>.</li>
+      <li>Open the raw JSON link if available — sometimes the transcript completed but the polling lost the thread.</li>
+      <li>Retry from audio if you have time pressure; AAI can complete the original job in the background and you'll just have two transcripts to compare.</li>
+    </ul>
+
+    <h3>Stuck on "generating"</h3>
+    <p>
+      Gemini (or your chosen LLM provider) is slow or struggling. Gemini 2.5 Pro can take 10–30s on long visits; the very long developmental-eval template can push 60s. If you're past 2 minutes:
+    </p>
+    <ul>
+      <li>Check <a href="https://status.cloud.google.com" target="_blank" rel="noopener noreferrer">Google Cloud status</a>.</li>
+      <li>Try switching to <code>gemini-2.5-flash</code> in Settings as a temporary workaround — much faster, slightly lower quality.</li>
+      <li>Click Regenerate. The transcript is already stored locally; you're only paying for the LLM call.</li>
+    </ul>
+
+    <h2 id="network">Network drops / iOS Safari suspend</h2>
+    <p>
+      Common scenario: you start brtlb on an iPad, the upload is going, you switch to Elation in another tab to grab a patient name. iOS suspends the brtlb tab. The upload fails with "Load failed."
+    </p>
+    <p>brtlb detects this and surfaces:</p>
+    <div class="card">
+      <p style="font-style: italic;">"The connection was interrupted. This usually means your Wi-Fi/cellular dropped, the brtlb tab was suspended (common on iOS when you switch apps mid-upload), or [vendor] is briefly unavailable. Reopen brtlb on a stable connection and tap Retry from audio."</p>
+    </div>
+    <h3>What to do</h3>
+    <ul>
+      <li>Switch back to the brtlb tab, click <span class="chip">Reprocess from audio</span>. brtlb has the audio blob in IndexedDB — no re-recording needed.</li>
+      <li>To avoid this in the future: don't switch tabs while brtlb is uploading. On iPad, consider the in-app Stop → finish the visit → step away pattern.</li>
+    </ul>
+
+    <h2 id="audio-storage">Audio storage issues</h2>
+
+    <h3>"Browser storage is not available"</h3>
+    <p>You see this in Settings or on save errors. Causes (iOS Safari is the usual culprit):</p>
+    <ul>
+      <li><strong>Private Browsing.</strong> iOS Safari silently fails localStorage writes in private mode. Disable private browsing for the brtlb tab.</li>
+      <li><strong>"Block All Cookies"</strong> in Settings → Safari → Privacy. Switch to "Block third-party cookies" or off.</li>
+      <li><strong>PWA installed but data isolated.</strong> If you "Add to Home Screen" then later open the same URL in Safari, you get two separate storage containers. Pick one and stick with it.</li>
+      <li><strong>ITP wipe.</strong> iOS wipes localStorage after 7 days of no first-party interaction. Use brtlb at least weekly.</li>
+    </ul>
+
+    <h3>"Device storage is full"</h3>
+    <p>Amber banner appears during recording. IndexedDB filled up. The in-memory recording continues but new audio chunks aren't being persisted to backup storage — a tab crash from here on would lose audio.</p>
+    <ul>
+      <li>Stop the current recording cleanly (Stop button). The full audio still saves from in-memory.</li>
+      <li>Delete old recordings or shorten audio retention in Settings → Privacy &amp; Security.</li>
+      <li>Restart brtlb.</li>
+    </ul>
+
+    <h2 id="mid-recording">Lost audio mid-recording</h2>
+    <p>You see: <em>"Recording was interrupted — Xs of audio lost."</em></p>
+    <p>
+      Means the iOS / Android OS suspended the brtlb tab mid-capture (screen locked, app switched, etc.) and MediaRecorder stopped. brtlb acquires <code>navigator.wakeLock</code> at recording start to keep the screen awake, but if iOS overrides that (low battery mode, hardware lock button), the suspend can still happen.
+    </p>
+    <h3>What to do</h3>
+    <ul>
+      <li>brtlb saves whatever audio it captured before the interruption. Stop and review — sometimes partial audio is enough.</li>
+      <li>Re-record going forward: keep the brtlb tab in the foreground, screen on, until you hit Stop.</li>
+      <li>The seafoam pre-record advisory in ambient mode reminds you of this. Read it once and you'll know the failure pattern.</li>
+    </ul>
+
+    <h2 id="mic">"The microphone became unavailable"</h2>
+    <p>
+      Mid-recording error. Causes:
+    </p>
+    <ul>
+      <li>Bluetooth / USB mic disconnected (AirPods walked out of range, USB unplugged).</li>
+      <li>Another app took the mic (incoming FaceTime call accepted, Zoom started).</li>
+      <li>Mic permission revoked in browser settings.</li>
+    </ul>
+    <p>Stop, re-grant permission if needed, and re-record when the mic is available. Brief mic mutes (incoming call ignored) are tolerated; permanent loss is what triggers this error.</p>
+
+    <h2 id="api-keys">API key errors</h2>
+
+    <h3>"401 Unauthorized" from AssemblyAI</h3>
+    <p>Your key is wrong or revoked. Settings → AssemblyAI key. Re-paste from your AAI dashboard.</p>
+
+    <h3>"Workspace org policy block" from Gemini</h3>
+    <p>
+      Your Google Cloud project doesn't permit the Gemini API call. Two common causes:
+    </p>
+    <ul>
+      <li>The project doesn't have billing enabled. Add a billing account in Cloud Console.</li>
+      <li>Your Workspace org policy restricts AI APIs. Talk to your admin or use a personal Cloud project for testing.</li>
+    </ul>
+
+    <h3>"Anthropic API blocked by CORS"</h3>
+    <p>
+      Anthropic Enterprise (BAA-covered) keys block browser CORS calls — there's no current path for browser-only Anthropic with PHI. Use Gemini or Azure OpenAI for PHI; Anthropic is fine for non-PHI testing.
+    </p>
+
+    <h2 id="wrong-template">Wrong template auto-picked</h2>
+    <p>
+      Auto-detection looks at the transcript and picks soap / well-child / sick-visit / etc. When it picks wrong:
+    </p>
+    <ul>
+      <li>Change the dropdown above the note to your preferred template.</li>
+      <li>Click <span class="chip">Regenerate</span>. No re-transcription, just a new LLM pass.</li>
+      <li>If a specific template type keeps mis-routing, write a custom template that captures your conventions and pin it. <a href="/docs/customize.html#templates">Customize → templates</a>.</li>
+    </ul>
+
+    <h2 id="missing-content">Note is missing detail you discussed</h2>
+    <p>Three common causes:</p>
+    <ul>
+      <li><strong>STT garbled it.</strong> Open raw JSON, search for the topic. If AAI mis-transcribed a medication name or finding, the note can't pick up something it didn't see. Re-record with clearer audio or correct via Tweak with AI: <em>"Patient is on Concerta 36mg, not Concerta 18."</em></li>
+      <li><strong>Discipline rules omitted it on purpose.</strong> brtlb defaults to omission over fabrication. If you said "patient is doing well" and the note doesn't include a separate "no concerns" section, that's working as designed. Add via Tweak with AI if you want it explicit.</li>
+      <li><strong>Token cap truncation.</strong> Check the coverage banner — if the last section ends mid-sentence, regenerate. If it keeps truncating, your template is too long.</li>
+    </ul>
+
+    <h2 id="browser">Browser compatibility</h2>
+    <p>brtlb checks four capabilities at boot. If any are missing, you get an explicit page telling you which:</p>
+    <ul>
+      <li><strong>IndexedDB</strong> — for storing audio + transcripts locally. Disabled in private browsing on some browsers.</li>
+      <li><strong>MediaRecorder</strong> — for capturing audio. All modern browsers have this. Safari needs iOS 14.3+.</li>
+      <li><strong>navigator.mediaDevices.getUserMedia</strong> — for mic access. Requires HTTPS (brtlb.vercel.app is HTTPS; if you self-host on <code>http://localhost</code>, that's special-cased OK).</li>
+      <li><strong>crypto.subtle</strong> — for hashing. Effectively universal.</li>
+    </ul>
+    <p>Tested baseline: Chrome 120+, Safari 17+ (iOS 17+), Firefox 121+, Edge 120+. Older browsers may render but features will be flaky.</p>
+
+    <h2 id="reset">Nuclear option — reset</h2>
+    <p>
+      If brtlb is acting weird and nothing else helps, the global error boundary's recovery screen has a <strong>"Wipe local data and reload"</strong> button. This:
+    </p>
+    <ul>
+      <li>Clears IndexedDB (all recordings, audio, transcripts gone).</li>
+      <li>Clears localStorage (settings, API keys, theme, etc.).</li>
+      <li>Reloads to a fresh first-run state.</li>
+    </ul>
+    <div class="callout amber">
+      <strong>You will lose all local data.</strong> If you have unfinished visits, export them first via the Download button. Use this only when brtlb genuinely won't render or save correctly.
+    </div>
+    <p>
+      To trigger the recovery screen manually: open the browser console and run <code>localStorage.setItem('brtlb.crash-test', '1')</code> — that exposes the same recovery UI without losing data.
+    </p>
+  </main>
+
+  <footer>
+    brtlb docs · <a href="/docs/">home</a> · <a href="/docs/features.html">features</a> · <a href="/docs/customize.html">customize</a> · <a href="/docs/troubleshoot.html">troubleshoot</a> · <a href="/docs/why.html">why</a> · <a href="/docs/faq.html">faq</a> · <a href="/">app</a>
+  </footer>
+</body>
+</html>

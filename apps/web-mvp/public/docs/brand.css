@@ -131,16 +131,22 @@ pre code { background: none; border: none; padding: 0; color: var(--brtlb-graphi
 .topnav-brand svg { width: 24px; height: 24px; }
 .topnav-links {
   display: flex;
-  gap: 1.5rem;
+  flex-wrap: wrap;
+  gap: 1rem;
   font-size: 0.9375rem;
+  justify-content: flex-end;
 }
 .topnav-links a {
   border-bottom: 1px solid transparent;
   color: var(--brtlb-graphite-soft);
 }
 .topnav-links a:hover { color: var(--brtlb-graphite); }
+.topnav-links a[aria-current="page"] {
+  color: var(--brtlb-graphite);
+  border-bottom-color: var(--brtlb-seafoam);
+}
 @media (max-width: 640px) {
-  .topnav-links { gap: 0.875rem; font-size: 0.8125rem; }
+  .topnav-links { gap: 0.75rem; font-size: 0.8125rem; }
 }
 
 /* --- Hero --- */
@@ -326,6 +332,76 @@ pre code { background: none; border: none; padding: 0; color: var(--brtlb-graphi
 }
 .steps > li h3 { margin-top: 0; margin-bottom: 0.25rem; font-size: 1rem; }
 .steps > li p:last-child { margin-bottom: 0; }
+
+/* --- TOC card (on long pages) --- */
+.toc {
+  background: var(--brtlb-card-bg);
+  border: 1px solid var(--brtlb-border-soft);
+  border-radius: 12px;
+  padding: 1rem 1.25rem;
+  margin: 1.5rem 0;
+  font-size: 0.9375rem;
+}
+.toc h3 {
+  margin-top: 0;
+  margin-bottom: 0.5rem;
+  font-size: 0.8125rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--brtlb-graphite-soft);
+  font-weight: 600;
+}
+.toc ul {
+  padding-left: 0;
+  list-style: none;
+  columns: 2;
+  column-gap: 1.5rem;
+}
+.toc li { margin-bottom: 0.25rem; break-inside: avoid; }
+.toc li::marker { content: ''; }
+.toc a {
+  border-bottom: none;
+  color: var(--brtlb-graphite-soft);
+}
+.toc a:hover { color: var(--brtlb-graphite); }
+@media (max-width: 640px) {
+  .toc ul { columns: 1; }
+}
+
+/* --- Q&A list (used on FAQ page) --- */
+.qa { display: flex; flex-direction: column; gap: 1.25rem; margin-top: 1.5rem; }
+.qa > details {
+  background: var(--brtlb-card-bg);
+  border: 1px solid var(--brtlb-border-soft);
+  border-radius: 10px;
+  padding: 0.875rem 1rem;
+}
+.qa > details[open] { border-color: var(--brtlb-seafoam); }
+.qa > details > summary {
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 1rem;
+  color: var(--brtlb-graphite);
+  list-style: none;
+  padding-right: 1.5rem;
+  position: relative;
+}
+.qa > details > summary::-webkit-details-marker { display: none; }
+.qa > details > summary::after {
+  content: '+';
+  position: absolute;
+  right: 0;
+  top: -2px;
+  color: var(--brtlb-seafoam);
+  font-size: 1.25rem;
+  font-weight: 400;
+  transition: transform 200ms ease;
+}
+.qa > details[open] > summary::after { content: '−'; }
+.qa > details > .answer { margin-top: 0.75rem; }
+.qa > details > .answer p { margin-bottom: 0.5rem; }
+.qa > details > .answer p:last-child { margin-bottom: 0; }
+.qa > details > .answer ul { margin-top: 0.5rem; }
 
 /* --- Footer --- */
 footer {

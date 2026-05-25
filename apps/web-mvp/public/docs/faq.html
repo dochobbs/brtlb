@@ -1,0 +1,221 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>brtlb FAQ</title>
+  <meta name="description" content="Quick answers to common questions about brtlb — privacy, cost, devices, what it can and can't do." />
+  <link rel="stylesheet" href="/docs/brand.css" />
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+</head>
+<body>
+  <nav class="topnav" aria-label="Primary">
+    <a href="/docs/" class="topnav-brand">
+      <svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <circle cx="14" cy="32" r="6" fill="var(--brtlb-seafoam)" />
+        <circle cx="32" cy="32" r="6" fill="var(--brtlb-seafoam)" />
+        <circle cx="50" cy="32" r="6" fill="var(--brtlb-seafoam)" />
+      </svg>
+      <span>brtlb docs</span>
+    </a>
+    <div class="topnav-links">
+      <a href="/docs/features.html">Features</a>
+      <a href="/docs/customize.html">Customize</a>
+      <a href="/docs/troubleshoot.html">Troubleshoot</a>
+      <a href="/docs/why.html">Why brtlb</a>
+      <a href="/">App</a>
+    </div>
+  </nav>
+
+  <main class="shell">
+    <h1>FAQ</h1>
+    <p style="margin-top: 0.625rem; font-size: 1.0625rem;">
+      Tap any question. Looking for something specific? Try <a href="/docs/features.html">Features</a>, <a href="/docs/customize.html">Customize</a>, or <a href="/docs/troubleshoot.html">Troubleshoot</a>.
+    </p>
+
+    <div class="qa">
+
+      <details>
+        <summary>Does brtlb work offline?</summary>
+        <div class="answer">
+          <p>No. brtlb needs internet for two calls per visit: AssemblyAI (transcription) and your chosen LLM provider (note generation). Everything else — audio capture, your transcript, your note, your settings — works offline and lives on your device. If your connection drops mid-pipeline, brtlb retries gracefully; if it stays dropped, you'll see a "connection interrupted" message and can retry from audio later.</p>
+        </div>
+      </details>
+
+      <details>
+        <summary>Can I use brtlb on iPad or iPhone?</summary>
+        <div class="answer">
+          <p>Yes — Safari on iPad / iPhone (iOS 17+) is supported and tested. A few iOS-specific things to know:</p>
+          <ul>
+            <li>Don't switch apps during the upload/transcription phase. iOS suspends background tabs and the upload can fail. Hit Stop, wait for the note to render, then walk away.</li>
+            <li>"Add to Home Screen" works and gives you a standalone-app feel, but the storage is isolated from Safari proper — pick one and stick with it.</li>
+            <li>Avoid private browsing mode. iOS silently fails localStorage writes there.</li>
+          </ul>
+          <p>An eventual native iOS app via Capacitor is on the roadmap for true background recording. Not shipped yet.</p>
+        </div>
+      </details>
+
+      <details>
+        <summary>What happens if my laptop crashes mid-visit?</summary>
+        <div class="answer">
+          <p>brtlb persists audio chunks to IndexedDB roughly every second while recording. On next launch, brtlb detects orphaned chunks (audio captured but no recording metadata) and reassembles them into a complete recording you can still process. This is verified with a regression test ("recovers a recording that died mid-capture") so it doesn't quietly break.</p>
+          <p>The narrow window of loss: the most recent 1–2 seconds of audio if the crash happened mid-chunk. For a typical visit that's clinically negligible.</p>
+        </div>
+      </details>
+
+      <details>
+        <summary>Can I edit the note after it's generated?</summary>
+        <div class="answer">
+          <p>Yes, two ways:</p>
+          <ul>
+            <li><strong>Tweak with AI</strong> — type a plain-English instruction in the ✨ box ("shorten the assessment," "fix the patient's age to 8mo"). brtlb regenerates the whole note with your instruction applied. Recommended for most edits.</li>
+            <li><strong>Edit raw markdown</strong> — toggle the right panel from Formatted to Edit. You're editing the actual markdown source. Useful for spot edits that don't need the LLM.</li>
+          </ul>
+          <p>Your manual edits are preserved across template switches. If you regenerate via the Regenerate button, brtlb asks for confirmation first since regeneration replaces your edits.</p>
+        </div>
+      </details>
+
+      <details>
+        <summary>Can I export notes to PDF?</summary>
+        <div class="answer">
+          <p>Not directly. brtlb's export buttons cover what's most useful for the BYO-EHR workflow:</p>
+          <ul>
+            <li><strong>Copy</strong> with rich-text formatting (bold survives the paste into Elation / Word).</li>
+            <li><strong>Share</strong> via the OS's native share sheet (AirDrop, etc.).</li>
+            <li><strong>Email</strong> with the visit label pre-filled as subject.</li>
+            <li><strong>Download</strong> as a <code>.txt</code> file.</li>
+          </ul>
+          <p>For PDF: copy → paste into your word processor → export to PDF. brtlb optimizes for getting the note into your EHR, not for being a printing tool. If PDF export becomes a common ask, it's an easy add.</p>
+        </div>
+      </details>
+
+      <details>
+        <summary>Why can't I use Anthropic Claude with PHI?</summary>
+        <div class="answer">
+          <p>Anthropic's Enterprise BAA enables custom data retention on their side, which (as of writing) <strong>disables browser CORS</strong> for those organizations. brtlb is a browser-only app, so BAA-org Anthropic keys can't reach Anthropic directly from your browser.</p>
+          <p>Workarounds: use Gemini (via Google Cloud BAA, recommended) or Azure OpenAI (via your Azure BAA). Both are unblocked and work the same way in brtlb. Plain Anthropic keys (no BAA) work fine for non-PHI testing.</p>
+          <p>If brtlb later adds a server-side proxy or native shell, Anthropic becomes viable. Not on the near-term roadmap.</p>
+        </div>
+      </details>
+
+      <details>
+        <summary>What does a visit cost?</summary>
+        <div class="answer">
+          <p>brtlb itself costs nothing — you pay your two API providers directly. Rough per-visit cost on the recommended Gemini + AssemblyAI stack:</p>
+          <ul>
+            <li><strong>AssemblyAI transcription:</strong> ~$0.01–$0.05 per visit (priced per second of audio, ~$0.005–$0.008 / min depending on plan).</li>
+            <li><strong>Google Gemini 2.5 Pro:</strong> ~$0.005–$0.03 per visit (transcript in, structured note out; depends on visit length).</li>
+          </ul>
+          <p>Typical 15-minute pediatric visit: <strong>$0.02–$0.08 total</strong>. A 90-minute developmental eval: $0.10–$0.20. You see these bills directly in your AAI dashboard and Google Cloud billing — no markup, no per-seat fees.</p>
+        </div>
+      </details>
+
+      <details>
+        <summary>How do I sync brtlb across devices?</summary>
+        <div class="answer">
+          <p>You don't, by design. brtlb has no backend, no account, no cross-device sync. Your iPad-at-the-clinic and your Mac-at-home are independent — each holds its own recordings.</p>
+          <p>If you need a note on another device, use the Email or Share button to move it. AirDrop is the lowest-friction option on Apple devices and stays peer-to-peer (never traverses the cloud). Universal Clipboard works but transits iCloud — fine for one-off, not great as a routine workflow.</p>
+        </div>
+      </details>
+
+      <details>
+        <summary>How long are my recordings kept?</summary>
+        <div class="answer">
+          <p>As long as you want, by default. Settings → Privacy &amp; Security has an audio retention setting: <strong>7 / 30 / 90 days or "never auto-purge."</strong> The default ships at 7 days. After the window, brtlb deletes the audio blob automatically but keeps the transcript and generated note as metadata (you can still re-tweak, re-export, etc., but you can no longer regenerate from audio).</p>
+          <p>If you want recordings to persist indefinitely, switch to "never." If you want stricter cleanup, set 7 days and explicitly delete visits when you finish charting.</p>
+        </div>
+      </details>
+
+      <details>
+        <summary>Can I self-host brtlb?</summary>
+        <div class="answer">
+          <p>Yes. The repo is open source for beta users (email <a href="mailto:michael@hobbs.md">michael@hobbs.md</a> for access). Vercel's free tier handles a single-physician deployment fine; alternatives like Cloudflare Pages, Netlify, or even a static file server work just as well.</p>
+          <p>Why you might: (1) audit the prompts before trusting them with PHI, (2) customize templates or pipeline steps that aren't exposed via Settings, (3) deploy on infrastructure your practice controls. brtlb is a pure static site — no server runtime — so hosting is trivial.</p>
+        </div>
+      </details>
+
+      <details>
+        <summary>What does brtlb store about my patients?</summary>
+        <div class="answer">
+          <p>Only what's on the screen you're looking at. In your browser's IndexedDB:</p>
+          <ul>
+            <li>The audio blob (deletable / auto-purgeable).</li>
+            <li>The structured transcript JSON from AssemblyAI (text + speaker labels + timestamps).</li>
+            <li>The generated note markdown.</li>
+            <li>Per-recording metadata: visit label (which you wrote), template used, when recorded, duration, your role-chip assignments, diarization hints if any banners fired.</li>
+          </ul>
+          <p>No patient identifiers as structured fields — brtlb doesn't have a "Patient Name" column or an MRN system. Names live where you put them, in the visit label or inside the note text. brtlb is a documentation tool, not a patient database.</p>
+        </div>
+      </details>
+
+      <details>
+        <summary>What about HIPAA — what's covered?</summary>
+        <div class="answer">
+          <p>brtlb itself never holds your PHI — it runs in your browser. The two external services that touch PHI are <strong>AssemblyAI</strong> (transcription) and your chosen LLM provider (note generation). Both are covered by BAAs you sign directly:</p>
+          <ul>
+            <li><strong>AssemblyAI:</strong> 5-minute DocuSign. brtlb defaults to auto-delete on completion (transcripts purged seconds after they return).</li>
+            <li><strong>Google Gemini:</strong> covered by your Google Cloud HIPAA BAA, which your Workspace admin almost certainly has accepted already.</li>
+          </ul>
+          <p>Full walkthrough: <a href="/docs/why.html#baa">Why brtlb → the BAA chain</a>.</p>
+        </div>
+      </details>
+
+      <details>
+        <summary>What if AssemblyAI mishears a medication or finding?</summary>
+        <div class="answer">
+          <p>You have three remediation paths, fastest to slowest:</p>
+          <ul>
+            <li><strong>Tweak with AI:</strong> "Patient is on Concerta 36mg, not Concerta 18." brtlb regenerates with the correction applied and the transcript-grounded discipline still in force.</li>
+            <li><strong>Edit raw markdown:</strong> toggle to Edit, fix the typo, save.</li>
+            <li><strong>Customize the peds vocabulary hints</strong> if a specific term keeps getting wrong. <code>packages/web-mvp/src/lib/peds-vocabulary.ts</code> in the source. Future visits with that term will bias toward the right spelling.</li>
+          </ul>
+          <p>brtlb's prompts also tell the LLM to interpret the transcript charitably — STT errors don't usually cause clinical errors, but garbled drug names or names sometimes need the human-in-the-loop fix.</p>
+        </div>
+      </details>
+
+      <details>
+        <summary>Can a parent see brtlb's screen during a visit?</summary>
+        <div class="answer">
+          <p>Yes. The recording UI in ambient mode is deliberately subtle — a small pulsing dot, a calm timer, and a gentle audio-level line. No big "RECORDING" splash, no live transcript creeping across the screen. Most parents don't notice it after the first 30 seconds.</p>
+          <p>That said, your laptop is yours — if you'd rather have the screen face away from the patient, that's still the safer practice for not just brtlb but anything you keep on your machine.</p>
+        </div>
+      </details>
+
+      <details>
+        <summary>What if I want a note in Spanish, or another language?</summary>
+        <div class="answer">
+          <p>Today brtlb's prompts assume English notes. The transcription supports many languages (AssemblyAI handles Spanish, Mandarin, etc.), but the note-generation templates are English-only. You can write a custom template in your target language and brtlb will follow it — the LLM speaks every major language fluently, the constraint is just brtlb's defaults.</p>
+          <p>First-class multilingual support (UI strings, template translations, language-aware prompts) is on the roadmap as a Pro feature.</p>
+        </div>
+      </details>
+
+      <details>
+        <summary>Can I use brtlb for telehealth visits?</summary>
+        <div class="answer">
+          <p>Yes, with one wrinkle. Pull the audio from the visit into brtlb's mic input — most laptops have a "stereo mix" or virtual audio device that captures system audio. On Mac: BlackHole or Loopback. On Windows: VoiceMeeter or "stereo mix." Then record as usual.</p>
+          <p>Some clinicians just put their phone next to the laptop speakers and let it pick up the audio acoustically — less elegant but works for short visits.</p>
+          <p>Telehealth diarization tends to be cleaner than in-room (the headset isolation helps), so brtlb's notes from telehealth recordings are often very good.</p>
+        </div>
+      </details>
+
+      <details>
+        <summary>What if I have feedback / found a bug / want a feature?</summary>
+        <div class="answer">
+          <p>Email <a href="mailto:michael@hobbs.md">michael@hobbs.md</a> directly. brtlb is a beta with a small, focused user base — your feedback shapes the next release. Bug reports get a same-day response; feature requests get triaged into the active roadmap or the deferred-to-Pro list with reasoning.</p>
+          <p>For a structured bug report: include the visit's <em>raw json</em> download (no PHI shipping anywhere — you attach it explicitly), what you expected, and what you got. That's enough for me to reproduce and fix.</p>
+        </div>
+      </details>
+
+    </div>
+
+    <h2 style="margin-top: 3rem;">Still stuck?</h2>
+    <p>
+      Try <a href="/docs/troubleshoot.html">Troubleshoot</a> for failure-mode-specific guidance. For anything else, <a href="mailto:michael@hobbs.md">michael@hobbs.md</a> goes straight to Dr. Hobbs during the beta.
+    </p>
+  </main>
+
+  <footer>
+    brtlb docs · <a href="/docs/">home</a> · <a href="/docs/features.html">features</a> · <a href="/docs/customize.html">customize</a> · <a href="/docs/troubleshoot.html">troubleshoot</a> · <a href="/docs/why.html">why</a> · <a href="/docs/faq.html">faq</a> · <a href="/">app</a>
+  </footer>
+</body>
+</html>
