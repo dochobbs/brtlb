@@ -4,6 +4,7 @@ import { useAppStore } from '../store';
 import { useRecorderStore } from '../lib/recorder-store';
 import { deleteRecording, listRecordings, logAudit, type RecordingMeta } from '../lib/db';
 import { ConfirmDialog } from '../components/ConfirmDialog';
+import { SetupChecklist } from '../components/SetupChecklist';
 
 const TAGLINES = [
   'Less noise. Same meaning.',
@@ -193,12 +194,12 @@ export function Home() {
         <Lockup size="md" />
         <div className="flex items-center gap-1">
           <a
-            href="https://github.com/dochobbs/brtlb/blob/main/docs/USING_BRTLB.md"
+            href="/docs/"
             target="_blank"
             rel="noopener noreferrer"
             className="rounded-md px-3 py-2 text-sm text-graphite-soft hover:text-graphite"
           >
-            Guide
+            Docs
           </a>
           <button
             type="button"
@@ -224,6 +225,11 @@ export function Home() {
           <p className="mt-1 text-sm text-graphite-soft">{tagline}</p>
         )}
       </section>
+
+      <SetupChecklist
+        hasAnyRecording={totalCount > 0}
+        onStartTestRecording={() => void startNew('ambient')}
+      />
 
       <section className="mb-8 overflow-hidden rounded-2xl bg-graphite text-white shadow-sm sm:mb-10">
         <div className="flex flex-col items-center gap-4 px-6 py-10 text-center sm:px-10 sm:py-14">

@@ -21,6 +21,10 @@ export interface Settings {
   customTemplates: CustomTemplate[];
   /** Set true once the user has finished (or explicitly skipped) the onboarding wizard. */
   wizardCompletedV1: boolean;
+  /** Set true once the user dismisses the Home-screen setup checklist. The
+   * checklist also hides automatically once every step is done — this flag
+   * is for users who'd rather see the bare Home view even while incomplete. */
+  setupChecklistDismissed?: boolean;
   /**
    * If true, brtlb fires DELETE on the AssemblyAI transcript right after
    * pulling the result. Cuts vendor retention from days to seconds. Default
@@ -56,6 +60,7 @@ const DEFAULT_SETTINGS: Settings = {
   idleLockMinutes: 5,
   customTemplates: [],
   wizardCompletedV1: false,
+  setupChecklistDismissed: false,
   deleteAssemblyAiAfterTranscription: true,
   theme: 'system',
 };

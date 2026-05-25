@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Customizing brtlb</title>
+  <meta name="description" content="brtlb is built to be modified. Templates, patterns, custom prompts, model choice — make it yours." />
+  <link rel="stylesheet" href="brand.css" />
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+</head>
+<body>
+  <nav class="topnav" aria-label="Primary">
+    <a href="/docs/" class="topnav-brand">
+      <svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <circle cx="14" cy="32" r="6" fill="var(--brtlb-seafoam)" />
+        <circle cx="32" cy="32" r="6" fill="var(--brtlb-seafoam)" />
+        <circle cx="50" cy="32" r="6" fill="var(--brtlb-seafoam)" />
+      </svg>
+      <span>brtlb docs</span>
+    </a>
+    <div class="topnav-links">
+      <a href="why.html">Why brtlb</a>
+      <a href="customize.html" style="color: var(--brtlb-graphite);">Customize</a>
+      <a href="/">Open app</a>
+    </div>
+  </nav>
+
+  <main class="shell">
+    <h1>Customize brtlb</h1>
+    <p style="margin-top: 0.625rem; font-size: 1.0625rem;">
+      Pediatricians document differently. brtlb is built to bend toward your style without making you write code or wait on us to ship a feature. Six knobs, each independent.
+    </p>
+
+    <div class="callout">
+      <strong>Where everything lives.</strong> All customization happens in <span class="chip">Settings</span> inside the app. Nothing is buried in a config file. Nothing requires a redeploy. Changes save instantly.
+    </div>
+
+    <h2 id="templates">Custom templates</h2>
+    <p>
+      Templates are the structure of your note: the section headers, the order, what each section is supposed to contain. brtlb ships with peds-tuned defaults — well-child, sick visit, ADHD med check, behavioral health, autism eval — but the most leverage is in writing your own.
+    </p>
+
+    <h3>Write one in plain English</h3>
+    <p>
+      Settings → <span class="chip">Custom templates</span> → <span class="chip">+ New</span>. You'll see a textarea. Describe how you want a note to look. Sections, order, length expectations, special quirks. brtlb does not need you to write a structured prompt — it does need you to be specific about what each section should contain.
+    </p>
+
+    <div class="card">
+      <h3 style="font-size: 0.875rem; color: var(--brtlb-graphite-soft); text-transform: uppercase; letter-spacing: 0.05em; margin-top: 0;">Example: your own well-child template</h3>
+<pre><code>Well-Child Visit Note
+
+Sections, in this order:
+- Interval History (not "Subjective" — use this label)
+- Growth &amp; Development
+- ROS (pertinent positives/negatives only)
+- Exam (only systems actually examined)
+- Anticipatory Guidance (enumerate domains discussed: Safety, Sleep,
+  Screens, Hydration, Dental, Temperament, Independence)
+- Vaccines given today
+- Plan
+- Follow-up
+
+Voice: third-person, concise prose, no bullets in HPI.
+Use "mom" and "dad" not "mother/father".
+Sign as "Hobbs, MD" at the very end.</code></pre>
+    </div>
+
+    <h3>Polish with AI</h3>
+    <p>
+      Once your draft is saved, click <span class="chip">✨ Polish with AI</span>. brtlb rewrites your description as a clean structured prompt while preserving every clinical and stylistic choice you made. You stay in control: review the polish, edit if needed, save.
+    </p>
+
+    <div class="callout amber">
+      <strong>What polish refuses to add.</strong> Polish strips out anything that would compromise note quality: "be more confident," "always include return precautions," "always specify dosing." These sound like preferences but actually force fabrication. The polish output will tell you what it removed and why.
+    </div>
+
+    <h3>Activate, swap, and overrides</h3>
+    <p>
+      On any recording you can override the auto-selected template from the dropdown above the note. Auto-selection runs on every new recording from the transcript content; it picks well-child for a wellness flow, sick for an acute complaint, ADHD med check when stimulant titration appears, etc.
+    </p>
+
+    <h2 id="patterns">Patterns</h2>
+    <p>
+      Where templates control <em>what</em> appears, patterns control <em>how</em> it reads. The shipped patterns are <strong>narrative</strong> (default — connected prose), <strong>focused</strong> (terse, clinical), and <strong>telegraphic</strong> (shortest acceptable form). Mix any pattern with any template.
+    </p>
+    <p>
+      You can write your own patterns the same way — Settings → <span class="chip">Patterns</span>. A pattern is a one-paragraph instruction, e.g., "Use bullets in HPI and Plan. Inline ROS with one line per system. Avoid hedge words."
+    </p>
+
+    <h2 id="settings">Settings worth knowing</h2>
+
+    <h3>Provider + model</h3>
+    <p>
+      brtlb works with three model paths today:
+    </p>
+    <ul>
+      <li><strong>Google Gemini API</strong> (recommended) — covered by your Google Cloud HIPAA BAA if your practice has Workspace. Default model is <code>gemini-2.5-pro</code>; <code>gemini-3-pro-preview</code> and <code>gemini-2.5-flash</code> are picker options. Override the freeform model name field to use any other ID Google publishes.</li>
+      <li><strong>OpenAI / Azure OpenAI</strong> — set Base URL to your Azure endpoint to use Azure's BAA. Plain OpenAI requires an Enterprise contract for BAA coverage.</li>
+      <li><strong>Anthropic</strong> — works for non-PHI testing only. BAA-org Anthropic keys hit a CORS wall in the browser; hidden from the picker by default.</li>
+    </ul>
+
+    <h3>AssemblyAI transcription</h3>
+    <p>
+      Single setting: <span class="chip">AssemblyAI key</span>. Sign the AAI BAA once (5-min DocuSign), paste the resulting key. brtlb's default is <strong>auto-delete on completion</strong> — right after pulling the transcript, brtlb fires <code>DELETE /v2/transcript/{id}</code> so AAI retains nothing. Toggle the delete behavior in <span class="chip">Privacy &amp; Security</span> if your practice's policy requires longer vendor-side retention.
+    </p>
+
+    <h3>Auto-purge audio</h3>
+    <p>
+      Settings → <span class="chip">Privacy &amp; Security</span> → audio retention. By default brtlb keeps the audio blob in your browser's IndexedDB so you can regenerate notes from audio later. Set a retention window (7, 30, 90 days, or "never") and brtlb purges audio that's older than the threshold while keeping the transcript + note as metadata.
+    </p>
+
+    <h3>Pediatric vocabulary hints</h3>
+    <p>
+      The transcription pipeline sends a curated list of peds-specific terms (medications, exam findings, vaccine names) so AAI biases toward the right spelling on words like <em>amoxicillin</em>, <em>tympanic membrane</em>, <em>Prevnar</em>, <em>trichotillomania</em>. This list lives in <code>peds-vocabulary.ts</code> and you can edit it if you want to fork your own copy.
+    </p>
+
+    <h2 id="local-edits">Editing brtlb itself</h2>
+    <p>
+      Because brtlb has no backend and no obfuscation, every prompt, template, and pipeline step is visible. If you want to deeply customize, you can:
+    </p>
+    <div class="card-grid">
+      <div class="feature-card">
+        <h3>Read the prompts</h3>
+        <p>Templates live in <code>packages/prompts/src/templates/</code>. Discipline rules and the composer are in <code>packages/pipeline/src/prompts/compose.ts</code>. No magic.</p>
+      </div>
+      <div class="feature-card">
+        <h3>Fork the repo</h3>
+        <p>Open source for beta users. Clone, customize, deploy your own copy. Vercel free tier handles a single-physician deployment fine.</p>
+      </div>
+      <div class="feature-card">
+        <h3>Drop in your own model</h3>
+        <p>Any OpenAI-compatible endpoint works via the Base URL field. Self-hosted Llama with vLLM? <code>http://localhost:8000/v1</code> and you're done.</p>
+      </div>
+      <div class="feature-card">
+        <h3>Audit the network</h3>
+        <p>Open browser devtools → Network. You'll see exactly two outbound destinations during a visit: AAI for transcription, your chosen LLM provider for note generation. Nothing else.</p>
+      </div>
+    </div>
+
+    <h2 id="when-to-tweak">When customization actually helps (and when it doesn't)</h2>
+
+    <h3>Worth your time</h3>
+    <ul>
+      <li><strong>Your section labels.</strong> If you write "Interval History" instead of "Subjective" in Elation, a template tweak saves you a search-and-replace on every note.</li>
+      <li><strong>Your signoff and boilerplate.</strong> "Discussed return precautions and access to me 24/7," "Hobbs, MD" — make these appear automatically rather than typing them every time.</li>
+      <li><strong>Pattern preference.</strong> Some docs love bullets. Some hate them. Switch patterns once, every future note follows.</li>
+    </ul>
+
+    <h3>Not worth it (yet)</h3>
+    <ul>
+      <li><strong>Per-section "always include X."</strong> Tempting, but the model can't include what wasn't discussed. Forcing inclusion breeds fabrication.</li>
+      <li><strong>Diagnostic confidence dials.</strong> "Be more confident" pushes the model to over-narrow. Trust the transcript.</li>
+      <li><strong>Multi-page meta-prompts.</strong> If your template is more than ~30 lines, the model starts ignoring parts. Be specific, then stop.</li>
+    </ul>
+
+    <div class="callout">
+      <strong>Custom template not working the way you want?</strong> Open the raw JSON view (<span class="chip">raw json</span> link top-right of any Review screen) and diff against the rendered note. The cause is almost always in the transcript, not the template. Email <a href="mailto:michael@hobbs.md">michael@hobbs.md</a> with the diff and we'll dig in.
+    </div>
+  </main>
+
+  <footer>
+    brtlb docs · <a href="/docs/">home</a> · <a href="why.html">why brtlb</a> · <a href="/">app</a>
+  </footer>
+</body>
+</html>

@@ -257,7 +257,7 @@ export function Settings() {
           <span>
             Need keys?{' '}
             <a
-              href="https://github.com/dochobbs/brtlb/blob/main/docs/SETUP.md"
+              href="/docs/why.html#baa"
               target="_blank"
               rel="noopener noreferrer"
               className="text-graphite underline underline-offset-2 hover:text-graphite-soft"

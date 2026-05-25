@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>brtlb docs — pediatric AI scribe</title>
+  <meta name="description" content="brtlb is a pediatric AI scribe that runs in your browser. Documentation, customization, and the design choices behind it." />
+  <link rel="stylesheet" href="brand.css" />
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+</head>
+<body>
+  <nav class="topnav" aria-label="Primary">
+    <a href="/docs/" class="topnav-brand">
+      <svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <circle cx="14" cy="32" r="6" fill="var(--brtlb-seafoam)" />
+        <circle cx="32" cy="32" r="6" fill="var(--brtlb-seafoam)" />
+        <circle cx="50" cy="32" r="6" fill="var(--brtlb-seafoam)" />
+      </svg>
+      <span>brtlb docs</span>
+    </a>
+    <div class="topnav-links">
+      <a href="why.html">Why brtlb</a>
+      <a href="customize.html">Customize</a>
+      <a href="/">Open app</a>
+    </div>
+  </nav>
+
+  <section class="hero">
+    <div class="hero-dots" aria-hidden="true">
+      <svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="14" cy="32" r="6" fill="var(--brtlb-seafoam)" />
+        <circle cx="32" cy="32" r="6" fill="var(--brtlb-seafoam)" />
+        <circle cx="50" cy="32" r="6" fill="var(--brtlb-seafoam)" />
+      </svg>
+    </div>
+    <h1>brtlb</h1>
+    <p class="tagline">Less noise. Same meaning.</p>
+    <p class="subtagline">Pediatric documentation, compressed.</p>
+  </section>
+
+  <main class="shell">
+    <h2 id="overview">What brtlb is</h2>
+    <p>
+      brtlb is a pediatric AI scribe that runs entirely in your browser.
+      Press one button, talk to the patient and family, get a finished
+      note. Multi-patient sibling visits, well-child checks, ADHD
+      follow-ups, behavioral health, sick visits — all handled with
+      peds-tuned prompts.
+    </p>
+
+    <div class="callout">
+      <strong>It's yours.</strong> Your audio, your transcript, your note,
+      your API keys — all of it stays on your device unless you choose to
+      share. brtlb has no server, no account, no telemetry tied to a
+      patient. <a href="why.html">Why we built it this way →</a>
+    </div>
+
+    <h2 id="features">What's in the box</h2>
+    <div class="card-grid">
+      <div class="feature-card">
+        <h3><span class="dot"></span>One-tap recording</h3>
+        <p>Ambient mode (whole room, with speaker labels) or dictation mode (you, narrating). No new-visit forms, no patient picker.</p>
+      </div>
+      <div class="feature-card">
+        <h3><span class="dot"></span>Multi-patient visits</h3>
+        <p>Sibling sick visits work out of the box. brtlb auto-detects each child and produces a separate note per kid.</p>
+      </div>
+      <div class="feature-card">
+        <h3><span class="dot"></span>Visit-type-aware templates</h3>
+        <p>Well-child, sick visit, ADHD med check, behavioral health, autism eval. Auto-selected from the transcript, override any time.</p>
+      </div>
+      <div class="feature-card">
+        <h3><span class="dot"></span>Custom templates</h3>
+        <p>Write your own template in plain English. Polish-with-AI gives you a clean version. <a href="customize.html">How →</a></p>
+      </div>
+      <div class="feature-card">
+        <h3><span class="dot"></span>Speaker roles + diarization safety</h3>
+        <p>If the transcription merges voices, brtlb flags it and proposes a one-click split. No silent misattribution.</p>
+      </div>
+      <div class="feature-card">
+        <h3><span class="dot"></span>Tweak with AI</h3>
+        <p>Plain-English steering for any section of the note. "Shorten the HPI," "redo Plan in bullets," etc.</p>
+      </div>
+      <div class="feature-card">
+        <h3><span class="dot"></span>Patterns</h3>
+        <p>Narrative, focused, telegraphic — adjusts style without changing facts. Mix with any template.</p>
+      </div>
+      <div class="feature-card">
+        <h3><span class="dot"></span>QA review + clinical pearls</h3>
+        <p>Optional second pass that checks the note against the transcript and surfaces nuanced observations worth keeping.</p>
+      </div>
+    </div>
+
+    <h2 id="start">Getting started in 5 minutes</h2>
+    <ol class="steps">
+      <li>
+        <h3>Get a Google Cloud API key for Gemini</h3>
+        <p>If your practice has Google Workspace, you almost certainly have a Google HIPAA BAA already. Create a Gemini API key in your Cloud project. <a href="why.html#baa">BAA setup walkthrough →</a></p>
+      </li>
+      <li>
+        <h3>Sign the AssemblyAI BAA</h3>
+        <p>Five-minute DocuSign. Generate an API key from your AAI account.</p>
+      </li>
+      <li>
+        <h3>Paste both keys into Settings</h3>
+        <p>Open brtlb → Settings. Paste, save. brtlb tests them locally — no key ever leaves your browser to anyone but the provider you chose.</p>
+      </li>
+      <li>
+        <h3>Hit Record</h3>
+        <p>Mic permission once, then you're recording. Stop when you're done. Note appears on Review in seconds for a typical visit.</p>
+      </li>
+      <li>
+        <h3>Make it yours</h3>
+        <p>Custom templates, style preferences, save your favorite patterns. <a href="customize.html">Customization guide →</a></p>
+      </li>
+    </ol>
+
+    <h2 id="more">Dig deeper</h2>
+    <div class="card-grid">
+      <div class="feature-card">
+        <h3>Why brtlb works this way</h3>
+        <p>The design rationale: BYO keys, local-only storage, the BAA chain, why no backend.</p>
+        <p style="margin-top: 0.625rem;"><a href="why.html">Read →</a></p>
+      </div>
+      <div class="feature-card">
+        <h3>Customize brtlb</h3>
+        <p>Templates, patterns, custom prompts, model selection, privacy controls. Make it yours.</p>
+        <p style="margin-top: 0.625rem;"><a href="customize.html">Read →</a></p>
+      </div>
+    </div>
+  </main>
+
+  <footer>
+    brtlb is open beta. Found something off? Email <a href="mailto:michael@hobbs.md">michael@hobbs.md</a>.
+  </footer>
+</body>
+</html>

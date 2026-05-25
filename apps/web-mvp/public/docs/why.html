@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Why brtlb works this way</title>
+  <meta name="description" content="Design rationale behind brtlb: BYO keys, browser-only, no backend, BAA chain through your existing Google + AssemblyAI accounts." />
+  <link rel="stylesheet" href="brand.css" />
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+</head>
+<body>
+  <nav class="topnav" aria-label="Primary">
+    <a href="/docs/" class="topnav-brand">
+      <svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <circle cx="14" cy="32" r="6" fill="var(--brtlb-seafoam)" />
+        <circle cx="32" cy="32" r="6" fill="var(--brtlb-seafoam)" />
+        <circle cx="50" cy="32" r="6" fill="var(--brtlb-seafoam)" />
+      </svg>
+      <span>brtlb docs</span>
+    </a>
+    <div class="topnav-links">
+      <a href="why.html" style="color: var(--brtlb-graphite);">Why brtlb</a>
+      <a href="customize.html">Customize</a>
+      <a href="/">Open app</a>
+    </div>
+  </nav>
+
+  <main class="shell">
+    <h1>Why brtlb works this way</h1>
+    <p style="margin-top: 0.625rem; font-size: 1.0625rem;">
+      brtlb is built around three choices that most AI scribes go the other way on: no backend, bring your own keys, no patient data in the cloud (except where your <em>own</em> BAA already lives). Here's why.
+    </p>
+
+    <h2 id="byo-keys">Bring your own keys</h2>
+    <p>
+      Most AI scribes sell you a subscription that includes the AI cost, the transcription cost, and a margin. They hold the keys; you hold a contract. brtlb skips the middleman: you create the AssemblyAI and Google Cloud accounts in your own org, brtlb just orchestrates the calls.
+    </p>
+    <p>Three concrete benefits:</p>
+    <ul>
+      <li><strong>Your BAA, not ours.</strong> Your existing Google Workspace HIPAA agreement and AssemblyAI BAA cover the data flow. No new vendor relationship, no new contract to vet, no third party between you and the LLM provider.</li>
+      <li><strong>Your bill, your control.</strong> Heavy month? You see it in your AAI invoice. Want to swap models or providers? Change a key. No "wait for v2."</li>
+      <li><strong>Your audit trail.</strong> Every API call shows up in your provider's dashboard. brtlb doesn't sit between you and the audit log.</li>
+    </ul>
+
+    <h3 id="baa">The BAA chain</h3>
+    <p>
+      For an ambient pediatric visit, the data flow looks like this:
+    </p>
+
+    <div class="flow" aria-label="Data flow from browser through covered services">
+      <div class="flow-node accent">You<br/><span style="font-size: 0.8125rem; color: var(--brtlb-graphite-soft);">browser</span></div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-node">AssemblyAI<br/><span style="font-size: 0.8125rem; color: var(--brtlb-graphite-soft);">transcription</span></div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-node accent">You<br/><span style="font-size: 0.8125rem; color: var(--brtlb-graphite-soft);">browser</span></div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-node">Google Gemini<br/><span style="font-size: 0.8125rem; color: var(--brtlb-graphite-soft);">note generation</span></div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-node accent">You<br/><span style="font-size: 0.8125rem; color: var(--brtlb-graphite-soft);">browser</span></div>
+    </div>
+
+    <p>Each external hop sits inside a HIPAA BAA you already have:</p>
+    <ul>
+      <li><strong>AssemblyAI</strong> — 5-minute DocuSign, your account, your key. brtlb defaults to auto-delete on completion (transcripts purged seconds after they're returned).</li>
+      <li><strong>Google Gemini</strong> — runs in your billing-enabled Cloud project, which inherits the GCP HIPAA BAA your Workspace admin already accepted.</li>
+    </ul>
+    <p>
+      brtlb is never in the data path. No proxy, no server, no copy of your audio sitting on someone else's disk.
+    </p>
+
+    <div class="callout">
+      <strong>Need step-by-step BAA setup?</strong> See <a href="https://github.com/dochobbs/brtlb/blob/main/docs/BAAs.md"><code>docs/BAAs.md</code></a> for the full walkthrough including Google Workspace admin paths, alternative routes (Azure OpenAI, OpenAI Enterprise, Vertex), and what to do if your practice doesn't have Workspace.
+    </div>
+
+    <h2 id="local-storage">Everything stays on your device (locally)</h2>
+    <p>
+      Audio blobs, transcripts, notes, your API keys, your custom templates — all of it lives in your browser's <strong>IndexedDB</strong>. Not "no database" — a local database, which is the strongest possible no-server story without giving up the ability to look up last week's visit.
+    </p>
+    <p>What this means in practice:</p>
+    <ul>
+      <li><strong>Closing your browser doesn't delete anything.</strong> Open brtlb tomorrow on the same browser profile and your recordings are still there.</li>
+      <li><strong>Different browser = different brtlb.</strong> Logging in on Safari at home doesn't show your Chrome-at-work recordings. There's no sync because there's no server.</li>
+      <li><strong>Auto-purge available.</strong> Set audio retention to 7/30/90 days or "never" in <span class="chip">Privacy &amp; Security</span>.</li>
+      <li><strong>Nothing is encrypted at rest by brtlb,</strong> but your OS + browser profile usually provide that layer. Treat your device as the security boundary.</li>
+    </ul>
+
+    <h2 id="no-backend">No backend, no account</h2>
+    <p>
+      No sign-up, no password, no "forgot password," no account dashboard. brtlb is a single static page that talks to your two API providers directly. If our static page disappears tomorrow, your last note is still on your laptop, and you can run brtlb from a local copy of the source.
+    </p>
+
+    <h3>What this costs you</h3>
+    <p>brtlb skipping a backend means a few things are harder than the SaaS alternatives:</p>
+    <ul>
+      <li><strong>No cross-device sync.</strong> Your iPad-at-the-clinic and your Mac-at-home don't share state.</li>
+      <li><strong>You manage your own keys.</strong> Five minutes once. After that it's a copy-paste into Settings.</li>
+      <li><strong>If your laptop dies, your last visit dies with it.</strong> Export notes as you go, or set a screen-share retention policy with your practice IT.</li>
+    </ul>
+
+    <h2 id="design-tradeoffs">Where we drew lines</h2>
+    <p>A few specific calls worth naming:</p>
+
+    <div class="card-grid">
+      <div class="feature-card">
+        <h3>Templates over toggles</h3>
+        <p>Every feature is a customizable template or pattern, not a setting buried in a menu. If you want different behavior, write a template.</p>
+      </div>
+      <div class="feature-card">
+        <h3>Discipline over fabrication</h3>
+        <p>Prompts default to <em>omitting</em> unstated content rather than confabulating it. Boilerplate negatives ("all other systems negative") are blocked unless your template says otherwise.</p>
+      </div>
+      <div class="feature-card">
+        <h3>Visible failures over silent ones</h3>
+        <p>Diarization can fail. brtlb detects when it likely did and surfaces a banner with a one-click fix. Better to warn than to ship a wrong note quietly.</p>
+      </div>
+      <div class="feature-card">
+        <h3>Audit-friendly by construction</h3>
+        <p>Every LLM call is visible in your provider dashboard. Every prompt is in the open-source repo. Nothing to subpoena from brtlb — we have nothing.</p>
+      </div>
+    </div>
+
+    <h2 id="open-source">It's open</h2>
+    <p>
+      brtlb is open source for beta users. Read the prompts, fork the repo, deploy your own copy, audit the network traffic, change anything you want. If we ever turned hostile, you keep what you have.
+    </p>
+    <p>
+      <a href="mailto:michael@hobbs.md">Email for repo access</a> during the beta — full public availability comes later.
+    </p>
+
+    <div class="callout amber">
+      <strong>Limitations to know about.</strong> brtlb is a documentation tool, not an EHR. It does not push notes into Elation/Athena/etc. — you copy/paste. It does not store patient identifiers as structured fields. It does not bill for E/M codes. If those matter to your workflow, brtlb is the wrong shape for you (yet).
+    </div>
+  </main>
+
+  <footer>
+    brtlb docs · <a href="/docs/">home</a> · <a href="customize.html">customize</a> · <a href="/">app</a>
+  </footer>
+</body>
+</html>
