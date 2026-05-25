@@ -641,6 +641,66 @@ export function Review() {
     await persistMeta({ speakerRoles: next, transcriptText: nextTranscriptText });
   }
 
+  /**
+   * Apply a recovery-suggested speaker split. Rewrites `B` → `B1` / `B2` in
+   * the stored transcript, seeds the role chips with the model's hints, and
+   * clears the suggestion from the persisted hints so the banner refreshes.
+   *
+   * Intentionally does NOT auto-regenerate — the user reviews the new chips
+   * first, then clicks the existing Regenerate button. Existing regen logic
+   * (rolesChanged → showRegenerate) takes over from there.
+   */
+  async function handleApplyRecoverySplit(speakerId: string): Promise<void> {
+    if (!meta || !transcript) return;
+    const suggestion = meta.diarizationHints?.recoverySuggestions?.find(
+      (s) => s.speakerId === speakerId,
+    );
+    if (!suggestion || suggestion.decision !== 'split' || !suggestion.splits) return;
+
+    // Build a map: original utterance index → new sub-speaker id (e.g., "B1")
+    const newSpeakerIdByUtteranceIdx = new Map<number, string>();
+    const subSpeakers: SpeakerRoleAssignment[] = [];
+    suggestion.splits.forEach((split, subIdx) => {
+      const newSpeakerId = `${speakerId}${subIdx + 1}`;
+      subSpeakers.push({ speakerId: newSpeakerId, role: split.role });
+      for (const utteranceIdx of split.indices) {
+        newSpeakerIdByUtteranceIdx.set(utteranceIdx, newSpeakerId);
+      }
+    });
+
+    const updatedTranscript: Transcript = {
+      ...transcript,
+      utterances: transcript.utterances.map((u, idx) => {
+        const newId = newSpeakerIdByUtteranceIdx.get(idx);
+        return newId ? { ...u, speakerId: newId } : u;
+      }),
+    };
+
+    const updatedSpeakerRoles: SpeakerRoleAssignment[] = [
+      ...speakerRoles.filter((r) => r.speakerId !== speakerId),
+      ...subSpeakers,
+    ];
+
+    // Remove the suggestion we just applied so the banner stops offering it.
+    // Keep other (un-applied) suggestions intact.
+    const updatedHints = meta.diarizationHints
+      ? {
+          ...meta.diarizationHints,
+          recoverySuggestions: meta.diarizationHints.recoverySuggestions?.filter(
+            (s) => s.speakerId !== speakerId,
+          ),
+        }
+      : undefined;
+
+    setSpeakerRoles(updatedSpeakerRoles);
+    await persistMeta({
+      transcriptJson: JSON.stringify(updatedTranscript),
+      transcriptText: renderTranscriptText(updatedTranscript, updatedSpeakerRoles),
+      speakerRoles: updatedSpeakerRoles,
+      diarizationHints: updatedHints,
+    });
+  }
+
   async function handleCopy(): Promise<void> {
     // Prefer rich-text copy so bolded abnormal exam findings survive paste
     // into Elation / Word / any rich-text-aware destination. Falls back to
@@ -1064,6 +1124,11 @@ export function Review() {
   // distinct (note completeness vs. speaker attribution).
   const diarizationHints = meta.diarizationHints;
   const collapseSuspects = diarizationHints?.collapseSuspected ?? [];
+  // Recovery suggestions are the actionable subset — keepAsIs verdicts
+  // contribute nothing the user can act on, so they don't get rendered.
+  const applicableSplits = (diarizationHints?.recoverySuggestions ?? []).filter(
+    (s) => s.decision === 'split' && s.splits && s.splits.length >= 2,
+  );
   const showLowSpeakerCountBanner =
     !diarizationBannerDismissed &&
     !isProcessing &&
@@ -1076,7 +1141,13 @@ export function Review() {
     !regenerating &&
     !!effectiveNote.trim() &&
     collapseSuspects.length > 0;
-  const showDiarizationBanner = showLowSpeakerCountBanner || showCollapseBanner;
+  const showSplitOffers =
+    !diarizationBannerDismissed &&
+    !isProcessing &&
+    !regenerating &&
+    !!effectiveNote.trim() &&
+    applicableSplits.length > 0;
+  const showDiarizationBanner = showLowSpeakerCountBanner || showCollapseBanner || showSplitOffers;
 
   return (
     <main className="mx-auto max-w-5xl px-3 py-6 sm:px-6 sm:py-12">
@@ -1168,6 +1239,43 @@ export function Review() {
                 {collapseSuspects.length === 1 ? 'a single role' : 'single roles'}. Review the
                 transcript and tag manually before generating.
               </p>
+            ) : null}
+            {showSplitOffers ? (
+              <div className="mt-2 space-y-2 border-t border-amber-200 pt-2">
+                <p className="text-xs font-medium">
+                  Suggested attribution fix{applicableSplits.length === 1 ? '' : 'es'}:
+                </p>
+                {applicableSplits.map((s) => {
+                  const splits = s.splits ?? [];
+                  const summary = splits
+                    .map(
+                      (sp, i) =>
+                        `${s.speakerId}${i + 1} (${sp.role}, ${sp.indices.length} utts)`,
+                    )
+                    .join(' + ');
+                  return (
+                    <div
+                      key={s.speakerId}
+                      className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between"
+                    >
+                      <p className="text-xs">
+                        <span className="font-medium">Speaker {s.speakerId}</span> → {summary}
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => void handleApplyRecoverySplit(s.speakerId)}
+                        className="self-start rounded border border-amber-400 bg-amber-100 px-2 py-1 text-xs font-medium text-amber-900 hover:bg-amber-200 sm:self-center"
+                      >
+                        Apply split
+                      </button>
+                    </div>
+                  );
+                })}
+                <p className="text-xs text-amber-800/80">
+                  Applying renames speakers (e.g., B → B1 / B2) and updates the role chips. Click{' '}
+                  <span className="font-medium">Regenerate</span> after applying to refresh the note.
+                </p>
+              </div>
             ) : null}
           </div>
           <button

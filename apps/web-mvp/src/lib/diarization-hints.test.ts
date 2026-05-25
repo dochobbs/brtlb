@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import {
   computeDiarizationHints,
+  selectRecoveryCandidates,
   summarizeTranscriptSpeakers,
   type ComputeDiarizationHintsInput,
+  type DiarizationHints,
 } from './diarization-hints';
 
 /** Helper: build hint input mirroring real fixtures from
@@ -224,6 +226,58 @@ describe('computeDiarizationHints', () => {
     );
     expect(hints.lowSpeakerCount).toBe(false);
     expect(hints.collapseSuspected).toEqual([]);
+  });
+});
+
+describe('selectRecoveryCandidates', () => {
+  const counts = (m: Record<string, number>) => new Map(Object.entries(m));
+
+  it('returns every substantive speaker when lowSpeakerCount fires', () => {
+    const hints: DiarizationHints = {
+      lowSpeakerCount: true,
+      collapseSuspected: [],
+    };
+    const out = selectRecoveryCandidates(hints, counts({ A: 26, B: 25, C: 1 }));
+    expect(out).toEqual(['A', 'B']);
+  });
+
+  it('returns only flagged speakers when only collapseSuspected fires', () => {
+    const hints: DiarizationHints = {
+      lowSpeakerCount: false,
+      collapseSuspected: [{ speakerId: 'D', reason: 'other_role_substantive' }],
+    };
+    const out = selectRecoveryCandidates(hints, counts({ A: 27, B: 17, C: 4, D: 8 }));
+    expect(out).toEqual(['D']);
+  });
+
+  it('filters out filler-only flagged speakers (< 3 utterances)', () => {
+    const hints: DiarizationHints = {
+      lowSpeakerCount: false,
+      collapseSuspected: [{ speakerId: 'C', reason: 'low_conf' }],
+    };
+    const out = selectRecoveryCandidates(hints, counts({ A: 20, B: 15, C: 1 }));
+    expect(out).toEqual([]);
+  });
+
+  it('returns empty when no banner condition fires', () => {
+    const hints: DiarizationHints = {
+      lowSpeakerCount: false,
+      collapseSuspected: [],
+    };
+    const out = selectRecoveryCandidates(hints, counts({ A: 20, B: 15 }));
+    expect(out).toEqual([]);
+  });
+
+  it('dedupes flagged speakers that appear with multiple reasons', () => {
+    const hints: DiarizationHints = {
+      lowSpeakerCount: false,
+      collapseSuspected: [
+        { speakerId: 'B', reason: 'low_conf' },
+        { speakerId: 'B', reason: 'other_role_substantive' },
+      ],
+    };
+    const out = selectRecoveryCandidates(hints, counts({ A: 20, B: 15 }));
+    expect(out).toEqual(['B']);
   });
 });
 

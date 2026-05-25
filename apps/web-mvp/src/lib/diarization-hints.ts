@@ -20,6 +20,40 @@ export interface DiarizationHints {
   lowSpeakerCount: boolean;
   /** Banner 2: one of the returned speakers likely contains multiple voices. */
   collapseSuspected: DiarizationCollapseSuspect[];
+  /** Tier 2 recovery: per-speaker suggestions for resolving a suspected
+   * merge. Populated when the diarization hints fire and the recovery
+   * sub-stage was invoked. Empty when no recovery was attempted (no
+   * banner fired) or recovery failed. */
+  recoverySuggestions?: RecoverySuggestion[];
+}
+
+/** One speaker's verdict from the recovery sub-stage. Either keep the
+ * cluster intact (single voice) or split it into 2 sub-speakers. */
+export interface RecoverySuggestion {
+  /** Original AAI speaker label this suggestion is about (e.g. "B"). */
+  speakerId: string;
+  /** The keep/split verdict. */
+  decision: 'keepAsIs' | 'split';
+  /** Short rationale for keepAsIs decisions; helps when re-rendering
+   * the banner so the user understands why no action is offered. */
+  reason?: string;
+  /** When decision === 'split', the proposed sub-speakers. Indices are
+   * GLOBAL transcript utterance indices (already translated from the
+   * per-speaker numbering the model saw). */
+  splits?: RecoverySplit[];
+}
+
+export interface RecoverySplit {
+  /** Role hint for the new sub-speaker; used to seed speakerRoles. */
+  role: 'provider' | 'parent' | 'patient' | 'sibling' | 'other';
+  /** Global transcript utterance indices that belong to this sub-speaker. */
+  indices: number[];
+  /** Model's confidence in this assignment, 0–1. Recovery only ships
+   * splits with all sub-speakers >= 0.8. */
+  confidence: number;
+  /** Why these utterances were grouped together; surfaced in UI for
+   * the clinician's sanity-check before they click Apply. */
+  rationale?: string;
 }
 
 export const EMPTY_DIARIZATION_HINTS: DiarizationHints = {
@@ -115,6 +149,35 @@ export function computeDiarizationHints(input: ComputeDiarizationHintsInput): Di
   }
 
   return { lowSpeakerCount, collapseSuspected };
+}
+
+/** Given diarization hints + the substantive-speaker map, return the
+ * list of speakerIds the recovery sub-stage should evaluate. Empty array
+ * means no recovery should run (banner conditions not met OR no
+ * substantive candidates).
+ *
+ * Rules (mirrors design-speaker-recovery.md):
+ *   - lowSpeakerCount fires → every substantive speaker is a candidate
+ *     (we don't know which cluster swallowed the missing voice).
+ *   - collapseSuspected non-empty → exactly the flagged speakers.
+ *   - Neither → nothing to do.
+ */
+export function selectRecoveryCandidates(
+  hints: DiarizationHints,
+  utteranceCountBySpeaker: ReadonlyMap<string, number>,
+): string[] {
+  const substantive = (sid: string): boolean =>
+    (utteranceCountBySpeaker.get(sid) ?? 0) >= SUBSTANTIVE_UTTERANCE_FLOOR;
+
+  if (hints.lowSpeakerCount) {
+    return [...utteranceCountBySpeaker.keys()].filter(substantive).sort();
+  }
+  if (hints.collapseSuspected.length > 0) {
+    return Array.from(new Set(hints.collapseSuspected.map((s) => s.speakerId)))
+      .filter(substantive)
+      .sort();
+  }
+  return [];
 }
 
 /** Convenience: derive utterance counts and unique speakerIds from a

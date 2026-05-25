@@ -104,6 +104,20 @@ export interface StoredDiarizationHints {
     speakerId: string;
     reason: 'low_conf' | 'omitted' | 'other_role_substantive';
   }>;
+  /** Tier 2 recovery suggestions — per-speaker keep/split verdicts. */
+  recoverySuggestions?: StoredRecoverySuggestion[];
+}
+
+export interface StoredRecoverySuggestion {
+  speakerId: string;
+  decision: 'keepAsIs' | 'split';
+  reason?: string;
+  splits?: Array<{
+    role: 'provider' | 'parent' | 'patient' | 'sibling' | 'other';
+    indices: number[];
+    confidence: number;
+    rationale?: string;
+  }>;
 }
 
 interface BrtlbSchema extends DBSchema {

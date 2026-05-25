@@ -18,9 +18,12 @@ import { PEDIATRIC_WORD_BOOST } from './peds-vocabulary';
 import {
   computeDiarizationHints,
   EMPTY_DIARIZATION_HINTS,
+  selectRecoveryCandidates,
   summarizeTranscriptSpeakers,
   type DiarizationHints,
   type RawIdentifySpeaker,
+  type RecoverySplit,
+  type RecoverySuggestion,
 } from './diarization-hints';
 
 /** Hardcoded `speakers_expected` hint sent to AssemblyAI. The diarization-
@@ -370,6 +373,21 @@ export async function runMvpPipeline(input: RunMvpPipelineInput): Promise<RunMvp
     });
     if (diarizationHints.lowSpeakerCount || diarizationHints.collapseSuspected.length > 0) {
       console.info(`${SPLIT_LOG_PREFIX} diarization hints`, diarizationHints);
+      // Tier 2 recovery — only runs when banners would fire. Best-effort:
+      // if the LLM call fails, suggestions stay empty and the banner falls
+      // back to the manual-tag affordance.
+      try {
+        const recoverySuggestions = await recoverMergedSpeakers(
+          transcript,
+          diarizationHints,
+          input.settings,
+        );
+        if (recoverySuggestions.length > 0) {
+          diarizationHints = { ...diarizationHints, recoverySuggestions };
+        }
+      } catch (err) {
+        console.warn(`${RECOVERY_LOG_PREFIX} top-level failure, banner without recovery`, err);
+      }
     }
   }
 
@@ -856,6 +874,56 @@ PATIENT LABEL: Use the exact name from the provided roster.
 
 Output JSON ONLY — no markdown fences, no explanation.`;
 
+// Tier 2 speaker recovery — invoked only when the diarization hints layer
+// detects a likely merge. Asks the LLM whether a specific speaker cluster
+// contains one consistent voice or two. See docs/design-speaker-recovery.md.
+const RECOVERY_PROMPT = `You are a medical transcription assistant. The speaker diarization for this pediatric visit transcript may have merged two different people into a single speaker label. Your job is to look at one specific speaker's utterances and decide whether they actually contain ONE consistent voice or TWO different people.
+
+DEFAULT: keepAsIs. Only propose a split when the register / content evidence is strong. Examples of strong evidence:
+
+- One subset of utterances uses adult clinical vocabulary, narrates history, or asks knowledgeable follow-up questions ("She started Friday afternoon, low fever 101.4", "Should we do a strep test?"). Another subset uses first-person symptom language or one-to-three-word kid answers ("My throat hurts", "Yeah", "Like a little"). → likely parent + child merged.
+- Two adult registers: one drives the exam and uses clinical terms (provider). Another asks questions on a child's behalf, narrates history, or expresses worry (parent). → likely provider + parent merged (uncommon).
+- Two child registers with clearly different developmental levels (one names complex feelings or describes school; another only answers in single words). → likely two siblings merged.
+
+WEAK / INSUFFICIENT evidence (return keepAsIs):
+
+- The speaker has many short answers AND some longer answers but they share a single first-person perspective (one child gradually opening up).
+- The speaker code-switches between clinical and casual but it's plausibly one provider being warm with a child.
+- You can't point to specific utterance text that shifts register. Vague intuition is not enough.
+
+OUTPUT — JSON ONLY, no prose, no code fences. One of two shapes:
+
+KEEP shape:
+{
+  "keepAsIs": true,
+  "reason": "consistent first-person symptom register throughout, no clinical vocabulary"
+}
+
+SPLIT shape:
+{
+  "splits": [
+    {
+      "role": "parent",
+      "indices": [0, 2, 5, 7, 11],
+      "confidence": 0.85,
+      "rationale": "narrates history with timestamps + clinical detail (utts 0, 2, 5)"
+    },
+    {
+      "role": "patient",
+      "indices": [1, 3, 4, 6, 8, 9, 10],
+      "confidence": 0.85,
+      "rationale": "first-person symptom answers, mostly one-to-three word responses"
+    }
+  ]
+}
+
+RULES:
+- Confidence < 0.8 on any split → return keepAsIs instead.
+- Maximum 2 sub-speakers per cluster. If you genuinely see 3+, return keepAsIs (too uncertain to act).
+- Every utterance index from the input MUST appear in exactly one split. No omissions, no duplicates.
+- Roles: one of "provider", "parent", "patient", "sibling", "other".
+- The \`indices\` are relative to the numbered list you're given below, not the full transcript.`;
+
 interface IdentifyResponse {
   patients?: Array<{
     name?: string;
@@ -1150,6 +1218,181 @@ async function splitByPatient(
     })),
   );
   return { segments, speakerRoles, identifyContext };
+}
+
+// ============================================================================
+// Tier 2 — speaker recovery
+// ============================================================================
+
+interface RecoveryResponse {
+  keepAsIs?: boolean;
+  reason?: string;
+  splits?: Array<{
+    role?: string;
+    indices?: number[];
+    confidence?: number;
+    rationale?: string;
+  }>;
+}
+
+const RECOVERY_VALID_ROLES: ReadonlyArray<RecoverySplit['role']> = [
+  'provider',
+  'parent',
+  'patient',
+  'sibling',
+  'other',
+];
+const RECOVERY_LOG_PREFIX = '[brtlb:recovery]';
+const RECOVERY_CONFIDENCE_FLOOR = 0.8;
+
+/** Evaluate one suspect speaker via the recovery LLM. Returns a normalized
+ * RecoverySuggestion with GLOBAL transcript indices (not per-speaker). */
+async function evaluateRecoveryForSpeaker(
+  transcript: Transcript,
+  speakerId: string,
+  settings: Settings,
+): Promise<RecoverySuggestion> {
+  // Gather this speaker's utterances + their GLOBAL transcript indices so
+  // we can translate per-speaker indices back when applying.
+  const indexed = transcript.utterances
+    .map((u, idx) => ({ idx, u }))
+    .filter(({ u }) => u.speakerId === speakerId);
+
+  if (indexed.length === 0) {
+    return { speakerId, decision: 'keepAsIs', reason: 'no utterances for speaker' };
+  }
+
+  // Renumber for the model: row 0..N-1 with original text.
+  const numbered = indexed.map(({ u }, row) => `[${row}] ${u.text}`).join('\n');
+  const promptBody =
+    `${RECOVERY_PROMPT}\n\n` +
+    `SPEAKER UNDER REVIEW: ${speakerId}\n` +
+    `NUMBER OF UTTERANCES IN THIS CLUSTER: ${indexed.length}\n\n` +
+    `UTTERANCES (numbered for reference):\n${numbered}`;
+
+  const recoveryTemplate: NoteTemplate = {
+    id: 'recovery-speaker',
+    name: 'Recovery: speaker',
+    description: 'Internal — judges whether a speaker cluster contains 1 or 2 voices.',
+    promptBody,
+  };
+
+  const { provider } = buildProvider(settings);
+  let raw: string;
+  try {
+    raw = await provider.generateNote({
+      transcript: { ...transcript, utterances: [] },
+      template: recoveryTemplate,
+      pattern: NEUTRAL_PATTERN,
+      mode: 'ambient',
+      speakerRoles: [],
+    });
+  } catch (err) {
+    console.warn(`${RECOVERY_LOG_PREFIX} call failed for speaker ${speakerId}, keeping as is`, err);
+    return { speakerId, decision: 'keepAsIs', reason: 'recovery call failed' };
+  }
+
+  let parsed: RecoveryResponse;
+  try {
+    parsed = JSON.parse(extractJson(raw)) as RecoveryResponse;
+  } catch (err) {
+    console.warn(`${RECOVERY_LOG_PREFIX} parse failed for speaker ${speakerId}, keeping as is`, {
+      error: err,
+      raw: raw.slice(0, 200),
+    });
+    return { speakerId, decision: 'keepAsIs', reason: 'recovery response unparseable' };
+  }
+
+  // Explicit keep verdict.
+  if (parsed.keepAsIs === true) {
+    return {
+      speakerId,
+      decision: 'keepAsIs',
+      reason: (parsed.reason ?? '').trim() || undefined,
+    };
+  }
+
+  // Validate split shape. Any defect → fall back to keep (safer).
+  const rawSplits = parsed.splits ?? [];
+  if (rawSplits.length < 2 || rawSplits.length > 2) {
+    return {
+      speakerId,
+      decision: 'keepAsIs',
+      reason: `recovery returned ${rawSplits.length} sub-speakers; need exactly 2`,
+    };
+  }
+
+  // Translate per-speaker indices → global. Reject if any index is out of
+  // range, duplicated across sub-speakers, or missing entirely.
+  const allRowsExpected = new Set<number>(indexed.map((_, row) => row));
+  const seenRows = new Set<number>();
+  const splits: RecoverySplit[] = [];
+  for (const s of rawSplits) {
+    const role = (s.role ?? '').trim().toLowerCase() as RecoverySplit['role'];
+    if (!(RECOVERY_VALID_ROLES as readonly string[]).includes(role)) {
+      return { speakerId, decision: 'keepAsIs', reason: `invalid role: ${s.role}` };
+    }
+    const confidence = typeof s.confidence === 'number' ? s.confidence : 0;
+    if (confidence < RECOVERY_CONFIDENCE_FLOOR) {
+      return {
+        speakerId,
+        decision: 'keepAsIs',
+        reason: `sub-speaker confidence ${confidence} below floor ${RECOVERY_CONFIDENCE_FLOOR}`,
+      };
+    }
+    const rows = (s.indices ?? []).filter((i) => Number.isInteger(i) && allRowsExpected.has(i));
+    for (const r of rows) {
+      if (seenRows.has(r)) {
+        return { speakerId, decision: 'keepAsIs', reason: `duplicate index ${r} across sub-speakers` };
+      }
+      seenRows.add(r);
+    }
+    if (rows.length === 0) {
+      return { speakerId, decision: 'keepAsIs', reason: `sub-speaker has no valid indices` };
+    }
+    // Map per-speaker rows back to global transcript indices.
+    const globalIndices = rows.map((row) => indexed[row]?.idx).filter((i): i is number => Number.isInteger(i));
+    splits.push({
+      role,
+      indices: globalIndices.sort((a, b) => a - b),
+      confidence,
+      rationale: (s.rationale ?? '').trim() || undefined,
+    });
+  }
+  // Confirm every per-speaker row was assigned.
+  if (seenRows.size !== allRowsExpected.size) {
+    return {
+      speakerId,
+      decision: 'keepAsIs',
+      reason: `recovery skipped ${allRowsExpected.size - seenRows.size} utterance(s)`,
+    };
+  }
+
+  return { speakerId, decision: 'split', splits };
+}
+
+/** Top-level recovery: given diarization hints and the transcript, evaluate
+ * every candidate speaker and return a list of suggestions. Empty when no
+ * banner condition fired. */
+async function recoverMergedSpeakers(
+  transcript: Transcript,
+  hints: DiarizationHints,
+  settings: Settings,
+): Promise<RecoverySuggestion[]> {
+  const { utteranceCountBySpeaker } = summarizeTranscriptSpeakers(transcript.utterances);
+  const candidates = selectRecoveryCandidates(hints, utteranceCountBySpeaker);
+  if (candidates.length === 0) return [];
+
+  console.info(`${RECOVERY_LOG_PREFIX} evaluating ${candidates.length} candidate speaker(s)`, {
+    candidates,
+  });
+
+  const suggestions: RecoverySuggestion[] = [];
+  // Sequential — typical case is 1–2 candidates and Gemini's quota is per-call.
+  for (const sid of candidates) {
+    suggestions.push(await evaluateRecoveryForSpeaker(transcript, sid, settings));
+  }
+  return suggestions;
 }
 
 function allUtterancesSingleSegment(transcript: Transcript): PatientSegment {
