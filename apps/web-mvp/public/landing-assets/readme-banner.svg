@@ -1,0 +1,102 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 480" width="1280" height="480" role="img" aria-label="brtlb — pediatric documentation, compressed.">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#1F2328"></stop>
+      <stop offset="100%" stop-color="#2A2F36"></stop>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.78" cy="0.18" r="0.55">
+      <stop offset="0%" stop-color="#A8E6CF" stop-opacity="0.18"></stop>
+      <stop offset="100%" stop-color="#A8E6CF" stop-opacity="0"></stop>
+    </radialGradient>
+    
+  </defs>
+
+  
+  <rect width="1280" height="480" fill="url(#bg)"></rect>
+  <rect width="1280" height="480" fill="url(#glow)"></rect>
+
+  
+  <rect x="0.5" y="0.5" width="1279" height="479" fill="none" stroke="#ffffff" stroke-opacity="0.06"></rect>
+
+  
+  <g transform="translate(96, 130)">
+    <circle cx="0" cy="0" r="5" fill="#6FCFA8"></circle>
+    <circle cx="0" cy="0" r="11" fill="#6FCFA8" fill-opacity="0.28"></circle>
+    <text x="22" y="5" fill="#A8E6CF" class="mono" font-size="15">
+      pediatric documentation, compressed
+    </text>
+  </g>
+
+  
+  <g transform="translate(96, 188)">
+    <circle cx="50" cy="0" r="11" fill="#A8E6CF"></circle>
+    <circle cx="116" cy="0" r="11" fill="#A8E6CF"></circle>
+    <circle cx="182" cy="0" r="11" fill="#A8E6CF"></circle>
+  </g>
+
+  
+  <text x="96" y="332" fill="#FFFFFF" class="word" font-size="200">brtlb</text>
+
+  
+  <text x="96" y="392" fill="#FFFFFF" fill-opacity="0.72" class="tag" font-size="26">
+    Less noise. Same meaning.
+  </text>
+
+  
+  <g transform="translate(820, 88)" opacity="0.96">
+    
+    <rect x="0" y="0" width="360" height="304" rx="22" fill="#FFFFFF" fill-opacity="0.04" stroke="#FFFFFF" stroke-opacity="0.10"></rect>
+    
+    <g transform="translate(22, 24)">
+      <rect x="0" y="0" width="148" height="30" rx="15" fill="#A8E6CF" fill-opacity="0.14"></rect>
+      <circle cx="18" cy="15" r="5" fill="#6FCFA8"></circle>
+      <circle cx="18" cy="15" r="9" fill="#6FCFA8" fill-opacity="0.30"></circle>
+      <text x="32" y="20" fill="#A8E6CF" class="mono" font-size="11">recording · ambient</text>
+    </g>
+    
+    <text x="338" y="44" text-anchor="end" fill="#FFFFFF" fill-opacity="0.5" class="mono" font-size="13">12:47</text>
+
+    
+    <g transform="translate(22, 86)">
+      <rect x="0" y="14" width="6" height="26" rx="3" fill="#FFFFFF" fill-opacity="0.55"></rect>
+      <rect x="14" y="6" width="6" height="42" rx="3" fill="#FFFFFF" fill-opacity="0.65"></rect>
+      <rect x="28" y="20" width="6" height="14" rx="3" fill="#FFFFFF" fill-opacity="0.50"></rect>
+      <rect x="42" y="2" width="6" height="50" rx="3" fill="#A8E6CF"></rect>
+      <rect x="56" y="16" width="6" height="22" rx="3" fill="#FFFFFF" fill-opacity="0.6"></rect>
+      <rect x="70" y="10" width="6" height="34" rx="3" fill="#FFFFFF" fill-opacity="0.7"></rect>
+      <rect x="84" y="22" width="6" height="10" rx="3" fill="#FFFFFF" fill-opacity="0.45"></rect>
+      <rect x="98" y="6" width="6" height="42" rx="3" fill="#FFFFFF" fill-opacity="0.7"></rect>
+      <rect x="112" y="0" width="6" height="54" rx="3" fill="#A8E6CF"></rect>
+      <rect x="126" y="14" width="6" height="26" rx="3" fill="#FFFFFF" fill-opacity="0.55"></rect>
+      <rect x="140" y="18" width="6" height="18" rx="3" fill="#FFFFFF" fill-opacity="0.5"></rect>
+      <rect x="154" y="8" width="6" height="38" rx="3" fill="#FFFFFF" fill-opacity="0.7"></rect>
+      <rect x="168" y="20" width="6" height="14" rx="3" fill="#FFFFFF" fill-opacity="0.5"></rect>
+      <rect x="182" y="4" width="6" height="46" rx="3" fill="#FFFFFF" fill-opacity="0.75"></rect>
+      <rect x="196" y="12" width="6" height="30" rx="3" fill="#FFFFFF" fill-opacity="0.6"></rect>
+      <rect x="210" y="22" width="6" height="10" rx="3" fill="#FFFFFF" fill-opacity="0.45"></rect>
+      <rect x="224" y="6" width="6" height="42" rx="3" fill="#FFFFFF" fill-opacity="0.7"></rect>
+      <rect x="238" y="16" width="6" height="22" rx="3" fill="#FFFFFF" fill-opacity="0.55"></rect>
+      <rect x="252" y="10" width="6" height="34" rx="3" fill="#A8E6CF"></rect>
+      <rect x="266" y="20" width="6" height="14" rx="3" fill="#FFFFFF" fill-opacity="0.5"></rect>
+      <rect x="280" y="2" width="6" height="50" rx="3" fill="#FFFFFF" fill-opacity="0.75"></rect>
+      <rect x="294" y="14" width="6" height="26" rx="3" fill="#FFFFFF" fill-opacity="0.55"></rect>
+      <rect x="308" y="18" width="6" height="18" rx="3" fill="#FFFFFF" fill-opacity="0.5"></rect>
+    </g>
+
+    
+    <text x="22" y="180" fill="#FFFFFF" fill-opacity="0.55" class="mono" font-size="11">SOAP · Well-Child</text>
+    <text x="22" y="220" fill="#A8E6CF" class="mono" font-size="11">SUBJECTIVE</text>
+
+    
+    <rect x="22" y="236" width="316" height="6" rx="3" fill="#FFFFFF" fill-opacity="0.20"></rect>
+    <rect x="22" y="252" width="280" height="6" rx="3" fill="#FFFFFF" fill-opacity="0.20"></rect>
+    <rect x="22" y="268" width="206" height="6" rx="3" fill="#FFFFFF" fill-opacity="0.20"></rect>
+  </g>
+
+  
+  <g transform="translate(96, 432)">
+    <text x="0" y="0" fill="#FFFFFF" fill-opacity="0.45" class="mono" font-size="11">
+      browser-only  ·  no backend  ·  ~$0.20 per visit  ·  byo keys
+    </text>
+  </g>
+</svg>

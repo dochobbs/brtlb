@@ -16,10 +16,15 @@ export function useIdleLock(): void {
   const idleLockMinutes = useAppStore((s) => s.settings.idleLockMinutes);
   const lock = useAppStore((s) => s.lock);
   const locked = useAppStore((s) => s.locked);
+  const view = useAppStore((s) => s.view);
 
   useEffect(() => {
     if (!idleLockMinutes || idleLockMinutes <= 0) return;
     if (locked) return; // already locked, no need to track activity
+    // The lock screen exists to hide PHI when the doc walks away. On the
+    // public marketing page there's no PHI to hide — locking there is
+    // confusing UX with no security benefit.
+    if (view === 'landing') return;
 
     let timer: number | null = null;
     const idleMs = idleLockMinutes * 60 * 1000;
@@ -56,5 +61,5 @@ export function useIdleLock(): void {
       }
       document.removeEventListener('visibilitychange', onVisibility);
     };
-  }, [idleLockMinutes, lock, locked]);
+  }, [idleLockMinutes, lock, locked, view]);
 }

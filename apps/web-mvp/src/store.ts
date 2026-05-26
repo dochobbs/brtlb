@@ -122,7 +122,34 @@ function persistSettings(settings: Settings): string | null {
   }
 }
 
-export type View = 'home' | 'settings' | 'record' | 'review' | 'wizard';
+export type View = 'landing' | 'home' | 'settings' | 'record' | 'review' | 'wizard';
+
+/**
+ * Compute the initial view synchronously, before React first renders. Avoids
+ * the home→landing flash that happens when we wait for App's useEffect to
+ * decide. Mirrors the gating logic in App.tsx — keep them in sync.
+ */
+function computeInitialView(settings: Settings): View {
+  if (typeof window === 'undefined') return 'home';
+  const path = window.location.pathname.replace(/\/+$/, '') || '/';
+  if (path === '/wizard') return 'wizard';
+  if (path === '/settings') return 'settings';
+  if (path === '/record') return 'record';
+  if (path === '/review') return 'review';
+
+  const hasNoteKey =
+    (settings.provider === 'anthropic' && Boolean(settings.anthropicApiKey)) ||
+    (settings.provider === 'gemini-api-key' && Boolean(settings.geminiApiKey)) ||
+    (settings.provider === 'openai-compatible' && Boolean(settings.openaiApiKey));
+  const hasKeys = Boolean(settings.assemblyAiKey) && hasNoteKey;
+  if (settings.wizardCompletedV1 || hasKeys) return 'home';
+
+  const standalone =
+    (typeof window.matchMedia === 'function' &&
+      window.matchMedia('(display-mode: standalone)').matches) ||
+    (window.navigator as Navigator & { standalone?: boolean }).standalone === true;
+  return standalone ? 'wizard' : 'landing';
+}
 
 interface AppState {
   settings: Settings;
@@ -138,9 +165,11 @@ interface AppState {
   unlock(): void;
 }
 
+const INITIAL_SETTINGS = loadSettings();
+
 export const useAppStore = create<AppState>((set, get) => ({
-  settings: loadSettings(),
-  view: 'home',
+  settings: INITIAL_SETTINGS,
+  view: computeInitialView(INITIAL_SETTINGS),
   currentRecordingId: null,
   locked: false,
   setView(view) {

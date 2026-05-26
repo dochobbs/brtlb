@@ -16,6 +16,23 @@ export default defineConfig({
     // mic API on iPhone over LAN. Accept the cert warning once on the
     // device and getUserMedia works.
     basicSsl(),
+    // Vite's SPA fallback would serve index.html for /docs/ in dev,
+    // which makes the marketing-page Docs link silently land on the
+    // landing route. Production Vercel routes /docs/* to public/docs/*
+    // correctly; this middleware mirrors that behavior in dev.
+    {
+      name: 'serve-docs-dir-index',
+      configureServer(server) {
+        server.middlewares.use((req, _res, next) => {
+          if (!req.url) return next();
+          const path = req.url.split('?')[0];
+          if (path === '/docs' || path === '/docs/') {
+            req.url = '/docs/index.html';
+          }
+          next();
+        });
+      },
+    },
   ],
   server: { port: 5181, strictPort: true, https: true },
   test: {

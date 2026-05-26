@@ -5,11 +5,22 @@ import { useIdleLock } from './lib/useIdleLock';
 import { useRecorderStore } from './lib/recorder-store';
 import { pathForView, viewFromPath } from './lib/routing';
 import { Home } from './screens/Home';
+import { Landing } from './screens/Landing';
 import { Settings } from './screens/Settings';
 import { Record } from './screens/Record';
 import { Review } from './screens/Review';
 import { LockScreen } from './screens/LockScreen';
 import { Wizard } from './screens/Wizard';
+
+function isStandalonePwa(): boolean {
+  if (typeof window === 'undefined') return false;
+  const navStandalone = (window.navigator as Navigator & { standalone?: boolean }).standalone;
+  if (navStandalone === true) return true;
+  if (typeof window.matchMedia === 'function') {
+    return window.matchMedia('(display-mode: standalone)').matches;
+  }
+  return false;
+}
 
 export function App() {
   const view = useAppStore((s) => s.view);
@@ -27,16 +38,20 @@ export function App() {
 
   // Decide the initial view: honor the URL first (someone visiting
   // /wizard, /record, /review, or /settings via direct link or refresh
-  // lands there), then fall back to auto-launching the wizard if the
-  // user landed on / and has never finished onboarding.
+  // lands there). If they land on / and haven't onboarded yet, show
+  // the marketing landing — unless they're inside the installed PWA,
+  // in which case skip straight to the wizard.
   useEffect(() => {
     const fromUrl = viewFromPath(window.location.pathname);
     if (fromUrl !== 'home') {
       setView(fromUrl);
       return;
     }
-    if (!wizardCompletedV1 && !hasRequiredKeys()) {
+    if (wizardCompletedV1 || hasRequiredKeys()) return;
+    if (isStandalonePwa()) {
       setView('wizard');
+    } else {
+      setView('landing');
     }
     // Empty deps — only on initial mount. Re-running on every settings
     // change would trap the user in the wizard after they "skip for now".
@@ -145,6 +160,8 @@ export function App() {
   if (locked) return <LockScreen />;
 
   switch (view) {
+    case 'landing':
+      return <Landing />;
     case 'home':
       return <Home />;
     case 'settings':
