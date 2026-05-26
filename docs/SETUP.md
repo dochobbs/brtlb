@@ -7,7 +7,7 @@ browser's localStorage — they never leave your device.
 
 ## Easy path: the in-app wizard
 
-Open https://brtlb.vercel.app — if you don't have keys saved yet, the
+Open https://brtlb.io — if you don't have keys saved yet, the
 **onboarding wizard** opens automatically. It walks you through:
 
 1. AssemblyAI signup → key paste → **live verify** (real auth check)
@@ -179,7 +179,7 @@ GPT-4o on either runs roughly 2-5 cents per visit depending on length.
 
 ## 4. Open brtlb and paste your keys
 
-1. Go to **https://brtlb.vercel.app** (or whatever URL the brtlb operator
+1. Go to **https://brtlb.io** (or whatever URL the brtlb operator
    gave you)
 2. Tap **Settings** in the top right
 3. Pick a provider — **Gemini** or **OpenAI-compatible**
@@ -197,9 +197,9 @@ GPT-4o on either runs roughly 2-5 cents per visit depending on length.
 
 For a smoother experience, install brtlb as a Progressive Web App:
 
-- **iPhone**: Open `brtlb.vercel.app` in Safari → tap **Share** → **Add
+- **iPhone**: Open `brtlb.io` in Safari → tap **Share** → **Add
   to Home Screen**. The app icon will appear like a native app.
-- **Android**: Open `brtlb.vercel.app` in Chrome → menu → **Install
+- **Android**: Open `brtlb.io` in Chrome → menu → **Install
   app**.
 
 Granting microphone permission once on first record is normal.

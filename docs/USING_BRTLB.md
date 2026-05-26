@@ -421,7 +421,7 @@ to look up vitals or last visit, tab back, and your timer is still going.
 Chrome / Edge / Arc all support installing brtlb as a standalone window
 (no tabs, no address bar — looks native):
 
-1. Open `brtlb.vercel.app`
+1. Open `brtlb.io`
 2. Click the **install** icon in the address bar (looks like a small
    monitor with a down arrow), or **⋮ → Install brtlb…**
 3. brtlb opens in its own window with the dot-mark icon. You can

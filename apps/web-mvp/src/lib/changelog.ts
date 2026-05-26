@@ -12,6 +12,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ReadonlyArray<ChangelogEntry> = [
   {
+    date: '2026-05-26',
+    title: 'Custom domain: brtlb.io',
+    items: [
+      'brtlb is now reachable at https://brtlb.io — share that URL instead of the old vercel.app one.',
+      "Already installed brtlb as a PWA from brtlb.vercel.app? Don't worry — your existing install keeps working, and all your recordings, notes, and settings stay put. The two URLs serve the same app; we just won't be advertising vercel.app anymore.",
+      'New installs should be done from brtlb.io so the home-screen icon and link previews use the new brand.',
+    ],
+  },
+  {
     date: '2026-05-05',
     title: 'Smarter sibling-visit splitting',
     items: [
@@ -24,7 +33,7 @@ export const CHANGELOG: ReadonlyArray<ChangelogEntry> = [
     date: '2026-05-02',
     title: 'Deep-linkable URLs',
     items: [
-      'Each screen now has a real URL: brtlb.vercel.app/wizard, /record, /review, /settings. Refresh stays where you are. Share a link to a specific screen ("brtlb.vercel.app/settings — your AssemblyAI key goes in the second field").',
+      'Each screen now has a real URL: brtlb.io/wizard, /record, /review, /settings. Refresh stays where you are. Share a link to a specific screen ("brtlb.io/settings — your AssemblyAI key goes in the second field").',
       "Browser back/forward navigates between screens like any normal site. The one exception: back is blocked while a recording is in progress so a swipe-back can't kill an in-progress visit. Use the Cancel or Stop button to leave Record.",
       "Bonus: page-view analytics now break down by screen instead of lumping every visit into one '/' bucket. We can finally see how far new users get past the wizard.",
     ],

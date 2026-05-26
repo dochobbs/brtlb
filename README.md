@@ -7,10 +7,10 @@
 > A pediatric AI scribe that runs **entirely in your browser** — bring your own keys, your audio never touches our servers, because we don't have any.
 
 [![License: AGPL v3](https://img.shields.io/badge/License-AGPL_v3-blue.svg)](LICENSE)
-[![PWA](https://img.shields.io/badge/PWA-installable-5A0FC8.svg)](https://brtlb.vercel.app)
+[![PWA](https://img.shields.io/badge/PWA-installable-5A0FC8.svg)](https://brtlb.io)
 [![Status: pre-1.0](https://img.shields.io/badge/status-pre--1.0-orange.svg)](#status)
 
-**Live at:** https://brtlb.vercel.app · **Docs site:** https://brtlb.vercel.app/docs
+**Live at:** https://brtlb.io · **Docs site:** https://brtlb.io/docs
 
 ---
 
@@ -28,11 +28,11 @@ Tap one button. Speak with your patient. Get a SOAP-style note in ~30 seconds. P
 
 ## Quick start (users)
 
-1. Open **https://brtlb.vercel.app**.
+1. Open **https://brtlb.io**.
 2. Run the **onboarding wizard** when prompted — it walks you through getting an AssemblyAI key, a Google Gemini key, and **live-verifies both** (real auth check + a generate-content probe) before your first visit. ~5 minutes.
 3. Tap **Record visit**.
 
-For the HIPAA/BAA path most practices want, see [`docs/BAAs.md`](docs/BAAs.md). For the manual key walkthrough, see [`docs/SETUP.md`](docs/SETUP.md). For the full feature tour, see [`docs/USING_BRTLB.md`](docs/USING_BRTLB.md) or the [docs site](https://brtlb.vercel.app/docs).
+For the HIPAA/BAA path most practices want, see [`docs/BAAs.md`](docs/BAAs.md). For the manual key walkthrough, see [`docs/SETUP.md`](docs/SETUP.md). For the full feature tour, see [`docs/USING_BRTLB.md`](docs/USING_BRTLB.md) or the [docs site](https://brtlb.io/docs).
 
 ## Quick start (developers)
 
@@ -49,7 +49,7 @@ Run all checks:
 pnpm format:check && pnpm lint && pnpm typecheck && pnpm test
 ```
 
-The app deploys to `brtlb.vercel.app` on every push to `main`.
+The app deploys via Vercel to `brtlb.io` (and `brtlb.vercel.app`, still active) on every push to `main`.
 
 ## Architecture in one paragraph
 
@@ -69,7 +69,7 @@ Deeper design docs live in [`docs/`](docs/) — see the table below.
 
 **User-facing** (live, browseable):
 
-- [Features](https://brtlb.vercel.app/docs/features.html) · [Why brtlb](https://brtlb.vercel.app/docs/why.html) · [Customize](https://brtlb.vercel.app/docs/customize.html) · [Troubleshoot](https://brtlb.vercel.app/docs/troubleshoot.html) · [FAQ](https://brtlb.vercel.app/docs/faq.html)
+- [Features](https://brtlb.io/docs/features.html) · [Why brtlb](https://brtlb.io/docs/why.html) · [Customize](https://brtlb.io/docs/customize.html) · [Troubleshoot](https://brtlb.io/docs/troubleshoot.html) · [FAQ](https://brtlb.io/docs/faq.html)
 
 **In this repo:**
 

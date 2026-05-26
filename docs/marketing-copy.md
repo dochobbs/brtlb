@@ -23,7 +23,7 @@ listed as live. If anything looks generic or hyped, flag it.
 
 ### Single-CTA section
 
-> **Try it free at brtlb.vercel.app.**
+> **Try it free at brtlb.io.**
 > Bring your own AssemblyAI and Google Gemini keys (we'll walk you through
 > getting them) and you're documenting visits in five minutes.
 
@@ -353,7 +353,7 @@ recordings on your device are unaffected.
 
 ### Does brtlb work on my phone?
 
-Yes. brtlb is a Progressive Web App. On iPhone, open brtlb.vercel.app in
+Yes. brtlb is a Progressive Web App. On iPhone, open brtlb.io in
 Safari and tap **Share → Add to Home Screen**. On Android, open in Chrome
 and tap **Install app**. Same code, native-feeling app icon.
 

@@ -6,7 +6,7 @@ import type { View } from '../store';
  * a blank screen from a typo'd URL.
  *
  * Why URLs instead of pure-state routing: gives the user deep-linkable
- * URLs (brtlb.vercel.app/wizard sends a peer straight to onboarding) and
+ * URLs (brtlb.io/wizard sends a peer straight to onboarding) and
  * gives Vercel Analytics distinct page-view events per screen so we can
  * see funnel shape (Home → Wizard → completion) instead of one undifferentiated
  * "/" page view.

@@ -155,7 +155,7 @@ this path is covered when the GCP HIPAA BAA is accepted.
 
 ## A note on Vercel Analytics
 
-brtlb runs Vercel Analytics on the static site at brtlb.vercel.app. It
+brtlb runs Vercel Analytics on the static site at brtlb.io. It
 counts page views (Home / Wizard / Record / Review hits), country, and
 browser — cookieless, no fingerprinting, no cross-site tracking.
 Vercel never sees your audio, transcripts, notes, API keys, or any
