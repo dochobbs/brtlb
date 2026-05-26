@@ -1185,7 +1185,7 @@ export function Review() {
         value={editedLabel}
         onChange={(e) => setEditedLabel(e.target.value)}
         onBlur={handleSaveLabel}
-        placeholder="Add a visit label (e.g., MM age 4 WCV)"
+        placeholder="Add a visit label (e.g., ear pain 4yo WCV)"
         className="mb-4 w-full rounded-md border border-transparent bg-transparent px-2 py-1 text-base font-medium text-graphite placeholder:text-graphite-soft/60 hover:border-graphite-soft/20 focus:border-graphite-soft/40 focus:outline-none sm:text-lg"
       />
 

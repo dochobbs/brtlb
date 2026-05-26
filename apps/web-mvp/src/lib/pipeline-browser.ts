@@ -413,7 +413,7 @@ const SUGGEST_LABEL_PROMPT = `You are reading a pediatric visit transcript and w
 
 GOOD EXAMPLES:
 - "Tommy ear pain f/u"
-- "MM age 4 WCV"
+- "ear pain 4yo WCV"
 - "Lily ADHD med check"
 - "Well child + ear pain"
 - "Autism eval — James"

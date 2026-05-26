@@ -453,7 +453,7 @@ in the background while you're already moving on to the next chart task.
 ## Visit labels
 
 Top of the Review screen there's a free-form **label** field. Type
-anything: "MM age 4 WCV", "Tommy ear pain f/u", "Lac repair 3yo".
+anything: "ear pain 4yo WCV", "lac repair 3yo", "f/u asthma 8yo".
 
 **Auto-label.** If you don't type one, brtlb generates a short label
 from the transcript automatically when the pipeline finishes — uses

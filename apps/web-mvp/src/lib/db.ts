@@ -39,7 +39,7 @@ export interface RecordingMeta {
   providerUsed: string | null;
   /** Set when the audio blob has been auto-purged but metadata kept. */
   audioPurgedAt?: string | null;
-  /** Free-form short label shown on Home list, e.g. "MM age 4 WCV". */
+  /** Free-form short label shown on Home list, e.g. "ear pain 4yo WCV". */
   label?: string | null;
   /** Speaker → role assignments fed into regenerate prompts. */
   speakerRoles?: SpeakerRoleAssignment[];
