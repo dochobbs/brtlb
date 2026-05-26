@@ -66,8 +66,8 @@ Match the note length to the visit's complexity, not a fixed template. A focused
  *
  * The compressed rules earned their keep on a 3-fixture eval — every major
  * failure mode above was eliminated under the new prompt. The structure
- * is borrowed from Roci's note-generation prompt, which has been
- * consistently producing better notes with a leaner discipline block.
+ * is borrowed from an earlier production note-generation prompt that
+ * consistently produced better notes with a leaner discipline block.
  *
  * Calibration choices preserved:
  * - Light expansion of generic positives is still allowed ("sounds good"

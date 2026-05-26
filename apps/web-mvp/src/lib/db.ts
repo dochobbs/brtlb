@@ -48,11 +48,11 @@ export interface RecordingMeta {
    * for backward compatibility with recordings made before the hints
    * landed. See diarization-hints.ts. */
   diarizationHints?: StoredDiarizationHints;
-  /** Markdown output from the Roci-style QA review pass; null if not run. */
+  /** Markdown output from the QA review pass; null if not run. */
   qaReviewMarkdown?: string | null;
   /** When QA review was last run. */
   qaReviewedAt?: string | null;
-  /** Markdown output from the Roci-style clinical pearls pass; null if not run. */
+  /** Markdown output from the clinical pearls pass; null if not run. */
   pearlsMarkdown?: string | null;
   /** When pearls were last generated. */
   pearlsAt?: string | null;

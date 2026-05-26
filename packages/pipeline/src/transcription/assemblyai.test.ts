@@ -75,7 +75,7 @@ describe('transcribeWithAssemblyAi', () => {
     // AssemblyAI requires speech_models on every request; we send the
     // current flagship + the prior-gen as a fallback list.
     expect(body.speech_models).toEqual(['universal-3-pro', 'universal-2']);
-    // Roci-parity request body: medical-domain priors, English-only,
+    // Medical-domain request body: medical priors, English-only,
     // punctuation, formatted text. Always-on (no setting).
     expect(body.domain).toBe('medical-v1');
     expect(body.language_code).toBe('en');

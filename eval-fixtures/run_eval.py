@@ -44,14 +44,14 @@ DISCIPLINE_RULES_V3 = """DOCUMENTATION DISCIPLINE:
 - Preserve conditional plans as conditional. "If X works, then Y" is not the same as "Y will be done."
 - When the clinician explicitly disagrees with a prior diagnosis, test, or family assumption, capture both the prior framing and the clinician's reasoning."""
 
-# === v4 ROCI-PARITY (counseling specificity + authority-citation guardrail) ===
+# === v4 (counseling specificity + authority-citation guardrail) ===
 # Mirrors the current compose.ts FABRICATION_DISCIPLINE_RULES (2026-05-16).
 DISCIPLINE_RULES_V4 = DISCIPLINE_RULES_V3 + """
 - Counseling specificity (Plan / Anticipatory Guidance only — does NOT modify the Exam rule above): when the clinician's specific teaching content or rationale appears in the transcript, document it rather than a generic confirmation. "Reviewed back-sleep, firm surface, no blankets" is stronger than "safe-sleep counseling provided." Use generic phrasing only when the transcript truly lacks specifics. Never invent counseling content. Exam findings continue to follow the rule above — do not add specific abnormality rule-outs ("no wheezing") unless the clinician named them.
 - Do not cite guidelines, organizations, or authorities the clinician did not name. "Per AAFP guidelines," "AAP recommends," "per CDC," "based on Bright Futures," and similar attributions must appear in the transcript before they appear in the note. Plain clinical rationale ("watchful waiting given age, no fever, no perforation") is fine; rationale dressed up as a citation is not."""
 
 # Default to the current production rules. Override via --discipline v3
-# to compare against the previous baseline before the Roci-parity change.
+# to compare against the previous baseline before the v4 discipline change.
 DISCIPLINE_RULES_BY_LABEL = {"v3": DISCIPLINE_RULES_V3, "v4": DISCIPLINE_RULES_V4}
 
 
@@ -75,7 +75,7 @@ def build_prompt(template: dict, transcript_text: str, discipline_rules: str) ->
 def build_split_prompt(
     template: dict, transcript_text: str, discipline_rules: str
 ) -> tuple[str, str]:
-    """System + user split — what Roci does. Returns (system, user).
+    """System + user split. Returns (system, user).
 
     Instructions (template body, length rule, discipline rules) go in the
     system slot; the transcript and mode label stay in the user slot.
@@ -131,7 +131,7 @@ def call_gemini(
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--label", default="v4-roci-parity",
+    parser.add_argument("--label", default="v4-discipline",
                         help="Run label written into output filename")
     parser.add_argument("--model", default="gemini-2.5-pro")
     parser.add_argument("--fixture", default=None,
@@ -141,7 +141,7 @@ def main() -> None:
     parser.add_argument(
         "--system-split",
         action="store_true",
-        help="Send instructions in Gemini's systemInstruction slot instead of a single user message. Experimental — Roci does this; brtlb's production currently does not.",
+        help="Send instructions in Gemini's systemInstruction slot instead of a single user message. Experimental — brtlb's production currently does not.",
     )
     args = parser.parse_args()
 

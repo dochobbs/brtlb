@@ -1,8 +1,6 @@
-<!-- auto-switch by GitHub color scheme -->
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="site/assets/readme-banner.svg">
-  <img alt="brtlb — Less noise. Same meaning." src="site/assets/readme-banner-light.svg">
-</picture>
+<p align="center">
+  <img alt="brtlb — Less noise. Same meaning." src="site/assets/readme-social-card.svg" width="720">
+</p>
 
 # brtlb
 

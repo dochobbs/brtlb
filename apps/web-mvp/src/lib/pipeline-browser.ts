@@ -757,7 +757,7 @@ const NEUTRAL_PATTERN = {
 };
 
 // ---------------------------------------------------------------------------
-// Multi-patient split — lifted and adapted from Roci NoteGenerationService.swift
+// Multi-patient split — adapted from an earlier native-iOS note pipeline
 // ---------------------------------------------------------------------------
 
 export interface PatientSegment {
@@ -1519,7 +1519,7 @@ export interface ReviewNoteInput {
 }
 
 /**
- * Roci-style QA pass. Run a separate LLM call whose only job is to flag
+ * QA pass. Run a separate LLM call whose only job is to flag
  * note-vs-transcript inconsistencies. Cheap (one short reply), high value.
  * Returns markdown — render directly in the UI.
  */
@@ -1607,7 +1607,7 @@ export interface ClinicalPearlsInput {
 }
 
 /**
- * Roci-style enrichment pass scoped to clinical pearls only — 0-3 brief
+ * Enrichment pass scoped to clinical pearls only — 0-3 brief
  * collegial observations grounded in the transcript and note. Cheap (one
  * short reply), surfaced after the note in the UI.
  */
@@ -1650,7 +1650,7 @@ export interface TweakNoteInput {
 }
 
 /**
- * Roci-style note revision. Take an existing note + the transcript +
+ * Note revision pass. Take an existing note + the transcript +
  * a free-form physician instruction ("shorten the assessment", "rewrite
  * the plan as a numbered list", "fix the dose to mg/kg") and return a
  * revised note. The transcript still gates fabrication.

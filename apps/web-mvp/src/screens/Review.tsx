@@ -1848,7 +1848,7 @@ export function Review() {
             </ul>
           </details>
 
-          {/* QA review — Roci-style note-vs-transcript safety check */}
+          {/* QA review — note-vs-transcript safety check */}
           {transcript && editedNote ? (
             <div className="mt-4 rounded-md border border-graphite-soft/20 bg-mist p-3">
               <div className="flex flex-wrap items-center justify-between gap-2">
@@ -1918,7 +1918,7 @@ export function Review() {
             </div>
           ) : null}
 
-          {/* Clinical pearls — Roci-style 0-3 collegial observations */}
+          {/* Clinical pearls — 0-3 collegial observations */}
           {transcript && editedNote ? (
             <div className="mt-4 rounded-md border border-graphite-soft/20 bg-mist p-3">
               <div className="flex flex-wrap items-center justify-between gap-2">

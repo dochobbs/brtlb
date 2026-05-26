@@ -250,7 +250,7 @@ export const useRecorderStore = create<RecorderStore>((set, get) => {
       }
       const rms = Math.sqrt(sum / buf.length) / 128;
       const raw = Math.min(1, rms * 2);
-      // Same smoothing constants as Roci's native iOS meter — makes the
+      // Same smoothing constants as a native iOS audio meter — makes the
       // bars feel less jittery and reach high thresholds more readily.
       smoothed = smoothed * 0.6 + raw * 0.4;
       set({ level: smoothed });
