@@ -91,9 +91,28 @@ const FABRICATION_DISCIPLINE_RULES = `DOCUMENTATION DISCIPLINE:
 - Preserve conditional plans as conditional. "If X works, then Y" is not the same as "Y will be done."
 - When the clinician explicitly disagrees with a prior diagnosis, test, or family assumption, capture both the prior framing and the clinician's reasoning.
 - Counseling specificity (Plan / Anticipatory Guidance only — does NOT modify the Exam rule above): when the clinician's specific teaching content or rationale appears in the transcript, document it rather than a generic confirmation. "Reviewed back-sleep, firm surface, no blankets" is stronger than "safe-sleep counseling provided." Use generic phrasing only when the transcript truly lacks specifics. Never invent counseling content. Exam findings continue to follow the rule above — do not add specific abnormality rule-outs ("no wheezing") unless the clinician named them.
-- Do not cite guidelines, organizations, or authorities the clinician did not name. "Per AAFP guidelines," "AAP recommends," "per CDC," "based on Bright Futures," and similar attributions must appear in the transcript before they appear in the note. Plain clinical rationale ("watchful waiting given age, no fever, no perforation") is fine; rationale dressed up as a citation is not.`;
+- Do not cite guidelines, organizations, or authorities the clinician did not name. "Per AAFP guidelines," "AAP recommends," "per CDC," "based on Bright Futures," and similar attributions must appear in the transcript before they appear in the note. Plain clinical rationale ("watchful waiting given age, no fever, no perforation") is fine; rationale dressed up as a citation is not.
+- Capture decision-making as past-tense narrative, not as forward-looking conditionals. When the clinician deliberates between two options and picks one ("two choices: bump to 27 or add a short-acting booster; going with 27 to keep moving parts minimal"), document the chosen option's rationale in past tense ("Opted to increase to 27 mg to minimize moving parts; short-acting booster discussed as alternative"), not as a future-conditional ("If 27 mg extends coverage..."). The deliberation itself is clinically meaningful — chart what was decided and why, not just what was decided.`;
 
-export function composeNotePrompt(input: GenerateNoteInput): string {
+/**
+ * Output of {@link composeNotePrompt}: the prompt split into the slot the
+ * provider should put its instructions in (`system`) and the slot for the
+ * actual content to act on (`user`).
+ *
+ * Why split: a 2026-05-26 local A/B against 3 synthetic fixtures showed
+ * sending template body + discipline rules in the provider's dedicated
+ * system slot (vs. inlining into the user message) produced materially
+ * better notes — especially on behavioral-health visits where the
+ * single-message variant silently dropped the SI/HI safety screen.
+ * Gemini's `systemInstruction`, OpenAI's `role: 'system'` message, and
+ * Anthropic's top-level `system` parameter all consume `system` here.
+ */
+export interface ComposedNotePrompt {
+  system: string;
+  user: string;
+}
+
+export function composeNotePrompt(input: GenerateNoteInput): ComposedNotePrompt {
   const roleMap = buildRoleMap(input.speakerRoles);
   const lines = input.transcript.utterances
     .map((u) => `[${speakerLabel(u, roleMap)}] ${u.text}`)
@@ -101,7 +120,10 @@ export function composeNotePrompt(input: GenerateNoteInput): string {
 
   const bookmarks = bookmarksBlock(input.bookmarks);
 
-  return [
+  // Instructions: the template body, length policy, discipline rules,
+  // and the per-pattern modifier are operating rules the model should
+  // weight as constraints on its output.
+  const system = [
     input.template.promptBody,
     '',
     ADAPTIVE_LENGTH_RULE,
@@ -109,17 +131,19 @@ export function composeNotePrompt(input: GenerateNoteInput): string {
     FABRICATION_DISCIPLINE_RULES,
     '',
     input.pattern.promptModifier,
-    '',
-    `Recording mode: ${input.mode}`,
-    '',
-    bookmarks,
-    'Transcript:',
-    lines,
   ]
-    .filter((s, idx, arr) => {
-      // Drop the empty bookmarks block but keep its leading blank line slot collapsed
-      if (s === '' && arr[idx - 1] === '' && arr[idx + 1] === 'Transcript:') return false;
-      return true;
-    })
-    .join('\n');
+    .join('\n')
+    .trim();
+
+  // Content to act on: bookmarks (physician-flagged moments) + the mode
+  // label + the transcript itself.
+  const userParts: string[] = [];
+  if (bookmarks) userParts.push(bookmarks);
+  userParts.push(`Recording mode: ${input.mode}`);
+  userParts.push('');
+  userParts.push('Transcript:');
+  userParts.push(lines);
+  const user = userParts.join('\n').trim();
+
+  return { system, user };
 }

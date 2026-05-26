@@ -28,7 +28,7 @@ export function createOpenAiCompatibleProvider(
   return {
     name: 'openai-compatible',
     async generateNote(input: GenerateNoteInput): Promise<string> {
-      const prompt = composeNotePrompt(input);
+      const { system, user } = composeNotePrompt(input);
       const c = await ensureClient();
       const response = await c.chat.completions.create({
         model: config.model,
@@ -37,7 +37,13 @@ export function createOpenAiCompatibleProvider(
         // benefit from headroom; over-allocation is free since the
         // OpenAI-style APIs bill on actual usage, not the cap.
         max_tokens: config.maxTokens ?? 16384,
-        messages: [{ role: 'user', content: prompt }],
+        // System+user split: template body + discipline rules go in the
+        // system message (OpenAI weights system-role content more heavily
+        // for instruction-following); the transcript stays in user.
+        messages: [
+          { role: 'system', content: system },
+          { role: 'user', content: user },
+        ],
       });
       const first = response.choices[0]?.message?.content;
       return first ?? '';

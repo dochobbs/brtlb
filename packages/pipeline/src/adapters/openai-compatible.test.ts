@@ -36,7 +36,7 @@ describe('createOpenAiCompatibleProvider', () => {
     expect(provider.name).toBe('openai-compatible');
   });
 
-  it('calls chat.completions.create with composed prompt as a user message', async () => {
+  it('calls chat.completions.create with system+user split', async () => {
     const create = vi.fn().mockResolvedValue({
       choices: [{ message: { content: 'OK note' } }],
     });
@@ -56,10 +56,16 @@ describe('createOpenAiCompatibleProvider', () => {
     const args = create.mock.calls[0]![0];
     expect(args.model).toBe('gpt-4o');
     expect(args.max_tokens).toBe(1000);
-    expect(args.messages[0]).toEqual({
-      role: 'user',
-      content: expect.stringContaining('cough'),
-    });
+    // System message holds template body + discipline rules; user holds
+    // the transcript. Order matters — system first, then user.
+    expect(args.messages).toHaveLength(2);
+    expect(args.messages[0].role).toBe('system');
+    expect(args.messages[0].content).toContain('Generate.');
+    expect(args.messages[0].content).toContain('DOCUMENTATION DISCIPLINE');
+    expect(args.messages[0].content).not.toContain('cough');
+    expect(args.messages[1].role).toBe('user');
+    expect(args.messages[1].content).toContain('cough');
+    expect(args.messages[1].content).not.toContain('Generate.');
   });
 
   it('returns empty string when message content is null', async () => {

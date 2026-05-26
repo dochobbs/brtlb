@@ -45,7 +45,7 @@ export function createGeminiApiKeyProvider(
   return {
     name: 'gemini-api-key',
     async generateNote(input: GenerateNoteInput): Promise<string> {
-      const prompt = composeNotePrompt(input);
+      const { system, user } = composeNotePrompt(input);
       // Pass the API key in the x-goog-api-key header (NOT a ?key= query
       // param) so it doesn't end up in browser history, referrer headers,
       // CDN access logs, or anything else that might persist URLs. Google's
@@ -64,7 +64,16 @@ export function createGeminiApiKeyProvider(
             'x-goog-api-key': config.apiKey,
           },
           body: JSON.stringify({
-            contents: [{ role: 'user', parts: [{ text: prompt }] }],
+            // System+user split: instructions in `systemInstruction`
+            // (Gemini's dedicated instructions slot — separately cached
+            // and weighted as operating rules), transcript in the user
+            // message. Local A/B (2026-05-26) showed this materially
+            // improves note quality vs. inlining instructions into the
+            // user message — especially on behavioral-health visits
+            // where the single-message variant silently dropped the
+            // SI/HI safety screen.
+            systemInstruction: { parts: [{ text: system }] },
+            contents: [{ role: 'user', parts: [{ text: user }] }],
             // Default raised from 4096 to 16384 (2026-05-18). Gemini 2.5
             // Pro uses extended-thinking tokens that count toward this
             // cap; on long sibling-visit splitter prompts the model can

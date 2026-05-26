@@ -90,7 +90,10 @@ describe('createGeminiVertexProvider', () => {
       'https://us-central1-aiplatform.googleapis.com/v1/projects/test-proj/locations/us-central1/publishers/google/models/gemini-2.0-pro:generateContent',
     );
     expect(receivedHeaders.Authorization).toBe('Bearer ya29.fake');
+    // Instructions go in systemInstruction (Gemini's dedicated rule slot);
+    // transcript stays in contents[user].
     expect(receivedBody).toEqual({
+      systemInstruction: { parts: [{ text: expect.stringContaining('SOAP.') }] },
       contents: [
         {
           role: 'user',

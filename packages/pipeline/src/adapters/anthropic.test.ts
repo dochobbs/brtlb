@@ -41,7 +41,7 @@ describe('createAnthropicProvider', () => {
     expect(provider.name).toBe('anthropic');
   });
 
-  it('calls messages.create with the composed prompt and returns the text response', async () => {
+  it('calls messages.create with system+user split and returns the text response', async () => {
     const create = vi.fn().mockResolvedValue({
       content: [{ type: 'text', text: 'Generated SOAP note here.' }],
     });
@@ -62,10 +62,16 @@ describe('createAnthropicProvider', () => {
     const args = create.mock.calls[0]![0];
     expect(args.model).toBe('claude-sonnet-4-6');
     expect(args.max_tokens).toBe(2048);
+    // Template body + discipline rules ride in `system`; transcript stays
+    // in the user message. The split lets Anthropic weight the
+    // instructions as constraints rather than content.
+    expect(args.system).toContain('Generate a SOAP note.');
+    expect(args.system).toContain('DOCUMENTATION DISCIPLINE');
+    expect(args.system).not.toContain('[Parent] fever');
     expect(args.messages).toEqual([
-      { role: 'user', content: expect.stringContaining('Generate a SOAP note.') },
+      { role: 'user', content: expect.stringContaining('[Parent] fever') },
     ]);
-    expect(args.messages[0].content).toContain('[Parent] fever');
+    expect(args.messages[0].content).not.toContain('Generate a SOAP note.');
   });
 
   it('concatenates multiple text blocks in the response', async () => {

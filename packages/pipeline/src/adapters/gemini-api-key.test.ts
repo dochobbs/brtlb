@@ -66,10 +66,24 @@ describe('createGeminiApiKeyProvider', () => {
     expect(receivedUrl).not.toContain('?key=');
     // Key travels in the x-goog-api-key header instead.
     expect(receivedHeaders['x-goog-api-key']).toBe('AIza-fake');
+    // Instructions live in systemInstruction; transcript in contents[user].
+    // Cross-check the split actually happened: instructions must NOT appear
+    // in the user message, transcript must NOT appear in the system slot.
     expect(receivedBody).toEqual({
+      systemInstruction: { parts: [{ text: expect.stringContaining('SOAP.') }] },
       contents: [{ role: 'user', parts: [{ text: expect.stringContaining('rash') }] }],
       generationConfig: { maxOutputTokens: 16384 },
     });
+    const sys = (
+      receivedBody.systemInstruction as { parts: Array<{ text: string }> }
+    ).parts[0]!.text;
+    const usr = (
+      receivedBody.contents as Array<{ parts: Array<{ text: string }> }>
+    )[0]!.parts[0]!.text;
+    expect(sys).toContain('DOCUMENTATION DISCIPLINE');
+    expect(sys).not.toContain('rash');
+    expect(usr).not.toContain('SOAP.');
+    expect(usr).not.toContain('DOCUMENTATION DISCIPLINE');
   });
 
   it('throws on non-2xx response', async () => {

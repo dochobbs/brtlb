@@ -28,7 +28,7 @@ export function createAnthropicProvider(
   return {
     name: 'anthropic',
     async generateNote(input: GenerateNoteInput): Promise<string> {
-      const prompt = composeNotePrompt(input);
+      const { system, user } = composeNotePrompt(input);
       const c = await ensureClient();
       const response = await c.messages.create({
         model: config.model,
@@ -38,7 +38,11 @@ export function createAnthropicProvider(
         // long notes; 4096 was occasionally clipping output on Sonnet
         // and Opus too. Callers can override per-request.
         max_tokens: config.maxTokens ?? 16384,
-        messages: [{ role: 'user', content: prompt }],
+        // System+user split — template body, length policy, and discipline
+        // rules go in `system` (where Anthropic weights them as constraints,
+        // not content); the transcript goes in the user message.
+        system,
+        messages: [{ role: 'user', content: user }],
       });
 
       const parts: string[] = [];

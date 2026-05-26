@@ -47,7 +47,7 @@ export function createGeminiVertexProvider(
   return {
     name: 'gemini-vertex',
     async generateNote(input: GenerateNoteInput): Promise<string> {
-      const prompt = composeNotePrompt(input);
+      const { system, user } = composeNotePrompt(input);
       const a = await ensureAuth();
       const tokenResponse = await a.getAccessToken();
       const token = tokenResponse.token;
@@ -62,7 +62,9 @@ export function createGeminiVertexProvider(
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          contents: [{ role: 'user', parts: [{ text: prompt }] }],
+          // System+user split, same rationale as gemini-api-key adapter.
+          systemInstruction: { parts: [{ text: system }] },
+          contents: [{ role: 'user', parts: [{ text: user }] }],
         }),
       });
 

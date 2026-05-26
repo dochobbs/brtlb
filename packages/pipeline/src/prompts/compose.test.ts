@@ -49,15 +49,24 @@ function input(over: Partial<GenerateNoteInput> = {}): GenerateNoteInput {
 }
 
 describe('composeNotePrompt', () => {
-  it('includes the template body, pattern modifier, and mode', () => {
-    const out = composeNotePrompt(input());
-    expect(out).toContain('Generate a SOAP note.');
-    expect(out).toContain('Use bullet points.');
-    expect(out).toContain('Recording mode: ambient');
+  it('puts template body + pattern modifier in system; mode in user', () => {
+    const { system, user } = composeNotePrompt(input());
+    expect(system).toContain('Generate a SOAP note.');
+    expect(system).toContain('Use bullet points.');
+    expect(system).toContain('DOCUMENTATION DISCIPLINE');
+    expect(user).toContain('Recording mode: ambient');
+    expect(user).not.toContain('Generate a SOAP note.');
+    expect(user).not.toContain('DOCUMENTATION DISCIPLINE');
   });
 
-  it('renders unlabeled speakers as [Speaker A], [Speaker B]', () => {
-    const out = composeNotePrompt(
+  it('puts transcript content in user, not in system', () => {
+    const { system, user } = composeNotePrompt(input());
+    expect(user).toContain('fever for two days');
+    expect(system).not.toContain('fever for two days');
+  });
+
+  it('renders unlabeled speakers as [Speaker A], [Speaker B] in user', () => {
+    const { user } = composeNotePrompt(
       input({
         transcript: transcript([
           utterance({ speakerId: 'A', text: 'one' }),
@@ -65,12 +74,12 @@ describe('composeNotePrompt', () => {
         ]),
       }),
     );
-    expect(out).toContain('[Speaker A] one');
-    expect(out).toContain('[Speaker B] two');
+    expect(user).toContain('[Speaker A] one');
+    expect(user).toContain('[Speaker B] two');
   });
 
   it('uses speakerRoles when provided, capitalizing role names', () => {
-    const out = composeNotePrompt(
+    const { user } = composeNotePrompt(
       input({
         transcript: transcript([
           utterance({ speakerId: 'A', text: 'fever' }),
@@ -82,38 +91,38 @@ describe('composeNotePrompt', () => {
         ],
       }),
     );
-    expect(out).toContain('[Parent] fever');
-    expect(out).toContain('[Provider] how high');
+    expect(user).toContain('[Parent] fever');
+    expect(user).toContain('[Provider] how high');
   });
 
   it('falls back to Utterance.role when speakerRoles is empty', () => {
-    const out = composeNotePrompt(
+    const { user } = composeNotePrompt(
       input({
         transcript: transcript([utterance({ speakerId: 'A', role: 'patient', text: 'hi' })]),
         speakerRoles: [],
       }),
     );
-    expect(out).toContain('[Patient] hi');
+    expect(user).toContain('[Patient] hi');
   });
 
   it('speakerRoles wins over Utterance.role', () => {
-    const out = composeNotePrompt(
+    const { user } = composeNotePrompt(
       input({
         transcript: transcript([utterance({ speakerId: 'A', role: 'patient', text: 'hi' })]),
         speakerRoles: [{ speakerId: 'A', role: 'parent' }],
       }),
     );
-    expect(out).toContain('[Parent] hi');
-    expect(out).not.toContain('[Patient]');
+    expect(user).toContain('[Parent] hi');
+    expect(user).not.toContain('[Patient]');
   });
 
-  it('emits "Recording mode: dictation" for dictation mode', () => {
-    const out = composeNotePrompt(input({ mode: 'dictation' }));
-    expect(out).toContain('Recording mode: dictation');
+  it('emits "Recording mode: dictation" in the user message for dictation mode', () => {
+    const { user } = composeNotePrompt(input({ mode: 'dictation' }));
+    expect(user).toContain('Recording mode: dictation');
   });
 
-  it('preserves utterance order', () => {
-    const out = composeNotePrompt(
+  it('preserves utterance order in the user message', () => {
+    const { user } = composeNotePrompt(
       input({
         transcript: transcript([
           utterance({ speakerId: 'A', text: 'first' }),
@@ -122,7 +131,7 @@ describe('composeNotePrompt', () => {
         ]),
       }),
     );
-    const positions = ['first', 'second', 'third'].map((s) => out.indexOf(s));
+    const positions = ['first', 'second', 'third'].map((s) => user.indexOf(s));
     expect(positions[0]).toBeLessThan(positions[1]!);
     expect(positions[1]).toBeLessThan(positions[2]!);
   });

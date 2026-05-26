@@ -73,4 +73,7 @@ eval-fixtures/*
 !eval-fixtures/run_sibling_eval.py
 !eval-fixtures/README.md
 eval-fixtures/__pycache__/
+# Per-run A/B output artifacts. Kept locally for comparison, never
+# committed — they're regenerable from the transcripts + eval harness.
+eval-fixtures/synthetic-*/note.ab*.md
 
