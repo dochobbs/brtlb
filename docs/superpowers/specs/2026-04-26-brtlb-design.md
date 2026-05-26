@@ -10,7 +10,7 @@
 
 `brtlb` is a standalone, cross-platform, BYO-keys AI ambient scribe focused on pediatrics. It records a patient encounter, transcribes it with speaker diarization, generates a clinical note in a chosen template, lets the provider edit, and shares it out. PHI never leaves the user's device — no servers, no accounts, no cloud sync in v1.
 
-The product extracts and adapts the proven recording → transcribe → generate pipeline from `Roci` (Lakes Pediatrics' internal scribe), but removes the Elation EHR coupling and per-practice assumptions so any pediatrician can install it and use their own provider keys.
+The product adapts the recording → transcribe → generate pipeline from a separate single-practice scribe the author built earlier, but strips out EHR coupling and per-practice assumptions so any pediatrician can install it and use their own provider keys.
 
 ## 2. Target User
 

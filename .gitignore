@@ -38,6 +38,11 @@ service-account*.json
 *.swo
 .DS_Store
 
+# Local dev / agent state (never goes upstream)
+.claude/
+.remember/
+brtlb-readme-graphics/
+
 # Logs
 *.log
 npm-debug.log*

@@ -238,8 +238,8 @@ async function requestTranscript(
   // Bias the diarizer toward the expected speaker count. Without this
   // hint AssemblyAI auto-detects and frequently lands on 2 even for
   // 4-speaker visits (provider + 2 parents + child), with multiple
-  // voices smeared across both clusters. Empirically confirmed on
-  // the Rowan 15-mo visit. Only meaningful when speaker_labels is on.
+  // voices smeared across both clusters. Only meaningful when
+  // speaker_labels is on.
   if (speakerLabels && options.speakersExpected && options.speakersExpected > 0) {
     body.speakers_expected = options.speakersExpected;
   }
