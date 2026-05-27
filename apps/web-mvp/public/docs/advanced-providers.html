@@ -1,0 +1,171 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Advanced providers — Anthropic on Vertex AI or AWS Bedrock</title>
+  <meta name="description" content="Setup notes for running Anthropic Claude through Google Vertex AI or AWS Bedrock — for practices that want Sonnet/Opus quality and already operate on those clouds." />
+  <link rel="stylesheet" href="/docs/brand.css" />
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+</head>
+<body>
+  <nav class="topnav" aria-label="Primary">
+    <a href="/docs/" class="topnav-brand">
+      <svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <circle cx="14" cy="32" r="6" fill="var(--brtlb-seafoam)" />
+        <circle cx="32" cy="32" r="6" fill="var(--brtlb-seafoam)" />
+        <circle cx="50" cy="32" r="6" fill="var(--brtlb-seafoam)" />
+      </svg>
+      <span>brtlb docs</span>
+    </a>
+    <div class="topnav-links">
+      <a href="/docs/features.html">Features</a>
+      <a href="/docs/customize.html">Customize</a>
+      <a href="/docs/troubleshoot.html">Troubleshoot</a>
+      <a href="/docs/why.html">Why brtlb</a>
+      <a href="/docs/advanced-providers.html" aria-current="page">Advanced</a>
+      <a href="/">App</a>
+    </div>
+  </nav>
+
+  <main class="shell">
+    <h1>Advanced providers — Anthropic via Vertex AI or AWS Bedrock</h1>
+    <p style="margin-top: 0.625rem; font-size: 1.0625rem;">
+      The brtlb defaults (OpenAI GPT-5-mini or Google Gemini) cover ~95% of clinical use cases at lower cost and friction than the paths below. This page is for the small subset of practices where one of these is true:
+    </p>
+    <ul>
+      <li>You're already on AWS or GCP with infrastructure expertise and want to keep your BAA chain within a single cloud vendor</li>
+      <li>You've personally evaluated Claude Sonnet and found its handling of a specific failure mode (behavioral-health safety screens, deliberation rationale on med changes) materially better for your visit mix than the defaults</li>
+      <li>Your practice compliance officer requires a specific cloud-vendor BAA</li>
+    </ul>
+    <p>If none of those apply, the regular <a href="/docs/customize.html">setup walkthrough</a> is the right read.</p>
+
+    <h2 id="tldr">TL;DR</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Path</th>
+          <th>BAA covered by</th>
+          <th>Adapter status</th>
+          <th>Quota friction</th>
+          <th>Browser-direct?</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Anthropic via Google Vertex AI</td>
+          <td>Existing Google Workspace / GCP HIPAA BAA</td>
+          <td>🚧 Planned</td>
+          <td>Real — default quota = 0, requires quota-increase request</td>
+          <td>✅ Yes (CORS confirmed)</td>
+        </tr>
+        <tr>
+          <td>Anthropic via AWS Bedrock</td>
+          <td>Existing AWS BAA</td>
+          <td>🚧 Planned</td>
+          <td>Low — usually pre-allocated</td>
+          <td>⚠️ Yes but auth is complex (SigV4 in browser)</td>
+        </tr>
+      </tbody>
+    </table>
+    <p>Both adapters are not yet built. The sections below describe what the setup will look like and the known gotchas so you can plan.</p>
+
+    <h2 id="vertex">Path A — Anthropic Claude via Google Vertex AI</h2>
+    <p><strong>Status: planned, adapter not yet shipped.</strong></p>
+    <p>Sonnet/Opus quality through the same Google Cloud project + HIPAA BAA that already covers your Gemini key. No second vendor account, no extra BAA to sign, browser-direct calls confirmed working (CORS is permissive on <code>*-aiplatform.googleapis.com</code>).</p>
+
+    <h3>Why the adapter isn't shipped yet</h3>
+    <p>A 2026-05-26 dry run against <code>claude-sonnet-4-6</code> on Vertex confirmed:</p>
+    <ul>
+      <li>✅ CORS permits browser-direct calls — confirmed by preflight test</li>
+      <li>✅ Bearer-token auth via service-account JWT works</li>
+      <li>✅ The model is enabled and recognized in the test project</li>
+      <li>❌ Default per-minute quota is <strong>zero</strong> — every request returns HTTP 429 with <code>RESOURCE_EXHAUSTED</code> until you file a quota-increase ticket through the Cloud Console</li>
+      <li>❌ Vertex Anthropic is region-specific (us-east5 yes, us-central1 no) and lags api.anthropic.com by 2–6 weeks on new model versions</li>
+    </ul>
+    <p>The quota wall makes "Settings → paste key → record a visit" not work out of the box. The adapter is planned to ship together with a Settings flow that detects the 429 and surfaces a specific actionable error ("file a quota increase here") instead of a generic provider failure.</p>
+
+    <h3>What setup will look like when the adapter lands</h3>
+    <ol>
+      <li>Enable Vertex AI API in your Google Cloud project</li>
+      <li>Enable Claude Sonnet 4.6 (or whichever) in Vertex Model Garden and accept Anthropic's terms (~30 seconds)</li>
+      <li>File a quota-increase request for <code>online_prediction_input_tokens_per_minute_per_base_model</code> on <code>anthropic-claude-sonnet-4-6</code> — Google usually approves within hours</li>
+      <li>Create a service account with role <code>roles/aiplatform.user</code></li>
+      <li>Download a service-account JSON key</li>
+      <li>Paste the JSON into brtlb Settings → Provider → Anthropic on Vertex</li>
+    </ol>
+
+    <h3>Honest gotchas</h3>
+    <ul>
+      <li><strong>Service-account JSON in localStorage is a stronger secret than an API key.</strong> Scoped to the entire Cloud project, long-lived, not trivially rotatable. Scope the SA tightly to <code>roles/aiplatform.user</code> on a single project.</li>
+      <li><strong>Cloud Console access ≠ Workspace admin access.</strong> Most clinicians have Workspace admin (admin.google.com) but not Cloud Console roles. Service-account creation typically requires IT.</li>
+      <li><strong>Regional availability quirks</strong> (this list moves; verify before you set up): <code>us-east5</code> full lineup; <code>europe-west1</code> partial; <code>us-central1</code> Gemini yes / Anthropic no.</li>
+      <li><strong>Model-release lag.</strong> Anthropic ships new versions to api.anthropic.com first, Bedrock second, Vertex third. Plan for being a model-generation behind for ~4 weeks after each Anthropic release.</li>
+    </ul>
+
+    <p><strong>Want this prioritized?</strong> Email <a href="mailto:michael@hobbs.md">michael@hobbs.md</a>. If multiple practices ask, the adapter moves up.</p>
+
+    <h2 id="bedrock">Path B — Anthropic Claude via AWS Bedrock</h2>
+    <p><strong>Status: planned, adapter not yet shipped.</strong></p>
+    <p>Same Anthropic models, AWS-native auth and BAA. Most appropriate for practices that already operate AWS infrastructure and want the BAA chain to stay within one cloud vendor.</p>
+
+    <h3>Setup walkthrough</h3>
+    <p>This is documented in full because the AWS-side setup is reusable knowledge for healthcare folks even before the brtlb adapter ships. You can also use it today by routing Bedrock through a separate proxy.</p>
+
+    <ol>
+      <li><strong>Confirm your AWS HIPAA BAA.</strong> AWS includes BAAs in the standard AWS Customer Agreement for accounts that have requested them — go to <a href="https://console.aws.amazon.com/artifact/">AWS Artifact</a> → AWS Business Associate Addendum → accept if not already done.</li>
+      <li><strong>Enable Bedrock in your region.</strong> Bedrock is region-scoped. The regions with the widest Anthropic model availability are <code>us-east-1</code> (N. Virginia) and <code>us-west-2</code> (Oregon). Open the <a href="https://console.aws.amazon.com/bedrock/">Bedrock console</a> and select one of these.</li>
+      <li><strong>Request access to the Anthropic models.</strong> In the Bedrock console sidebar → <strong>Model access</strong> → find Claude (Anthropic) entries → click <strong>Request model access</strong> → submit. Access for established Anthropic models is typically granted within an hour; brand-new model releases can take longer.</li>
+      <li>
+        <strong>Create an IAM user (or role) with Bedrock invocation permissions.</strong>
+        <p>IAM Console → Users → Create user → name it something like <code>brtlb-bedrock-user</code>. Skip the AWS Management Console access option (this is an API-only identity). Click through to permissions.</p>
+        <p>Attach this minimum-scope policy (replace the model ARN with whichever Anthropic model you'll use):</p>
+<pre style="background: var(--brtlb-mist); padding: 0.875rem; border-radius: 6px; overflow-x: auto;"><code>{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": ["bedrock:InvokeModel"],
+      "Resource": [
+        "arn:aws:bedrock:us-east-1::foundation-model/anthropic.claude-sonnet-4-6-v1:0"
+      ]
+    }
+  ]
+}</code></pre>
+        <p>The narrow ARN scope means the key can only invoke specific Anthropic models — not other Bedrock models, not other AWS services.</p>
+      </li>
+      <li><strong>Generate access keys for this user.</strong> IAM Console → your new user → Security credentials → Create access key → "Application running outside AWS" → Create. Copy the <strong>Access key ID</strong> and <strong>Secret access key</strong>. (You'll only see the secret once.)</li>
+      <li><strong>When the brtlb adapter ships,</strong> paste these credentials plus the region into Settings → Provider → Anthropic on Bedrock. Today, you can use them with a Bedrock-aware proxy of your own (or wait for the adapter).</li>
+    </ol>
+
+    <h3>Honest gotchas</h3>
+    <ul>
+      <li><strong>SigV4 request signing is non-trivial from a browser.</strong> AWS Bedrock requires every request to be signed with the user's access keys using SigV4. The brtlb adapter will use the <code>aws4</code> library or AWS SDK signing helpers — bundle weight is ~30KB minified+gzipped.</li>
+      <li><strong>Long-lived access keys in localStorage are weaker than the OpenAI API key pattern.</strong> They never rotate by default. For higher security, practices can stand up an AWS Cognito Identity Pool that mints short-lived temp credentials in the browser — adds setup complexity but eliminates the long-lived secret.</li>
+      <li><strong>Anthropic models on Bedrock lag api.anthropic.com by 2–6 weeks</strong> on new releases. Same lag situation as Vertex.</li>
+      <li><strong>Bedrock CORS behavior is not yet tested by brtlb</strong> — to be confirmed before the adapter ships.</li>
+    </ul>
+
+    <p><strong>Want this prioritized?</strong> Email <a href="mailto:michael@hobbs.md">michael@hobbs.md</a>. Bedrock adapter work is bigger than the Vertex Anthropic one (SigV4 plus bundle-size impact), so concrete demand from AWS-native practices materially changes the priority.</p>
+
+    <h2 id="why-not-proxy">Why not just add a brtlb-hosted Anthropic proxy?</h2>
+    <p>Considered and rejected. A brtlb-hosted thin proxy (one Vercel Edge Function that forwards transcripts to Anthropic) would be the easiest UX, but:</p>
+    <ol>
+      <li>It would put brtlb the entity in the data path for the first time, which would make brtlb a business associate of every user</li>
+      <li>Every user would need a brtlb-issued BAA in addition to their provider BAAs</li>
+      <li>It would void the "no backend in your data path" pitch that's the core architectural argument for brtlb</li>
+    </ol>
+    <p>The Vertex and Bedrock paths preserve the no-backend story by routing calls browser-direct to cloud-vendor endpoints the user already has a BAA with. That's the right trade.</p>
+
+    <h2 id="other-options">Other less-relevant options</h2>
+    <ul>
+      <li><strong>Anthropic direct API</strong> — blocked by CORS on BAA-enabled organizations. Works only after the native iOS shell ships (planned; Capacitor-wrapped) since native shells don't enforce CORS.</li>
+      <li><strong>User-hosted proxy</strong> (deploy your own Cloudflare Worker or Vercel Function pointing at api.anthropic.com) — works today, but Cloudflare/Vercel BAAs are Enterprise-tier-only, so this is only a legitimate path if you have one of those. Some practices' compliance officers accept pure-passthrough proxies as not subject to PHI-at-rest rules, but that's not legal advice.</li>
+    </ul>
+
+    <p style="margin-top: 2rem; font-size: 0.9375rem; color: var(--brtlb-graphite-soft);">
+      Last updated: 2026-05-27. brtlb is open source under AGPL-3.0. Source for this page lives in <code>apps/web-mvp/public/docs/advanced-providers.html</code> and the canonical version is at <code>docs/ADVANCED_PROVIDERS.md</code>.
+    </p>
+  </main>
+</body>
+</html>

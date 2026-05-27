@@ -14,7 +14,9 @@ import {
 } from '@brtlb/pipeline';
 
 const ANTHROPIC_MODELS = ['claude-sonnet-4-6', 'claude-opus-4-7', 'claude-haiku-4-5'];
-const OPENAI_MODELS = ['gpt-5', 'gpt-5.1', 'gpt-5-pro', 'gpt-4o', 'gpt-4o-mini'];
+// gpt-5-mini is the recommended default — matches the heavier models on
+// note quality in our pediatric-fixture eval, at roughly 1/6 the cost.
+const OPENAI_MODELS = ['gpt-5-mini', 'gpt-5', 'gpt-5.1', 'gpt-5-pro', 'gpt-4o', 'gpt-4o-mini'];
 // Starter list of recent Gemini models. The "List my models" button replaces
 // this with whatever the user's key actually has access to. Newer keys may
 // not surface 3.x in their listing — typing a model name into the field

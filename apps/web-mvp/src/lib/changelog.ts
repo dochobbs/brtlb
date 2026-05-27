@@ -12,6 +12,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ReadonlyArray<ChangelogEntry> = [
   {
+    date: '2026-05-27',
+    title: 'OpenAI GPT-5-mini is now the recommended provider',
+    items: [
+      "After a side-by-side eval across eight foundation models on the same synthetic pediatric fixtures, GPT-5-mini matched the heavier models on note quality at roughly 1/6 the cost (~$0.01 per visit vs. ~$0.06 for Claude Sonnet) with a paste-an-API-key BAA path through baa@openai.com. It's now the default for fresh installs.",
+      "If you're already running on Gemini, nothing changes — Gemini stays fully supported and your saved keys/settings are untouched. To try OpenAI instead: Settings → Provider → OpenAI-compatible → paste a key from platform.openai.com. (Email baa@openai.com first if your visits will include real PHI; they sign individual API BAAs, no Enterprise tier required.)",
+      "We also fixed a stale Gemini model default that Google retired on 2026-05-26; the new default uses the 3.1 successor, which our eval validated.",
+      'Anthropic Claude is available via two advanced setup paths (Google Vertex AI or AWS Bedrock) — see docs/advanced-providers for details. Direct browser-to-Anthropic still blocked by CORS; that path opens when the native iOS shell lands.',
+    ],
+  },
+  {
     date: '2026-05-26',
     title: 'Custom domain: brtlb.io',
     items: [

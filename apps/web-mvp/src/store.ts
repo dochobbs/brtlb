@@ -47,14 +47,23 @@ export interface CustomTemplate {
 }
 
 const DEFAULT_SETTINGS: Settings = {
-  provider: 'gemini-api-key',
+  // OpenAI GPT-5-mini was promoted to default 2026-05-27 after a local
+  // foundation-model bake-off (3 fixtures × 8 models × 2 runs, scored
+  // against pre-written pass criteria) showed it matches Claude Sonnet
+  // on quality at 1/6 the cost, with a paste-an-API-key BAA path
+  // (baa@openai.com) and no infrastructure changes. Gemini remains a
+  // fully-supported alternate; existing user settings persist via
+  // localStorage so this change only affects fresh installs.
+  provider: 'openai-compatible',
   anthropicApiKey: '',
   anthropicModel: 'claude-sonnet-4-6',
   openaiApiKey: '',
   openaiBaseUrl: '',
-  openaiModel: 'gpt-4o',
+  openaiModel: 'gpt-5-mini',
   geminiApiKey: '',
-  geminiModel: 'gemini-3-pro-preview',
+  // gemini-3-pro-preview was retired by Google's API on 2026-05-26; the
+  // 3.1 successor is the live model and what our bake-off validated.
+  geminiModel: 'gemini-3.1-pro-preview',
   assemblyAiKey: '',
   audioPurgeDays: 7,
   idleLockMinutes: 5,

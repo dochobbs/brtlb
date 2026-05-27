@@ -21,7 +21,7 @@ Tap one button. Speak with your patient. Get a SOAP-style note in ~30 seconds. P
 - **Diarization-first ambient capture** — separates clinician, parent(s), and child(ren) on a single mic, with multi-patient splitting for sibling visits.
 - **Pediatric-tuned** — 9 visit-type templates (WCV, sick visit, ADHD, behavioral, developmental eval, med check, sports physical, lactation, mental health). Pediatric vocabulary throughout ("acute otitis media," not "ear infection").
 - **Long-visit ready** — up to 90 minutes of transcription per visit. Chunked save to IndexedDB so a tab crash mid-recording doesn't lose audio. Chapter markers for visits ≥30 min.
-- **BYO keys, BYO BAAs** — AssemblyAI for transcription, Google Gemini (default) / OpenAI / Azure for note generation. Your keys live in your browser's localStorage; brtlb never sees them.
+- **BYO keys, BYO BAAs** — AssemblyAI for transcription; **OpenAI GPT-5-mini** is the recommended default for notes (matched the heavier models in our pediatric-fixture eval at ~1/6 the cost). Google Gemini and Azure OpenAI work too; Claude Sonnet is available via [advanced setup](docs/ADVANCED_PROVIDERS.md) on Vertex or Bedrock. Your keys live in your browser's localStorage; brtlb never sees them.
 - **No backend in your data path** — audio goes browser → AssemblyAI directly; transcript goes browser → your LLM directly. brtlb has no server holding PHI. Vercel hosts static app code only.
 - **Auto-delete on completion** — after pulling the transcript, brtlb fires `DELETE /v2/transcript/{id}` so AssemblyAI's vendor-side retention drops from days to seconds.
 - **PWA** — installable on iOS, Android, and desktop. Same code path everywhere. Works offline once loaded (you still need network for STT + LLM calls).
@@ -29,10 +29,16 @@ Tap one button. Speak with your patient. Get a SOAP-style note in ~30 seconds. P
 ## Quick start (users)
 
 1. Open **https://brtlb.io**.
-2. Run the **onboarding wizard** when prompted — it walks you through getting an AssemblyAI key, a Google Gemini key, and **live-verifies both** (real auth check + a generate-content probe) before your first visit. ~5 minutes.
+2. Get two keys (~5 minutes):
+   - **AssemblyAI** at assemblyai.com (sign their BAA via DocuSign, copy the key)
+   - **One LLM provider key** — your choice:
+     - **OpenAI** (recommended) — paste from [platform.openai.com](https://platform.openai.com). For real PHI, email `baa@openai.com` first to get an individual API BAA — no Enterprise tier required.
+     - **Google Gemini** — paste from [AI Studio](https://aistudio.google.com). Covered by your Workspace HIPAA BAA when the key is from a billing-enabled Cloud project.
 3. Tap **Record visit**.
 
-For the HIPAA/BAA path most practices want, see [`docs/BAAs.md`](docs/BAAs.md). For the manual key walkthrough, see [`docs/SETUP.md`](docs/SETUP.md). For the full feature tour, see [`docs/USING_BRTLB.md`](docs/USING_BRTLB.md) or the [docs site](https://brtlb.io/docs).
+For the HIPAA/BAA decision tree, see [`docs/BAAs.md`](docs/BAAs.md). For Claude Sonnet via Vertex AI or AWS Bedrock, see [`docs/ADVANCED_PROVIDERS.md`](docs/ADVANCED_PROVIDERS.md). For the manual key walkthrough, see [`docs/SETUP.md`](docs/SETUP.md). For the full feature tour, see [`docs/USING_BRTLB.md`](docs/USING_BRTLB.md) or the [docs site](https://brtlb.io/docs).
+
+> **Note for the wizard:** the in-app onboarding wizard currently walks through the Gemini path only (rebuild planned). If you'd rather use OpenAI today, skip the wizard and paste your key via Settings → Provider → OpenAI-compatible.
 
 ## Quick start (developers)
 
@@ -77,6 +83,7 @@ Deeper design docs live in [`docs/`](docs/) — see the table below.
 | ------------------------------------- | ---------------------------------------------------------------------- |
 | [`docs/SETUP.md`](docs/SETUP.md)                                       | Manual key setup walkthrough (wizard alternative).                      |
 | [`docs/BAAs.md`](docs/BAAs.md)                                         | HIPAA / Business Associate Agreement decision tree.                     |
+| [`docs/ADVANCED_PROVIDERS.md`](docs/ADVANCED_PROVIDERS.md)             | Anthropic Claude via Google Vertex AI or AWS Bedrock.                   |
 | [`docs/USING_BRTLB.md`](docs/USING_BRTLB.md)                           | Full feature tour, in the order you'll discover them.                   |
 | [`docs/failure-modes.md`](docs/failure-modes.md)                       | Catalog of failure scenarios + remediation status.                      |
 | [`docs/personalization-pipeline.md`](docs/personalization-pipeline.md) | How visit-type templates and personalization compose.                   |

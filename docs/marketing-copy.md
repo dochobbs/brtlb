@@ -24,8 +24,10 @@ listed as live. If anything looks generic or hyped, flag it.
 ### Single-CTA section
 
 > **Try it free at brtlb.io.**
-> Bring your own AssemblyAI and Google Gemini keys (we'll walk you through
-> getting them) and you're documenting visits in five minutes.
+> Bring your own AssemblyAI key plus one LLM key (OpenAI recommended;
+> Google Gemini works equally well — pick whichever has less BAA
+> friction for your practice). Five minutes from key paste to first
+> note.
 
 ---
 
@@ -63,10 +65,12 @@ Most AI scribes route your patient audio through their servers, hold it in
 their database, run their pipelines, and ask you to trust their BAA.
 
 **brtlb has no servers.** It's a static web app. Your audio uploads
-directly from your browser to AssemblyAI (under your AssemblyAI BAA) and
-the transcript text goes directly from your browser to Google Gemini
-(under your Google Workspace HIPAA BAA). brtlb the company is never in
-the data path. Neither is Vercel, the host that serves the static code.
+directly from your browser to AssemblyAI (under your AssemblyAI BAA)
+and the transcript text goes directly from your browser to your chosen
+LLM provider (OpenAI under an individual API BAA via baa@openai.com,
+or Google Gemini under your Google Workspace HIPAA BAA, or one of the
+advanced paths for Claude Sonnet). brtlb the company is never in the
+data path. Neither is Vercel, the host that serves the static code.
 
 This means:
 - **No "trust us with your PHI"** because we never have it.
@@ -177,13 +181,16 @@ exactly. No silent failures, no "wait, did that save?"
 - **Clear clipboard** button — wipes PHI from the OS clipboard after
   pasting into your EHR.
 
-### 7. Costs ~$0.20 per visit, no markup
+### 7. Costs ~$0.13–0.20 per visit, no markup
 
 brtlb itself is free. You pay your vendors directly:
 
-- AssemblyAI transcription: ~$0.16 per 15-min visit
-- Google Gemini note generation: <$0.01 per visit
-- **Total per visit: ~$0.17–0.20**
+- AssemblyAI transcription: ~$0.12 per 15-min visit
+- LLM note generation:
+  - OpenAI GPT-5-mini (default): ~$0.01 per visit
+  - Google Gemini 3.1 Pro: ~$0.02 per visit
+  - Claude Sonnet via Vertex / Bedrock: ~$0.06 per visit
+- **Total per visit: ~$0.13 on the default; up to ~$0.20 on Claude**
 
 For comparison: Heidi at $99/month is roughly $0.50/visit if you do
 200/month. Abridge enterprise is $300+/month. brtlb is the cost of
@@ -266,9 +273,11 @@ vendor's continued existence to keep documenting visits.
 
 ### Setup + onboarding
 
-- **Guided wizard** — first-run flow walks through getting an AssemblyAI
-  key and a Google Gemini key, with live verification of each before
-  letting you advance
+- **Guided wizard (Gemini path today; OpenAI walk-through in progress)** —
+  first-run flow walks through getting an AssemblyAI key and a Google
+  Gemini key, with live verification of each before letting you advance.
+  OpenAI users currently skip the wizard and paste a key via Settings;
+  wizard rebuild planned
 - **Auto-detection of Workspace org-policy blocks** — when iOS Studio
   shows "API Keys are Disallowed," the wizard surfaces the admin
   override path inline with deep links to GCP IAM and Org Policies
@@ -321,20 +330,26 @@ not a HIPAA-covered entity itself. Compliance comes from the vendors in
 your data path having BAAs:
 
 - **AssemblyAI**: free 5-minute DocuSign BAA
-- **Google Gemini**: covered by your Google Workspace HIPAA BAA when the
-  key comes from a billing-enabled Cloud project
+- **OpenAI (recommended)**: email `baa@openai.com` for an individual
+  API customer BAA — no Enterprise tier required, 1–3 business days
+- **Google Gemini (alternate)**: covered by your Google Workspace
+  HIPAA BAA when the key comes from a billing-enabled Cloud project
 
 brtlb itself never holds your PHI — there's no brtlb cloud — so there's
 no brtlb BAA to sign. The legal architecture is: your existing BAAs cover
 the data flow, brtlb is just code running in your browser.
 
-Full BAA decision tree at `docs/BAAs.md`.
+Full BAA decision tree at `docs/BAAs.md`. For Claude Sonnet on Google
+Vertex AI or AWS Bedrock, see `docs/ADVANCED_PROVIDERS.md`.
 
-### What if I don't use Google Workspace?
+### Which provider should I pick?
 
-Use OpenAI Enterprise or Azure OpenAI. Both have HIPAA BAAs. The Settings
-panel has an "OpenAI-compatible" provider — paste your key, set the base
-URL if you're on Azure, done.
+The default is OpenAI GPT-5-mini. It matched the heavier models on
+note quality in our pediatric-fixture eval at ~1/6 the cost, with the
+easiest BAA path. Gemini 3.1 Pro is a fully-supported alternate —
+pick it if you're already on Workspace and have your GCP HIPAA BAA
+accepted. For Claude Sonnet (marginally higher quality on the hardest
+cases at higher cost and setup friction), see `ADVANCED_PROVIDERS.md`.
 
 ### Can I use brtlb with Anthropic / Claude?
 

@@ -1,51 +1,57 @@
 # Setting up brtlb
 
 brtlb runs entirely in your browser. You bring two keys: one for
-**transcription** (AssemblyAI) and one for **note generation** (Google
-Gemini is the default; OpenAI also supported). Keys live only in your
-browser's localStorage — they never leave your device.
+**transcription** (AssemblyAI) and one for **note generation** (OpenAI
+GPT-5-mini is the recommended default; Google Gemini works equally
+well). Keys live only in your browser's localStorage — they never
+leave your device.
 
-## Easy path: the in-app wizard
+## In-app wizard (Gemini path only, today)
 
 Open https://brtlb.io — if you don't have keys saved yet, the
-**onboarding wizard** opens automatically. It walks you through:
+**onboarding wizard** opens automatically with the Gemini setup walk.
+It live-verifies both keys before your first visit and handles the
+Workspace org-policy edge case inline.
 
-1. AssemblyAI signup → key paste → **live verify** (real auth check)
-2. AI Studio → key paste → **live generate-content probe** with the
-   model you'll actually use (catches billing-not-linked + stale-model
-   issues before your first visit)
+> **Re-recommendation as of 2026-05-27:** OpenAI GPT-5-mini is now
+> the recommended default for new installs (matches the heavier models
+> on note quality at ~1/6 the cost). The wizard's OpenAI walkthrough
+> is in progress — until it ships, OpenAI users should skip the wizard
+> and use the manual walkthrough below to paste an OpenAI key via
+> Settings.
 
-Each step has a "Where exactly is the key?" / "Walk me through it"
-collapsible with specific UI directions. If your Workspace blocks API
-key creation by org policy, the wizard auto-detects it and shows the
-admin override path inline. Most users complete the wizard in ~5
-minutes.
-
-Re-run any time: Settings → **Run setup wizard**.
-
-The rest of this doc is the manual walkthrough for users who'd rather
-read along, or for the small percentage who hit something the wizard
-doesn't cover.
+Re-run the wizard any time: Settings → **Run setup wizard**.
 
 ## Manual walkthrough
 
-**The default stack** for most pediatric practices, who already run on
-Google Workspace and have a Google HIPAA BAA:
+Two equally-supported stacks:
+
+**Stack A — OpenAI (recommended default).** Lowest-friction for solo
+and small-group DPC. Browser-native, individual API BAA via email.
 
 | Component | Vendor |
 |---|---|
 | Transcription | AssemblyAI (sign their BAA, ~5 min) |
+| Note generation | OpenAI GPT-5-mini via an API key from platform.openai.com — BAA via baa@openai.com |
+
+**Stack B — Google Gemini.** Shortest path if your practice is already
+on Workspace with the GCP HIPAA BAA accepted.
+
+| Component | Vendor |
+|---|---|
+| Transcription | AssemblyAI (same as Stack A) |
 | Note generation | Google Gemini, key from your Google Cloud project |
 
-If your practice instead has OpenAI Enterprise or Azure OpenAI, those
-are equally good — see step 3.
+For Claude Sonnet on Vertex AI or AWS Bedrock, see
+[`ADVANCED_PROVIDERS.md`](ADVANCED_PROVIDERS.md). For the full BAA
+decision tree, see [`BAAs.md`](BAAs.md).
 
 You'll need:
 - A computer or phone with a modern browser
-- About **15 minutes** for first-time setup (or ~5 min via the wizard)
-- Billing on your Google Cloud project (or OpenAI account) — required;
-  generation will fail if the project doesn't have billing linked
-- brtlb costs ~$0.20 per 30-minute visit end-to-end
+- About **15 minutes** for first-time setup
+- Billing linked on whichever provider account you choose
+- brtlb costs roughly **$0.13 to $0.20 per 30-minute visit end-to-end**
+  depending on provider (~$0.12 STT + $0.01 to $0.08 LLM)
 
 ---
 
@@ -74,9 +80,45 @@ their current pricing page for exact numbers.
 
 ---
 
-## 2. Get your Google Gemini key — *the recommended path*
+## 2A. Get your OpenAI key — *recommended default*
 
-The default for users already on Google Workspace.
+OpenAI GPT-5-mini turns the transcript into a structured SOAP note.
+Lowest-friction setup for solo / small DPC practices.
+
+### Steps
+
+1. **Request the BAA first** (only for real PHI). Email `baa@openai.com`
+   from the email that will own the OpenAI account. A two-sentence
+   note works:
+
+   > "Requesting an API-customer Business Associate Agreement for my
+   > pediatric direct primary care practice. We'll use the OpenAI API
+   > with GPT-5-mini for clinical-note generation. No Enterprise tier
+   > required."
+
+   Turnaround is typically 1–3 business days. You don't have to wait
+   for the BAA to test with non-PHI synthetic transcripts; just don't
+   record real patients until it's countersigned.
+
+2. **Create your account + key.** Go to **https://platform.openai.com**,
+   sign in (or sign up). Add billing details if you haven't already.
+   Then **API keys → Create new secret key**. Copy the `sk-...` key.
+
+3. **Paste into brtlb Settings → Provider → OpenAI-compatible.** Leave
+   Base URL blank (defaults to api.openai.com). Pick `gpt-5-mini` from
+   the model dropdown — the recommended default.
+
+### Cost
+
+GPT-5-mini runs ~**$0.01 per visit** (15-min ambient encounter). One of
+the cheapest provider options. GPT-5 (the full model) is ~$0.04 per
+visit — pick from the same dropdown if you want maximum quality.
+
+---
+
+## 2B. Get your Google Gemini key — alternate path
+
+The shortest path for users already on Google Workspace.
 
 **Before getting the API key, confirm your Google HIPAA BAA is accepted:**
 - admin.google.com → Account → Legal & compliance → HIPAA agreement
@@ -129,22 +171,20 @@ Google Cloud organization policy needs adjusting. As an admin:
 For the BAA decision tree, see `docs/BAAs.md`. Short version: if your
 Workspace HIPAA BAA is accepted and the key comes from a billing-enabled
 Cloud project, the practical industry consensus is that the Gemini API
-is covered. Vertex AI is the unambiguously-named alternative if you
-want zero ambiguity (adapter scaffold exists but isn't yet wired into
-the browser pipeline).
+is covered. For Claude Sonnet on Vertex AI, see `ADVANCED_PROVIDERS.md`.
 
 ### Cost
 
-Gemini Flash models are cheap — typically less than a cent per visit.
-Google offers a generous free tier; you may not see any charges for
-the beta.
+Gemini 3.1 Pro runs ~**$0.02 per visit** — cheap. Google offers a
+generous free tier; you may not see any charges while you're testing.
 
 ---
 
-## 3. Alternative — OpenAI key
+## 3. Alternative — OpenAI Enterprise / Azure OpenAI
 
-If your practice has OpenAI Enterprise or Azure OpenAI instead of (or
-alongside) Google, this works too. Pick whichever you have a BAA on.
+If your practice already runs on OpenAI Enterprise or Azure OpenAI (and
+you don't want to set up a second account for the individual API BAA
+path in 2A), both work with brtlb's existing OpenAI-compatible adapter.
 
 ### Option A — OpenAI Enterprise
 
@@ -159,7 +199,7 @@ alongside) Google, this works too. Pick whichever you have a BAA on.
 ### Option B — Azure OpenAI
 
 1. In your Azure portal, create an "Azure OpenAI" resource.
-2. Provision a model deployment (e.g., `gpt-4o`).
+2. Provision a model deployment (e.g., `gpt-5-mini`).
 3. Copy the **endpoint URL** and the **API key** from the resource's
    "Keys and Endpoint" pane.
 4. The Microsoft Azure Online Services agreement already includes the
@@ -170,9 +210,13 @@ alongside) Google, this works too. Pick whichever you have a BAA on.
    - **API key:** the Azure key
    - Save.
 
+### Option C — Anthropic Claude (Vertex or Bedrock)
+
+See [`ADVANCED_PROVIDERS.md`](ADVANCED_PROVIDERS.md).
+
 ### Cost
 
-GPT-4o on either runs roughly 2-5 cents per visit depending on length.
+GPT-5-mini ~$0.01/visit; GPT-5 ~$0.04/visit; Azure GPT-4o ~$0.02-0.05.
 
 
 ---
@@ -182,10 +226,10 @@ GPT-4o on either runs roughly 2-5 cents per visit depending on length.
 1. Go to **https://brtlb.io** (or whatever URL the brtlb operator
    gave you)
 2. Tap **Settings** in the top right
-3. Pick a provider — **Gemini** or **OpenAI-compatible**
+3. Pick a provider — **OpenAI-compatible** (recommended) or **Gemini**
 4. Paste your keys into the right fields:
    - AssemblyAI API key
-   - Gemini API key (or OpenAI API key)
+   - OpenAI API key (or Gemini API key)
 5. Click **Test connection** — should return "OK". If it fails, copy
    the error message — usually points at a wrong model name or a
    restricted key.

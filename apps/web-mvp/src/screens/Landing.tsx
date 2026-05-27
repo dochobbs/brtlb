@@ -866,11 +866,12 @@ export function Landing() {
                     copy the key from your dashboard. You pay them ~$0.12 per visit.
                   </li>
                   <li>
-                    <strong>Google Gemini</strong> (via Google AI Studio or your Workspace) — turns
-                    the transcript into a structured SOAP note using brtlb's pediatric templates.
-                    If you have Google Workspace, you already have a BAA covering Gemini;
-                    otherwise you'll need to sign Google's HIPAA addendum. You pay them ~$0.08 per
-                    visit.
+                    <strong>One LLM provider key</strong> — your choice. Default is OpenAI
+                    GPT-5-mini (~$0.01 per visit; matched the heavier models on note quality in
+                    our pediatric-fixture eval). Google Gemini 3.1 Pro is an equally-supported
+                    alternate (~$0.02 per visit) if you're already on Google Workspace. Claude
+                    Sonnet is available via Vertex AI or AWS Bedrock for practices that want it
+                    — see the docs.
                   </li>
                 </ul>
                 <p>
@@ -893,8 +894,13 @@ export function Landing() {
                     <strong>AssemblyAI:</strong> free 5-minute DocuSign BAA
                   </li>
                   <li>
-                    <strong>Google Gemini:</strong> covered by your Google Workspace HIPAA BAA when
-                    the key comes from a billing-enabled Cloud project
+                    <strong>OpenAI (recommended):</strong> email{' '}
+                    <code>baa@openai.com</code> for an individual API customer BAA — no
+                    Enterprise tier required, 1–3 business days
+                  </li>
+                  <li>
+                    <strong>Google Gemini (alternate):</strong> covered by your Google Workspace
+                    HIPAA BAA when the key comes from a billing-enabled Cloud project
                   </li>
                 </ul>
                 <p>
@@ -905,41 +911,43 @@ export function Landing() {
               </div>
             </details>
             <details>
-              <summary>What if I don't use Google Workspace?</summary>
+              <summary>Which provider should I pick?</summary>
               <div className="faq-body">
-                <p>Two realistic paths for a solo or small-practice doc:</p>
-                <ul>
-                  <li>
-                    <strong>OpenAI direct + individual BAA.</strong> Email{' '}
-                    <code>baa@openai.com</code> — they'll sign a BAA with you as an individual API
-                    customer; no Enterprise tier required. Once countersigned, grab your key from
-                    <code> platform.openai.com</code> and paste it into Settings →
-                    OpenAI-compatible. Usually 1–3 business days.
-                  </li>
-                  <li>
-                    <strong>Azure OpenAI.</strong> If you (or your practice) already have an Azure
-                    account, Azure OpenAI is BAA-covered under your Microsoft customer agreement.
-                    Same Settings → OpenAI-compatible adapter — just set the base URL to your
-                    Azure endpoint.
-                  </li>
-                  <li>
-                    <strong>AWS Bedrock</strong> is on the roadmap (plenty of DPC practices have
-                    an AWS BAA already). Bedrock's API isn't OpenAI-compatible out of the box, so
-                    today you'd point brtlb at a tiny Bedrock→OpenAI proxy; a native Bedrock
-                    adapter is planned.
-                  </li>
-                </ul>
+                <p>
+                  The default is <strong>OpenAI GPT-5-mini</strong>. It matched the heavier models
+                  (Claude Sonnet, GPT-5, Gemini 3.1 Pro) on note quality in our 48-note
+                  pediatric-fixture eval, at roughly 1/6 the cost. The BAA path is also the
+                  lowest-friction one: email <code>baa@openai.com</code>, get a 1-page individual
+                  API BAA back in 1–3 business days, paste your key.
+                </p>
+                <p>
+                  <strong>Google Gemini 3.1 Pro</strong> is a fully-supported alternate. Pick it
+                  if you're already on Google Workspace with the HIPAA BAA accepted — the GCP
+                  path may have less friction for practices already invested in Workspace.
+                </p>
+                <p>
+                  <strong>Claude Sonnet</strong> wins by a small margin on the hardest fixtures
+                  (behavioral health, deliberation-heavy decisions), but the setup is heavier —
+                  see <a href="/docs/advanced-providers.html">Advanced Providers</a> for Google
+                  Vertex AI and AWS Bedrock paths.
+                </p>
               </div>
             </details>
             <details>
-              <summary>Can I use brtlb with Anthropic / Claude?</summary>
+              <summary>Can I use brtlb with Anthropic / Claude direct?</summary>
               <div className="faq-body">
                 <p>
-                  Currently no. Anthropic Enterprise/BAA accounts block browser CORS requests as
-                  part of their custom-retention security model, which makes direct
-                  browser-to-Claude calls impossible. We've kept the Anthropic adapter in the
-                  codebase for when this changes (or for a future native shell that could relay),
-                  but it's hidden from the picker today.
+                  Not direct (yet). Anthropic Enterprise/BAA accounts block browser CORS requests
+                  as part of their custom-retention security model, which makes direct
+                  browser-to-Claude calls impossible. The Anthropic adapter is in the codebase
+                  for when this changes (or for the future native iOS shell that bypasses CORS),
+                  but the direct provider is hidden from the picker today.
+                </p>
+                <p>
+                  Two browser-direct workarounds work today: <strong>Claude on Google Vertex AI</strong>{' '}
+                  (covered by your existing Google Workspace HIPAA BAA) and <strong>Claude on
+                  AWS Bedrock</strong> (covered by your AWS BAA). Setup for both is documented at{' '}
+                  <a href="/docs/advanced-providers.html">/docs/advanced-providers</a>.
                 </p>
               </div>
             </details>
@@ -1053,6 +1061,7 @@ export function Landing() {
               <a href="/docs/customize.html">Customize</a>
               <a href="/docs/troubleshoot.html">Troubleshooting</a>
               <a href="/docs/faq.html">FAQ (full)</a>
+              <a href="/docs/advanced-providers.html">Advanced providers</a>
             </div>
             <div className="footer-col">
               <p className="footer-col-head">Read more</p>
