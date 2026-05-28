@@ -71,9 +71,12 @@ eval-fixtures/*
 !eval-fixtures/synthetic-*/**
 !eval-fixtures/run_eval.py
 !eval-fixtures/run_sibling_eval.py
+!eval-fixtures/run_model_bakeoff.py
 !eval-fixtures/README.md
 eval-fixtures/__pycache__/
-# Per-run A/B output artifacts. Kept locally for comparison, never
-# committed — they're regenerable from the transcripts + eval harness.
+# Per-run A/B + bake-off output artifacts. Kept locally for
+# comparison, never committed — they're regenerable from the
+# transcripts + eval harness.
 eval-fixtures/synthetic-*/note.ab*.md
+eval-fixtures/synthetic-*/note.bakeoff*.md
 
